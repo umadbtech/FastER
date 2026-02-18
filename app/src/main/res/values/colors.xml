@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand Colors -->
+    <color name="navy_blue">#0B1A4A</color>
+    <color name="navy_blue_dark">#050D25</color>
+    <color name="navy_blue_light">#1A3A8A</color>
+
+    <color name="emergency_red">#FF1E1E</color>
+    <color name="emergency_red_dark">#CC0000</color>
+    <color name="emergency_red_light">#FF4C4C</color>
+
+    <!-- Neutrals -->
+    <color name="black">#000000</color>
+    <color name="white">#FFFFFF</color>
+    <color name="dark_surface">#121212</color>
+    <color name="grey_800">#424242</color>
+    <color name="grey_400">#BDBDBD</color>
+
+    <!-- Functional Colors -->
+    <color name="success_green">#16A34A</color>
+    <color name="warning_amber">#FFC107</color>
+</resources>

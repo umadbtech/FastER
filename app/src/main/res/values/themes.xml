@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.FastER" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Primary Brand Color (Navy Blue) -->
+        <item name="colorPrimary">@color/navy_blue</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorPrimaryContainer">@color/navy_blue_dark</item>
+        <item name="colorOnPrimaryContainer">@color/white</item>
+
+        <!-- Secondary Brand Color (Emergency Red) -->
+        <item name="colorSecondary">@color/emergency_red</item>
+        <item name="colorOnSecondary">@color/white</item>
+        <item name="colorSecondaryContainer">@color/emergency_red_light</item>
+        <item name="colorOnSecondaryContainer">@color/white</item>
+
+        <!-- Background & Surface (Dark/Black) -->
+        <item name="android:colorBackground">@color/black</item>
+        <item name="colorOnBackground">@color/white</item>
+        <item name="colorSurface">@color/dark_surface</item>
+        <item name="colorOnSurface">@color/white</item>
+        <item name="colorSurfaceVariant">@color/navy_blue_dark</item>
+        <item name="colorOnSurfaceVariant">@color/grey_400</item>
+        <item name="colorOutline">@color/grey_800</item>
+
+        <!-- Status Bar -->
+        <item name="android:statusBarColor">@color/black</item>
+        <item name="android:windowLightStatusBar">false</item>
+
+        <!-- Error -->
+        <item name="colorError">@color/emergency_red</item>
+        <item name="colorOnError">@color/white</item>
+    </style>
+</resources>
