@@ -42,6 +42,14 @@ class EncryptedSessionManager(context: Context) {
         return sharedPreferences.getString(KEY_USER_EMAIL, null)
     }
 
+    fun saveUserPhone(phone: String) {
+        sharedPreferences.edit().putString(KEY_USER_PHONE, phone).apply()
+    }
+
+    fun getUserPhone(): String? {
+        return sharedPreferences.getString(KEY_USER_PHONE, null)
+    }
+
     fun saveUserID(userId: String) {
         sharedPreferences.edit().putString(KEY_USER_ID, userId).apply()
     }
@@ -66,6 +74,7 @@ class EncryptedSessionManager(context: Context) {
         private const val KEY_ACCESS_TOKEN = "access_token"
         private const val KEY_REFRESH_TOKEN = "refresh_token"
         private const val KEY_USER_EMAIL = "user_email"
+        private const val KEY_USER_PHONE = "user_phone"
         private const val KEY_USER_ID = "user_id"
         private const val KEY_IS_2FA_ENABLED = "is_2fa_enabled"
         private const val KEY_IS_EMAIL_VERIFIED = "is_email_verified"

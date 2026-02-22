@@ -23,7 +23,8 @@ import com.faster.festival.di.NetworkModule
 import com.faster.festival.ui.navigation.NavGraph
 import com.faster.festival.ui.navigation.Routes
 import com.faster.festival.ui.theme.FastERTheme
-import com.faster.festival.utils.DeepLinkHandler
+import androidx.compose.ui.res.stringResource
+import com.faster.festival.R
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,15 +37,11 @@ class MainActivity : ComponentActivity() {
         val sessionManager = EncryptedSessionManager(applicationContext)
         val authRepository = AuthRepository(NetworkModule.authApiService, sessionManager)
 
-        // Handle deep link from intent
-        val deepLinkUri = intent?.data
-
         setContent {
             FastERTheme {
                 FastERApp(
                     authRepository = authRepository,
-                    sessionManager = sessionManager,
-                    deepLinkUri = deepLinkUri
+                    sessionManager = sessionManager
                 )
             }
         }
@@ -54,8 +51,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun FastERApp(
     authRepository: AuthRepository,
-    sessionManager: EncryptedSessionManager,
-    deepLinkUri: android.net.Uri? = null
+    sessionManager: EncryptedSessionManager
 ) {
     val navController = rememberNavController()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
@@ -63,25 +59,6 @@ fun FastERApp(
 
     val mainViewModel: MainViewModel = viewModel(factory = MainViewModel.Factory(sessionManager))
     val startDestination by mainViewModel.startDestination.collectAsState()
-
-    LaunchedEffect(deepLinkUri) {
-        if (deepLinkUri != null && DeepLinkHandler.isAuthCallback(deepLinkUri)) {
-            val callbackData = DeepLinkHandler.parseAuthCallback(deepLinkUri)
-            if (callbackData.error != null) {
-                // Error in magic link, go back to signup
-                navController.navigate(Routes.SIGNUP) {
-                    popUpTo(Routes.SPLASH) { inclusive = true }
-                }
-            } else if (callbackData.accessToken != null && callbackData.refreshToken != null) {
-                // Navigate to auth callback handler route
-                navController.navigate(
-                    "auth_callback/${callbackData.accessToken}/${callbackData.refreshToken}"
-                ) {
-                    popUpTo(Routes.SPLASH) { inclusive = true }
-                }
-            }
-        }
-    }
 
     if (startDestination == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -139,16 +116,16 @@ fun FastERBottomNavBar(
     ) {
         // Home
         NavigationBarItem(
-                icon = { Icon(imageVector = Icons.Default.Home, contentDescription = "Home") },
-                label = { Text("Home") },
+                icon = { Icon(imageVector = Icons.Default.Home, contentDescription = stringResource(id = R.string.home)) },
+                label = { Text(stringResource(id = R.string.home)) },
                 selected = currentRoute == Routes.HOME,
                 onClick = { onNavigate(Routes.HOME) }
         )
 
         // Map
         NavigationBarItem(
-                icon = { Icon(imageVector = Icons.Default.Map, contentDescription = "Map") },
-                label = { Text("Map") },
+                icon = { Icon(imageVector = Icons.Default.Map, contentDescription = stringResource(id = R.string.map)) },
+                label = { Text(stringResource(id = R.string.map)) },
                 selected = currentRoute == Routes.MAP,
                 onClick = { onNavigate(Routes.MAP) }
         )
@@ -158,7 +135,7 @@ fun FastERBottomNavBar(
                 icon = {
                     Icon(imageVector = Icons.Default.DateRange, contentDescription = "Schedule")
                 },
-                label = { Text("Schedule") },
+                label = { Text(stringResource(id = R.string.schedule)) },
                 selected = currentRoute == Routes.SCHEDULE,
                 onClick = { onNavigate(Routes.SCHEDULE) }
         )
@@ -166,7 +143,7 @@ fun FastERBottomNavBar(
         // Profile
         NavigationBarItem(
                 icon = { Icon(imageVector = Icons.Default.Person, contentDescription = "Profile") },
-                label = { Text("Profile") },
+                label = { Text(stringResource(id = R.string.profile)) },
                 selected = currentRoute == Routes.PROFILE,
                 onClick = { onNavigate(Routes.PROFILE) }
         )

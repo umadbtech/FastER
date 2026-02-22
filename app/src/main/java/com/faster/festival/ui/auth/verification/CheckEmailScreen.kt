@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,45 +32,57 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.faster.festival.data.local.EncryptedSessionManager
 import com.faster.festival.di.NetworkModule
+import kotlinx.coroutines.delay
 
 @Composable
 fun CheckEmailScreen(
     email: String,
     sessionManager: EncryptedSessionManager,
-    onResendEmail: () -> Unit = {},
+    onNavigateToEnterCode: (String) -> Unit = {},
     onSkip: () -> Unit = {},
-    onVerificationComplete: () -> Unit = {},
-    viewModel: EmailVerificationViewModel = viewModel(
-        factory = EmailVerificationViewModel.Factory(
-            supabaseClient = NetworkModule.supabaseClient,
-            sessionManager = sessionManager
+    onVerificationComplete: () -> Unit = {}
+) {
+    val viewModel: OtpViewModel = viewModel(
+        factory = OtpViewModel.Factory(
+            authRepository = com.faster.festival.data.repository.AuthRepository(
+                authApiService = NetworkModule.authApiService,
+                sessionManager = sessionManager
+            )
         )
     )
-) {
-    val snackbarHostState = remember { SnackbarHostState() }
-    val verificationState by viewModel.verificationState.collectAsState()
 
-    // Handle verification events
-    LaunchedEffect(verificationState) {
-        when (verificationState) {
-            is VerificationUiState.Verified -> {
-                // Email verified successfully - navigate to home
-                onVerificationComplete()
+    val snackbarHostState = remember { SnackbarHostState() }
+    // Use the new ViewModel UI state
+    val uiState by viewModel.uiState.collectAsState()
+    val resendCooldown = uiState.resendCooldown
+
+    // Send OTP on first composition
+    LaunchedEffect(Unit) {
+        viewModel.sendOtp(email)
+    }
+
+    // Poll session manager for email confirmation and call callback once when confirmed
+    LaunchedEffect(sessionManager) {
+        // If already confirmed, trigger immediately
+        if (sessionManager.isEmailConfirmed()) {
+            onVerificationComplete()
+        } else {
+            while (true) {
+                delay(1000)
+                try {
+                    if (sessionManager.isEmailConfirmed()) {
+                        onVerificationComplete()
+                        break
+                    }
+                } catch (_: Exception) {
+                    // ignore transient errors reading session
+                }
             }
-            is VerificationUiState.Error -> {
-                val errorMessage = (verificationState as VerificationUiState.Error).message
-                snackbarHostState.showSnackbar(errorMessage)
-            }
-            else -> {} // Idle or Listening states don't require action
         }
     }
 
     Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             // Skip button in top left corner
             IconButton(
                 onClick = onSkip,
@@ -84,7 +97,6 @@ fun CheckEmailScreen(
                 )
             }
 
-            // Main content centered
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -100,7 +112,7 @@ fun CheckEmailScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "We've sent a confirmation link to",
+                    text = "We've sent a 6-digit verification code to",
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.bodyMedium
                 )
@@ -117,33 +129,11 @@ fun CheckEmailScreen(
                 Spacer(modifier = Modifier.height(32.dp))
 
                 Text(
-                    text = "Click the link in the email to verify your account and complete signup.",
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-
-                Spacer(modifier = Modifier.height(48.dp))
-
-                OutlinedButton(
-                    onClick = onResendEmail,
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = verificationState !is VerificationUiState.Verified
-                ) {
-                    Text("Resend Email")
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Show different text based on verification state
-                val statusText = when (verificationState) {
-                    is VerificationUiState.Listening -> "Listening for email verification..."
-                    is VerificationUiState.Verified -> "Email verified! Redirecting..."
-                    is VerificationUiState.Error -> "Waiting for confirmation..."
-                    else -> "Waiting for email confirmation..."
-                }
-
-                Text(
-                    text = statusText,
+                    text = when {
+                        uiState.isLoading -> "Processing..."
+                        uiState.error != null -> uiState.error ?: "Error sending code"
+                        else -> "Waiting to send code..."
+                    },
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.secondary
@@ -151,9 +141,25 @@ fun CheckEmailScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                CircularProgressIndicator(
-                    modifier = Modifier.then(Modifier.height(40.dp))
-                )
+                if (uiState.isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.height(40.dp))
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Button(onClick = { onNavigateToEnterCode(email) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Enter Code")
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedButton(onClick = { viewModel.resendOtp(email) }, modifier = Modifier.fillMaxWidth(), enabled = resendCooldown == 0) {
+                    if (resendCooldown > 0) {
+                        Text(text = "Resend in ${resendCooldown}s")
+                    } else {
+                        Text("Resend Code")
+                    }
+                }
             }
         }
     }

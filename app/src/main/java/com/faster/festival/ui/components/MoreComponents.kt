@@ -15,9 +15,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.faster.festival.R
 import com.faster.festival.data.models.Poi
 import com.faster.festival.ui.theme.FastERTheme
 import com.faster.festival.ui.theme.NavyBlue
@@ -102,7 +104,7 @@ fun DraggableShortcutsSheet(
 
         // Title
         Text(
-                text = "Shortcuts",
+                text = stringResource(id = R.string.shortcuts),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 12.dp)
@@ -144,7 +146,7 @@ fun MapPlaceholder(modifier: Modifier = Modifier) {
                             )
     ) {
         Text(
-                text = "Festival Map",
+                text = stringResource(id = R.string.map_title),
                 style = MaterialTheme.typography.headlineLarge,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 modifier = Modifier.align(Alignment.Center)
@@ -305,8 +307,8 @@ fun ProfileCardSection(
 fun AuthButtons(
         onPhoneClick: () -> Unit,
         onEmailClick: () -> Unit,
-        onGoogleClick: () -> Unit,
-        modifier: Modifier = Modifier
+        modifier: Modifier = Modifier,
+        onSignupClick: (() -> Unit)? = null // optional signup callback
 ) {
     Column(
             modifier = modifier.fillMaxWidth().padding(16.dp),
@@ -322,7 +324,7 @@ fun AuthButtons(
                     contentDescription = null,
                     modifier = Modifier.size(20.dp).padding(end = 8.dp)
             )
-            Text("Continue with Phone")
+            Text(stringResource(id = R.string.continue_with_phone))
         }
 
         Button(
@@ -339,20 +341,23 @@ fun AuthButtons(
                     contentDescription = null,
                     modifier = Modifier.size(20.dp).padding(end = 8.dp)
             )
-            Text("Continue with Email")
+            Text(stringResource(id = R.string.continue_with_email))
         }
 
-        OutlinedButton(
-                onClick = onGoogleClick,
+        // Sign Up button (only shown if callback provided)
+        if (onSignupClick != null) {
+            OutlinedButton(
+                onClick = onSignupClick,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(12.dp)
-        ) {
-            Icon(
-                    imageVector = Icons.Default.Info,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
                     contentDescription = null,
                     modifier = Modifier.size(20.dp).padding(end = 8.dp)
-            )
-            Text("Continue with Google")
+                )
+                Text(stringResource(id = R.string.create_account))
+            }
         }
     }
 }
@@ -370,10 +375,10 @@ fun PreviewMapMarker() {
 fun PreviewProfileCardSection() {
     FastERTheme {
         ProfileCardSection(
-                title = "Contact Info",
-                items = listOf("Phone" to "+1 (555) 123-4567", "Email" to "alex@example.com"),
+                title = stringResource(id = R.string.profile_title),
+                items = listOf(stringResource(id = R.string.phone) to "+1 (555) 123-4567", stringResource(id = R.string.email) to "alex@example.com"),
                 onActionClick = {},
-                actionLabel = "Edit"
+                actionLabel = stringResource(id = R.string.edit)
         )
     }
 }

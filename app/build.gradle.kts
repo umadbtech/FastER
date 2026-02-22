@@ -28,6 +28,12 @@ fun loadEnvFile(): Map<String, String> {
 }
 
 val envConfig = loadEnvFile()
+// Simplify access to avoid nested string interpolation issues when Kotlin script compiles
+val viteSupabaseUrl: String = envConfig["VITE_SUPABASE_URL"] ?: ""
+val viteSupabaseAnonKey: String = envConfig["VITE_SUPABASE_ANON_KEY"] ?: ""
+
+// Detect whether the build should use the real Supabase client libraries
+val useRealSupabase: Boolean = project.hasProperty("useRealSupabase") && project.property("useRealSupabase") == "true"
 
 android {
     namespace = "com.faster.festival"
@@ -42,8 +48,8 @@ android {
         vectorDrawables.useSupportLibrary = true
         
         // Expose credentials provided in .env file
-        buildConfigField("String", "VITE_SUPABASE_URL", "\"${envConfig["VITE_SUPABASE_URL"] ?: ""}\"")
-        buildConfigField("String", "VITE_SUPABASE_ANON_KEY", "\"${envConfig["VITE_SUPABASE_ANON_KEY"] ?: ""}\"")
+        buildConfigField("String", "VITE_SUPABASE_URL", "\"$viteSupabaseUrl\"")
+        buildConfigField("String", "VITE_SUPABASE_ANON_KEY", "\"$viteSupabaseAnonKey\"")
     }
 
     buildTypes {
@@ -76,6 +82,14 @@ android {
 
     packaging {
         resources.excludes.add("META-INF/proguard/androidx-*.pro")
+    }
+
+    // If using the real Supabase client, exclude the local stub sources which would otherwise cause duplicate symbols.
+    if (useRealSupabase) {
+        sourceSets["main"].java.srcDirs.forEach { _ ->
+            // Exclude the package folder where the stubs live. Pattern is relative to the source dir(s).
+            sourceSets["main"].java.exclude("**/io/github/jan_tennert/supabase/**")
+        }
     }
 }
 
@@ -116,8 +130,32 @@ dependencies {
     // QR Code
     implementation(libs.zxing.core)
 
-    // Supabase
-    implementation(libs.supabase.core)
-    implementation(libs.supabase.auth)
-    implementation(libs.supabase.realtime)
+    // Phone number parsing/validation
+    implementation("com.googlecode.libphonenumber:libphonenumber:8.13.28")
+
+    // Add the real Supabase client artifacts only when requested.
+    if (useRealSupabase) {
+        // Use version catalog entries instead of hard-coded coordinates.
+        implementation(libs.supabase.kt.android)
+        implementation(libs.supabase.kt.realtime)
+    }
 }
+
+    /*
+
+     Optional Supabase client libraries
+
+     This project includes small local stubs under `app/src/main/java/io/github/jan_tennert/supabase/*`
+     so the app can compile and run without the real Supabase artifacts (useful during development
+     or when the upstream artifacts are not available on JitPack/MavenCentral).
+
+     If you want to enable the real Supabase Kotlin client libraries, set the Gradle project
+     property `useRealSupabase=true` (for example: `./gradlew assembleDebug -PuseRealSupabase=true`) and
+     ensure the coordinates below match the published artifacts you want to use. These coordinates
+     and versions may need to be adjusted to the correct groupId/artifactId/version available on
+     Maven Central or your repository.
+
+     Notes:
+     - The project currently uses local stubs (see `io.github.jan_tennert.supabase.*` in source).
+     - If you enable the real library, make sure the coordinates are correct and the stubs are excluded.
+    */

@@ -1,7 +1,6 @@
 package com.faster.festival.ui.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -12,11 +11,17 @@ import com.faster.festival.data.repository.AuthRepository
 import com.faster.festival.ui.auth.signup.SignupScreen
 import com.faster.festival.ui.auth.signup.SignupViewModel
 import com.faster.festival.ui.auth.verification.CheckEmailScreen
+import com.faster.festival.ui.auth.verification.VerificationSuccessScreen
 import com.faster.festival.ui.screens.*
+import com.faster.festival.ui.auth.forgot.ForgotPasswordViewModel
+import com.faster.festival.ui.auth.forgot.ForgotPasswordScreen
+import com.faster.festival.ui.auth.reset.ResetPasswordViewModel
+import com.faster.festival.ui.auth.reset.ResetPasswordScreen
 
 object Routes {
     const val SPLASH = "splash"
     const val LOGIN = "login"
+    const val LOGIN_EMAIL = "login/email"
     const val HOME = "home"
     const val MAP = "map"
     const val SCHEDULE = "schedule"
@@ -25,8 +30,13 @@ object Routes {
     const val TICKETS = "tickets"
     const val WEB = "web/{type}"
     const val SIGNUP = "signup"
-    const val CHECK_EMAIL = "check_email/{email}"
-    const val AUTH_CALLBACK = "auth_callback/{accessToken}/{refreshToken}"
+    const val CHECK_EMAIL = "otp/{email}"
+    const val ENTER_CODE = "enter_code/{email}"
+    const val SIGNUP_SUCCESS = "signup_success"
+    const val FORGOT_PASSWORD = "forgot_password"
+    const val RESET_PASSWORD = "reset_password/{email}/{token}"
+    const val PHONE_LOGIN = "phone_login"
+    const val PHONE_OTP = "phone_otp/{phone}"
 }
 
 @Composable
@@ -48,9 +58,30 @@ fun NavGraph(
         // Login Screen (placeholder)
         composable(Routes.LOGIN) {
             LoginScreen(
-                    onPhoneClick = {},
-                    onEmailClick = {},
-                    onGoogleClick = {}
+                    onPhoneClick = { navController.navigate(Routes.PHONE_LOGIN) },
+                    onEmailClick = { navController.navigate(Routes.LOGIN_EMAIL) },
+                    onSignUpClick = { navController.navigate(Routes.SIGNUP) }
+            )
+        }
+
+        // Email Login
+        composable(Routes.LOGIN_EMAIL) {
+            val loginViewModel: com.faster.festival.ui.auth.login.LoginViewModel = viewModel(factory = com.faster.festival.ui.auth.login.LoginViewModel.Factory(authRepository))
+            com.faster.festival.ui.auth.login.EmailLoginScreen(
+                viewModel = loginViewModel,
+                onForgotPassword = { navController.navigate(Routes.FORGOT_PASSWORD) },
+                onBackToSignup = { navController.navigate(Routes.SIGNUP) },
+                onCancel = {
+                    // Navigate back to the main Auth screen
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(Routes.LOGIN) { inclusive = true }
+                    }
+                },
+                onLoginSuccess = {
+                    navController.navigate(Routes.HOME) {
+                        popUpTo(Routes.LOGIN) { inclusive = true }
+                    }
+                }
             )
         }
 
@@ -61,14 +92,15 @@ fun NavGraph(
             SignupScreen(
                     viewModel = viewModel,
                     onNavigateToVerification = { email ->
-                        navController.navigate("check_email/$email") {
+                        navController.navigate("enter_code/$email") {
                             popUpTo(Routes.SIGNUP) { inclusive = true }
                         }
-                    }
+                    },
+                    onBackClick = { navController.popBackStack() }
             )
         }
 
-        // Check Email (Magic Link Waiting Screen)
+        // Check Email (OTP Waiting Screen)
         composable(
                 route = Routes.CHECK_EMAIL,
                 arguments =
@@ -82,8 +114,8 @@ fun NavGraph(
             CheckEmailScreen(
                     email = email,
                     sessionManager = sessionManager,
-                    onResendEmail = {
-                        // Optional: implement resend email via API if needed
+                    onNavigateToEnterCode = { e ->
+                        navController.navigate("enter_code/$e")
                     },
                     onSkip = {
                         navController.navigate(Routes.HOME) {
@@ -92,51 +124,86 @@ fun NavGraph(
                     },
                     onVerificationComplete = {
                         navController.navigate(Routes.HOME) {
-                            popUpTo(Routes.CHECK_EMAIL) { inclusive = true }
+                            popUpTo(Routes.SIGNUP) { inclusive = true }
                         }
                     }
             )
         }
 
-        // Auth Callback (Magic Link Handler)
+        // Enter Code Screen (OTP input)
         composable(
-                route = Routes.AUTH_CALLBACK,
+                route = Routes.ENTER_CODE,
                 arguments =
                         listOf(
-                                androidx.navigation.navArgument("accessToken") {
-                                    type = androidx.navigation.NavType.StringType
-                                },
-                                androidx.navigation.navArgument("refreshToken") {
+                                androidx.navigation.navArgument("email") {
                                     type = androidx.navigation.NavType.StringType
                                 }
                         )
         ) { backStackEntry ->
-            val accessToken = backStackEntry.arguments?.getString("accessToken") ?: ""
-            val refreshToken = backStackEntry.arguments?.getString("refreshToken") ?: ""
+            val email = backStackEntry.arguments?.getString("email") ?: ""
+            val otpViewModel: com.faster.festival.ui.auth.verification.OtpViewModel = viewModel(
+                factory = com.faster.festival.ui.auth.verification.OtpViewModel.Factory(
+                    authRepository = authRepository
+                )
+            )
 
-            LaunchedEffect(accessToken, refreshToken) {
-                if (accessToken.isNotEmpty() && refreshToken.isNotEmpty()) {
-                    val result = authRepository.processMagicLinkCallback(
-                        accessToken = accessToken,
-                        refreshToken = refreshToken
-                    )
-                    result
-                        .onSuccess {
-                            navController.navigate(Routes.HOME) {
-                                popUpTo(Routes.SIGNUP) { inclusive = true }
-                            }
-                        }
-                        .onFailure {
-                            navController.navigate(Routes.SIGNUP) {
-                                popUpTo(Routes.CHECK_EMAIL) { inclusive = true }
-                            }
-                        }
-                } else {
-                    navController.navigate(Routes.SIGNUP) {
-                        popUpTo(Routes.AUTH_CALLBACK) { inclusive = true }
+            com.faster.festival.ui.auth.verification.OtpVerificationScreen(
+                email = email,
+                viewModel = otpViewModel,
+                onVerified = {
+                    // navigate to success screen, then pop up to signup to clear flow
+                    navController.navigate(Routes.SIGNUP_SUCCESS) {
+                        popUpTo(Routes.SIGNUP) { inclusive = true }
+                    }
+                },
+                onCancel = { navController.popBackStack() }
+            )
+        }
+
+        // Signup success screen
+        composable(Routes.SIGNUP_SUCCESS) {
+            VerificationSuccessScreen(onContinue = {
+                navController.navigate(Routes.HOME) {
+                    popUpTo(Routes.SIGNUP) { inclusive = true }
+                }
+            })
+        }
+
+        // Forgot Password
+        composable(Routes.FORGOT_PASSWORD) {
+            val vm: ForgotPasswordViewModel = viewModel(factory = ForgotPasswordViewModel.Factory(authRepository))
+            ForgotPasswordScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() },
+                onSent = { email: String ->
+                    // navigate to reset screen — token will be provided by email/deep link in real flow; here we navigate to reset without token for dev flow
+                    navController.navigate("reset_password/$email/")
+                }
+            )
+        }
+
+        // Reset Password with email and token
+        composable(
+            route = Routes.RESET_PASSWORD,
+            arguments = listOf(
+                androidx.navigation.navArgument("email") { type = androidx.navigation.NavType.StringType },
+                androidx.navigation.navArgument("token") { type = androidx.navigation.NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val email = backStackEntry.arguments?.getString("email") ?: ""
+            val token = backStackEntry.arguments?.getString("token") ?: ""
+            val vm: ResetPasswordViewModel = viewModel(factory = ResetPasswordViewModel.Factory(authRepository))
+            ResetPasswordScreen(
+                email = email,
+                token = token,
+                viewModel = vm,
+                onBack = { navController.popBackStack() },
+                onResetSuccess = {
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(Routes.LOGIN) { inclusive = true }
                     }
                 }
-            }
+            )
         }
 
         // Home Tab
@@ -199,6 +266,38 @@ fun NavGraph(
                         else -> type
                     }
             WebPlaceholderScreen(title = title, onBackClick = { navController.popBackStack() })
+        }
+
+        // Phone Login
+        composable(Routes.PHONE_LOGIN) {
+            val vm: com.faster.festival.ui.auth.phone.PhoneLoginViewModel = viewModel(factory = com.faster.festival.ui.auth.phone.PhoneLoginViewModel.Factory(authRepository))
+            com.faster.festival.ui.auth.phone.PhoneLoginScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() },
+                onOtpSent = { phone ->
+                    navController.navigate("phone_otp/$phone")
+                }
+            )
+        }
+
+        // Phone OTP
+        composable(
+            route = Routes.PHONE_OTP,
+            arguments = listOf(
+                androidx.navigation.navArgument("phone") { type = androidx.navigation.NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val phone = backStackEntry.arguments?.getString("phone") ?: ""
+            val vm: com.faster.festival.ui.auth.phone.PhoneOtpViewModel = viewModel(factory = com.faster.festival.ui.auth.phone.PhoneOtpViewModel.Factory(authRepository))
+            com.faster.festival.ui.auth.phone.PhoneOtpScreen(
+                phone = phone,
+                viewModel = vm,
+                onBack = { navController.popBackStack() },
+                onVerified = {
+                    // navigate to onboarding
+                    navController.navigate("onboarding")
+                }
+            )
         }
     }
 }

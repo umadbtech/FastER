@@ -3,9 +3,7 @@ package com.faster.festival.di
 import com.faster.festival.BuildConfig
 import com.faster.festival.data.remote.AuthApiService
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
-import io.github.jan_tennert.supabase.SupabaseClient
-import io.github.jan_tennert.supabase.createSupabaseClient
-import io.github.jan_tennert.supabase.realtime.Realtime
+// Supabase client and realtime support removed for OTP-based verification flow.
 import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -57,7 +55,6 @@ object NetworkModule {
         if (baseUrl.isEmpty() || !baseUrl.startsWith("http")) {
             throw IllegalArgumentException(
                 "Supabase URL is not configured. " +
-                "Please add VITE_SUPABASE_URL to local.properties file. " +
                 "Expected format: https://your-project.supabase.co"
             )
         }
@@ -71,23 +68,6 @@ object NetworkModule {
 
     val authApiService: AuthApiService by lazy { retrofit.create(AuthApiService::class.java) }
 
-    // Supabase Realtime Client
-    val supabaseClient: SupabaseClient by lazy {
-        val supabaseUrl = BuildConfig.VITE_SUPABASE_URL
-        val supabaseAnonKey = BuildConfig.VITE_SUPABASE_ANON_KEY
-
-        if (supabaseUrl.isEmpty() || supabaseAnonKey.isEmpty()) {
-            throw IllegalArgumentException(
-                "Supabase credentials are not configured. " +
-                "Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to local.properties"
-            )
-        }
-
-        createSupabaseClient(
-            supabaseUrl = supabaseUrl,
-            supabaseKey = supabaseAnonKey
-        ) {
-            install(Realtime)
-        }
-    }
+    // Supabase realtime client support removed. If you need to re-enable, re-add the dependency and
+    // restore the client creation logic here.
 }

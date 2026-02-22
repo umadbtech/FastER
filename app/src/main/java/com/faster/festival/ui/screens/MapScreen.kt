@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.faster.festival.R
 import com.faster.festival.data.models.Poi
 import com.faster.festival.data.repository.FakeFestivalRepository
 import com.faster.festival.ui.components.*
@@ -23,6 +24,7 @@ import com.faster.festival.ui.theme.NavyBlue
 import com.faster.festival.ui.theme.NavyBlueDark
 import com.faster.festival.ui.viewmodel.MapViewModel
 import com.faster.festival.ui.viewmodel.UiState
+import androidx.compose.ui.res.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,7 +53,7 @@ fun MapScreen(
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
             is UiState.Error -> {
-                Text(text = "Error loading map", modifier = Modifier.align(Alignment.Center))
+                Text(text = stringResource(id = R.string.error_loading_map), modifier = Modifier.align(Alignment.Center))
             }
             is UiState.Success -> {
                 val pois = (poisState as UiState.Success).data
@@ -123,7 +125,14 @@ fun MapScreenContent(
         // Shortcuts Sheet (draggable)
         DraggableShortcutsSheet(
                 shortcuts =
-                        listOf("Stages", "Medical Tents", "Hydration", "Food", "Restrooms", "Info"),
+                        listOf(
+                                stringResource(id = R.string.stages),
+                                stringResource(id = R.string.medical_tents),
+                                stringResource(id = R.string.hydration),
+                                stringResource(id = R.string.food),
+                                stringResource(id = R.string.restrooms),
+                                stringResource(id = R.string.info)
+                        ),
                 onShortcutClick = { shortcut ->
                     // Handle shortcut click
                 },
@@ -253,10 +262,10 @@ fun PoiDetailContent(poi: Poi, onDismiss: () -> Unit, modifier: Modifier = Modif
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f).height(40.dp)) {
-                Text("Close")
+                Text(stringResource(id = R.string.close))
             }
 
-            Button(onClick = {}, modifier = Modifier.weight(1f).height(40.dp)) { Text("More Info") }
+            Button(onClick = {}, modifier = Modifier.weight(1f).height(40.dp)) { Text(stringResource(id = R.string.more_info)) }
         }
     }
 }

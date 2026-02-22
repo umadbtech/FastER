@@ -13,16 +13,17 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -39,10 +40,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun SignupScreen(
         viewModel: SignupViewModel,
-        onNavigateToVerification: (String) -> Unit // Added email arg
+        onNavigateToVerification: (String) -> Unit, // Added email arg
+        onBackClick: () -> Unit = {} // new back callback with default no-op
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val formState by viewModel.formState.collectAsState()
@@ -63,22 +66,33 @@ fun SignupScreen(
         }
     }
 
-    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { paddingValues ->
-        Column(
-                modifier =
-                        Modifier.fillMaxSize()
-                                .padding(paddingValues)
-                                .padding(16.dp)
-                                .verticalScroll(scrollState),
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Create Account") },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { innerPadding ->
+        // Content below the top app bar; form gets horizontal padding
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-        ) {
-            Text(text = "Create Account", style = MaterialTheme.typography.headlineMedium)
+                verticalArrangement = Arrangement.Top
+            ) {
+                Spacer(modifier = Modifier.height(12.dp))
 
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Full Name
-            OutlinedTextField(
+                // Full Name
+                OutlinedTextField(
                     value = formState.fullName,
                     onValueChange = viewModel::onFullNameChange,
                     label = { Text("Full Name") },
@@ -90,16 +104,16 @@ fun SignupScreen(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions =
-                            KeyboardOptions(
-                                    capitalization = KeyboardCapitalization.Words,
-                                    imeAction = ImeAction.Next
-                            )
-            )
+                        KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Words,
+                            imeAction = ImeAction.Next
+                        )
+                )
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            // Email
-            OutlinedTextField(
+                // Email
+                OutlinedTextField(
                     value = formState.email,
                     onValueChange = viewModel::onEmailChange,
                     label = { Text("Email") },
@@ -111,17 +125,17 @@ fun SignupScreen(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions =
-                            KeyboardOptions(
-                                    keyboardType = KeyboardType.Email,
-                                    imeAction = ImeAction.Next
-                            )
-            )
+                        KeyboardOptions(
+                            keyboardType = KeyboardType.Email,
+                            imeAction = ImeAction.Next
+                        )
+                )
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            // Password
-            var passwordVisible by remember { mutableStateOf(false) }
-            OutlinedTextField(
+                // Password
+                var passwordVisible by remember { mutableStateOf(false) }
+                OutlinedTextField(
                     value = formState.password,
                     onValueChange = viewModel::onPasswordChange,
                     label = { Text("Password") },
@@ -132,33 +146,33 @@ fun SignupScreen(
                         }
                     },
                     visualTransformation =
-                            if (passwordVisible) VisualTransformation.None
-                            else PasswordVisualTransformation(),
+                        if (passwordVisible) VisualTransformation.None
+                        else PasswordVisualTransformation(),
                     trailingIcon = {
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
                             Icon(
-                                    imageVector =
-                                            if (passwordVisible) Icons.Filled.Visibility
-                                            else Icons.Filled.VisibilityOff,
-                                    contentDescription =
-                                            if (passwordVisible) "Hide password"
-                                            else "Show password"
+                                imageVector =
+                                    if (passwordVisible) Icons.Filled.Visibility
+                                    else Icons.Filled.VisibilityOff,
+                                contentDescription =
+                                    if (passwordVisible) "Hide password"
+                                    else "Show password"
                             )
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions =
-                            KeyboardOptions(
-                                    keyboardType = KeyboardType.Password,
-                                    imeAction = ImeAction.Next
-                            )
-            )
+                        KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Next
+                        )
+                )
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            // Confirm Password
-            var confirmPasswordVisible by remember { mutableStateOf(false) }
-            OutlinedTextField(
+                // Confirm Password
+                var confirmPasswordVisible by remember { mutableStateOf(false) }
+                OutlinedTextField(
                     value = formState.confirmPassword,
                     onValueChange = viewModel::onConfirmPasswordChange,
                     label = { Text("Confirm Password") },
@@ -169,38 +183,39 @@ fun SignupScreen(
                         }
                     },
                     visualTransformation =
-                            if (confirmPasswordVisible) VisualTransformation.None
-                            else PasswordVisualTransformation(),
+                        if (confirmPasswordVisible) VisualTransformation.None
+                        else PasswordVisualTransformation(),
                     trailingIcon = {
                         IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
                             Icon(
-                                    imageVector =
-                                            if (confirmPasswordVisible) Icons.Filled.Visibility
-                                            else Icons.Filled.VisibilityOff,
-                                    contentDescription =
-                                            if (confirmPasswordVisible) "Hide password"
-                                            else "Show password"
+                                imageVector =
+                                    if (confirmPasswordVisible) Icons.Filled.Visibility
+                                    else Icons.Filled.VisibilityOff,
+                                contentDescription =
+                                    if (confirmPasswordVisible) "Hide password"
+                                    else "Show password"
                             )
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions =
-                            KeyboardOptions(
-                                    keyboardType = KeyboardType.Password,
-                                    imeAction = ImeAction.Done
-                            )
-            )
+                        KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Done
+                        )
+                )
 
-            Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-            if (uiState is SignupUiState.Loading) {
-                CircularProgressIndicator()
-            } else {
-                Button(
+                if (uiState is SignupUiState.Loading) {
+                    CircularProgressIndicator()
+                } else {
+                    Button(
                         onClick = viewModel::onSignupClick,
                         enabled = formState.isFormValid,
                         modifier = Modifier.fillMaxWidth()
-                ) { Text("Create Account") }
+                    ) { Text("Create Account") }
+                }
             }
         }
     }

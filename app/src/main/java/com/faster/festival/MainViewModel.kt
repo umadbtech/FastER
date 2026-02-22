@@ -24,8 +24,8 @@ class MainViewModel(private val sessionManager: EncryptedSessionManager) : ViewM
             // Session exists and email is confirmed -> Full access to Home
             "home"
         } else {
-            // No token or email not confirmed -> Show signup
-            "signup"
+            // No token or email not confirmed -> Show login (previously signup)
+            "login"
         }
     }
 

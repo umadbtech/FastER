@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -17,6 +18,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -27,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.faster.festival.R
 import com.faster.festival.ui.theme.FastERTheme
+import kotlinx.coroutines.delay
 
 private const val LOGO_SIZE_FRACTION = 0.4f
 private val BUTTON_HEIGHT = 48.dp
@@ -38,6 +41,12 @@ private val BOTTOM_PADDING = 64.dp
 
 @Composable
 fun SplashScreen(onLoginClick: () -> Unit, onSignupClick: () -> Unit) {
+    // Auto-navigate to the login/auth screen after a short delay
+    LaunchedEffect(Unit) {
+        delay(1200)
+        onLoginClick()
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -65,13 +74,12 @@ fun SplashScreen(onLoginClick: () -> Unit, onSignupClick: () -> Unit) {
                 contentAlignment = Alignment.TopCenter
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.faster),
-                    contentDescription = "FastER Logo",
-                    modifier = Modifier
-                        .fillMaxWidth(LOGO_SIZE_FRACTION)
-                        .padding(top = TOP_LOGO_PADDING),
+                    painter = painterResource(id = R.drawable.faster_logo),
+                    contentDescription = "Festival Logo",
+                    modifier = Modifier.size(AnimatedSplashDimensions.LogoSize),
                     contentScale = ContentScale.Fit
                 )
+
             }
 
             Column(

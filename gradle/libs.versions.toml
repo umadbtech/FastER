@@ -15,9 +15,8 @@ kotlinx-serialization = "1.6.2"
 retrofit-kotlinx-serialization = "1.0.0"
 security-crypto = "1.1.0-alpha06"
 zxing = "3.5.2"
-supabase-core = "0.1.1"
-supabase-auth = "0.1.1"
-supabase-realtime = "0.1.1"
+# Supabase Kotlin client versions - adjust if different/published elsewhere
+supabase-core = "0.2.1"
 
 [libraries]
 # Android
@@ -62,10 +61,9 @@ zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 # Material Design
 material = { module = "com.google.android.material:material", version.ref = "material" }
 
-# Supabase
-supabase-core = { module = "com.github.jan-tennert.supabase-kt:core", version.ref = "supabase-core" }
-supabase-auth = { module = "com.github.jan-tennert.supabase-kt:auth", version.ref = "supabase-auth" }
-supabase-realtime = { module = "com.github.jan-tennert.supabase-kt:realtime-kt", version.ref = "supabase-realtime" }
+# Supabase Kotlin client - reference entries (update group/artifact if different)
+supabase-kt-android = { module = "com.github.jan-tennert.supabase-kt:supabase-kt-android", version.ref = "supabase-core" }
+supabase-kt-realtime = { module = "com.github.jan-tennert.supabase-kt:supabase-kt-realtime", version.ref = "supabase-core" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "android-gradle-plugin" }

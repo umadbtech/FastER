@@ -28,6 +28,7 @@ data class ErrorResponse(
     val code: Int? = null,
     val msg: String? = null,
     val error: String? = null,
+    @SerialName("error_code") val errorCode: String? = null,
     @SerialName("error_description") val errorDescription: String? = null
 )
 
@@ -36,6 +37,7 @@ data class ErrorResponse(
 data class User(
     val id: String,
     val email: String? = null,
+    val phone: String? = null,
     @SerialName("email_confirmed_at") val emailConfirmedAt: String? = null,
     @SerialName("user_metadata") val userMetadata: Map<String, String>? = null
 ) {
@@ -72,3 +74,54 @@ data class EnrollFactorResponse(
     val totp: TotpData
 )
 
+// Login models for password grant
+@Serializable
+data class LoginRequest(
+    val email: String,
+    val password: String
+)
+
+@Serializable
+data class LoginResponse(
+    @SerialName("access_token") val accessToken: String? = null,
+    @SerialName("refresh_token") val refreshToken: String? = null,
+    val user: User? = null
+)
+
+// Password recovery models
+@Serializable
+data class PasswordResetRequest(
+    val email: String
+)
+
+@Serializable
+data class RecoveryVerifyRequest(
+    val email: String,
+    val token: String,
+    val type: String = "recovery"
+)
+
+@Serializable
+data class UpdatePasswordRequest(
+    val password: String
+)
+
+// Password OTP models for phone
+@Serializable
+data class SendOtpRequest(
+    val phone: String,
+    @SerialName("create_user") val createUser: Boolean = true
+)
+
+@Serializable
+data class VerifyOtpRequest(
+    val phone: String,
+    val token: String,
+    val type: String = "sms"
+)
+
+// The verify endpoint returns AuthResponse (tokens + user), reuse AuthResponse as AuthSession
+
+typealias AuthSession = AuthResponse
+
+// The verify endpoint returns AuthResponse (tokens + user), reuse AuthResponse for session mapping

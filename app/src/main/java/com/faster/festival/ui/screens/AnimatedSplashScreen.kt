@@ -95,7 +95,7 @@ fun AnimatedSplashScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.faster),
+                    painter = painterResource(id = R.drawable.faster_logo),
                     contentDescription = "Festival Logo",
                     modifier = Modifier.size(AnimatedSplashDimensions.LogoSize),
                     contentScale = ContentScale.Fit

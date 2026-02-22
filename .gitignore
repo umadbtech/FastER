@@ -1,0 +1,21 @@
+# Project-specific files
+.gradle/
+.idea/
+*.iml
+build/
+.DS_Store
+*.apk
+*.ap_
+*.dex
+*.class
+*.jar
+*.war
+*.aar
+*.so
+*.zip
+*.tar.gz
+*.tar.bz2
+*.tar
+.env
+local.properties
+gradle.properties
