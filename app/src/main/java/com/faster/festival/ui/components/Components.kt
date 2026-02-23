@@ -3,6 +3,7 @@ package com.faster.festival.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -21,9 +22,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.faster.festival.R
 import com.faster.festival.data.models.Artist
 import com.faster.festival.ui.theme.*
 
@@ -73,11 +79,13 @@ fun FestivalHeroHeader(
                         horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                         // Logo/Icon placeholder
-                        Icon(
-                                imageVector = Icons.Default.MusicNote,
-                                contentDescription = "Festival Logo",
-                                tint = Color.White,
-                                modifier = Modifier.size(48.dp)
+                        Image(
+                                painter = painterResource(id = R.drawable.faster_red),
+                                contentDescription = "FASTER Logo",
+                                modifier = Modifier
+                                        .size(60.dp)
+                                        .clip(RoundedCornerShape(0.dp)),
+                                contentScale = ContentScale.Fit
                         )
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -171,7 +179,7 @@ fun QuickActionCircle(
                         Icon(
                                 imageVector = icon,
                                 contentDescription = label,
-                                tint = MaterialTheme.colorScheme.primary,
+                                tint = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.fillMaxSize().padding(12.dp)
                         )
                 }
@@ -191,44 +199,51 @@ fun QuickActionCircle(
 // Setup Account Card
 @Composable
 fun SetupAccountCard(onSetupClick: () -> Unit, modifier: Modifier = Modifier) {
-        ElevatedCard(
-                modifier = modifier.fillMaxWidth().clickable(onClick = onSetupClick),
-                shape = RoundedCornerShape(20.dp),
-                colors =
-                        CardDefaults.elevatedCardColors(
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer
-                        )
+    ElevatedCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onSetupClick),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = Color(0xFF081836)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-                Row(
-                        modifier = Modifier.fillMaxWidth().padding(24.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                        text = "Setup Your Account",
-                                        style = MaterialTheme.typography.headlineSmall,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                        text = "Personalize your festival experience",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color =
-                                                MaterialTheme.colorScheme.onSecondaryContainer.copy(
-                                                        alpha = 0.7f
-                                                )
-                                )
-                        }
+            Image(
+                painter = painterResource(id = R.drawable.faster_red),
+                contentDescription = "FASTER Logo",
+                modifier = Modifier
+                    .size(35.dp)
+                    .clip(RoundedCornerShape(8.dp)),
+                contentScale = ContentScale.Crop
+            )
 
-                        Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowRight,
-                                contentDescription = "Setup Account",
-                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.size(24.dp)
-                        )
-                }
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Connect your FASTER Band",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "To access our life saving technology.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.78f)
+                )
+            }
         }
+    }
 }
 
 // Headliner Row
@@ -265,7 +280,7 @@ fun HeadlinerRowOrGrid(
 @Composable
 fun HeadlinerCard(artist: Artist, onClick: () -> Unit, modifier: Modifier = Modifier) {
         ElevatedCard(
-                modifier = modifier.clickable(onClick = onClick).height(200.dp),
+                modifier = modifier.clickable(onClick = onClick).height(160.dp),
                 shape = RoundedCornerShape(16.dp)
         ) {
                 Box(
@@ -278,10 +293,10 @@ fun HeadlinerCard(artist: Artist, onClick: () -> Unit, modifier: Modifier = Modi
                                                                         listOf(
                                                                                 MaterialTheme
                                                                                         .colorScheme
-                                                                                        .primaryContainer,
+                                                                                        .outlineVariant,
                                                                                 MaterialTheme
                                                                                         .colorScheme
-                                                                                        .secondaryContainer
+                                                                                        .surface
                                                                         )
                                                         )
                                         )
@@ -338,7 +353,7 @@ fun ExperienceList(
                         onClick = onFestivalHomeClick
                 )
 
-                ExperienceListItem(icon = Icons.Default.Help, label = "FAQs", onClick = onFaqsClick)
+                ExperienceListItem(icon = Icons.Filled.Help, label = "FAQs", onClick = onFaqsClick)
         }
 }
 

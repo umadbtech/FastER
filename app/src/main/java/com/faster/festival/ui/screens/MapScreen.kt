@@ -25,6 +25,8 @@ import com.faster.festival.ui.theme.NavyBlueDark
 import com.faster.festival.ui.viewmodel.MapViewModel
 import com.faster.festival.ui.viewmodel.UiState
 import androidx.compose.ui.res.stringResource
+import com.faster.festival.ui.theme.Grey
+import com.faster.festival.ui.theme.White
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -98,8 +100,8 @@ fun MapScreenContent(
                                                 Brush.verticalGradient(
                                                         colors =
                                                                 listOf(
-                                                                        NavyBlue.copy(alpha = 0.6f),
-                                                                        NavyBlueDark.copy(
+                                                                    White.copy(alpha = 0.6f),
+                                                                    Grey.copy(
                                                                                 alpha = 0.6f
                                                                         )
                                                                 )
@@ -182,7 +184,7 @@ fun MapTopBar(onSettingsClick: () -> Unit, modifier: Modifier = Modifier) {
             Surface(
                     modifier =
                             Modifier.background(
-                                            color = MaterialTheme.colorScheme.primaryContainer,
+                                            color = MaterialTheme.colorScheme.onPrimary,
                                             shape =
                                                     androidx.compose.foundation.shape
                                                             .RoundedCornerShape(16.dp)
