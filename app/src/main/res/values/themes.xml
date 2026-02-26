@@ -4,27 +4,27 @@
         <!-- Primary Brand Color (Navy Blue) -->
         <item name="colorPrimary">@color/navy_blue</item>
         <item name="colorOnPrimary">@color/white</item>
-        <item name="colorPrimaryContainer">@color/navy_blue_dark</item>
-        <item name="colorOnPrimaryContainer">@color/white</item>
+        <item name="colorPrimaryContainer">@color/navy_blue_light</item>
+        <item name="colorOnPrimaryContainer">@color/navy_blue</item>
 
         <!-- Secondary Brand Color (Emergency Red) -->
         <item name="colorSecondary">@color/emergency_red</item>
         <item name="colorOnSecondary">@color/white</item>
         <item name="colorSecondaryContainer">@color/emergency_red_light</item>
-        <item name="colorOnSecondaryContainer">@color/white</item>
+        <item name="colorOnSecondaryContainer">@color/emergency_red</item>
 
-        <!-- Background & Surface (Dark/Black) -->
-        <item name="android:colorBackground">@color/black</item>
-        <item name="colorOnBackground">@color/white</item>
-        <item name="colorSurface">@color/dark_surface</item>
-        <item name="colorOnSurface">@color/white</item>
-        <item name="colorSurfaceVariant">@color/navy_blue_dark</item>
-        <item name="colorOnSurfaceVariant">@color/grey_400</item>
+        <!-- Background & Surface (Light/White for day mode) -->
+        <item name="android:colorBackground">@color/white</item>
+        <item name="colorOnBackground">@color/grey</item>
+        <item name="colorSurface">@color/white</item>
+        <item name="colorOnSurface">@color/black</item>
+        <item name="colorSurfaceVariant">@color/light_grey</item>
+        <item name="colorOnSurfaceVariant">@color/grey_800</item>
         <item name="colorOutline">@color/grey_800</item>
 
-        <!-- Status Bar -->
-        <item name="android:statusBarColor">@color/black</item>
-        <item name="android:windowLightStatusBar">false</item>
+        <!-- Status Bar (Light mode = dark status bar icons) -->
+        <item name="android:statusBarColor">@color/white</item>
+        <item name="android:windowLightStatusBar">true</item>
 
         <!-- Error -->
         <item name="colorError">@color/emergency_red</item>

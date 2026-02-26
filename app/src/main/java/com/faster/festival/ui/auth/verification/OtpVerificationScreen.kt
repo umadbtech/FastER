@@ -36,9 +36,10 @@ import androidx.compose.ui.graphics.toArgb
 fun OtpVerificationScreen(
     email: String,
     viewModel: OtpViewModel,
-    onVerified: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onVerified: () -> Unit,
     modifier: Modifier = Modifier,
-    onCancel: () -> Unit = {}
+    onCancel: () -> Unit = {},
+    onProceedToOnboarding: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -174,7 +175,10 @@ fun OtpVerificationScreen(
             // OTP area
             Spacer(modifier = Modifier.height(32.dp)) // OTP -> 32dp (space before OTP fields)
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 for (i in 0 until 6) {
                     OtpDigitBox(
                         value = digits[i],
@@ -201,6 +205,8 @@ fun OtpVerificationScreen(
                         focusRequester = focusRequesters[i],
                         isError = state.error != null,
                         modifier = Modifier
+                            .weight(1f)
+                            .aspectRatio(1f)
                     )
                 }
             }
@@ -258,14 +264,14 @@ fun OtpVerificationScreen(
             confirmButton = {
                 TextButton(onClick = {
                     showSuccessDialog = false
-                    // Navigate to home only after user acknowledges
-                    onVerified()
+                    // Navigate to onboarding (DateOfBirthScreen) after user acknowledges
+                    onProceedToOnboarding()
                 }) {
                     Text(text = "OK")
                 }
             },
             title = { Text(text = "Email Verified") },
-            text = { Text(text = "Your email has been successfully verified.") }
+            text = { Text(text = "Your email has been successfully verified. Let's continue to complete your profile.") }
         )
     }
 }
@@ -289,7 +295,8 @@ private fun OtpDigitBox(
 
     Box(
         modifier = modifier
-            .size(56.dp)
+            .fillMaxSize()
+            .sizeIn(maxWidth = 56.dp, maxHeight = 56.dp)
             .border(width = 1.dp, color = borderColor, shape = RoundedCornerShape(8.dp)),
         contentAlignment = Alignment.Center
     ) {

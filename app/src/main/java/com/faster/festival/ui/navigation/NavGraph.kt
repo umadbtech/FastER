@@ -13,15 +13,16 @@ import com.faster.festival.ui.auth.signup.SignupViewModel
 import com.faster.festival.ui.auth.verification.CheckEmailScreen
 import com.faster.festival.ui.auth.verification.VerificationSuccessScreen
 import com.faster.festival.ui.screens.*
+import com.faster.festival.ui.onboarding.OnboardingScreen
 import com.faster.festival.ui.auth.forgot.ForgotPasswordViewModel
 import com.faster.festival.ui.auth.forgot.ForgotPasswordScreen
 import com.faster.festival.ui.auth.reset.ResetPasswordViewModel
 import com.faster.festival.ui.auth.reset.ResetPasswordScreen
 
 object Routes {
-    const val SPLASH = "splash"
     const val LOGIN = "login"
     const val LOGIN_EMAIL = "login/email"
+    const val ONBOARDING = "onboarding"
     const val HOME = "home"
     const val MAP = "map"
     const val SCHEDULE = "schedule"
@@ -42,18 +43,11 @@ object Routes {
 @Composable
 fun NavGraph(
         navController: NavHostController = rememberNavController(),
-        startDestination: String = Routes.SPLASH,
+        startDestination: String = Routes.LOGIN,
         authRepository: AuthRepository,
         sessionManager: EncryptedSessionManager
 ) {
     NavHost(navController = navController, startDestination = startDestination) {
-        // Splash Screen
-        composable(Routes.SPLASH) {
-            SplashScreen(
-                    onLoginClick = { navController.navigate(Routes.LOGIN) },
-                    onSignupClick = { navController.navigate(Routes.SIGNUP) }
-            )
-        }
 
         // Login Screen (placeholder)
         composable(Routes.LOGIN) {
@@ -151,12 +145,15 @@ fun NavGraph(
                 email = email,
                 viewModel = otpViewModel,
                 onVerified = {
-                    // navigate to success screen, then pop up to signup to clear flow
-                    navController.navigate(Routes.SIGNUP_SUCCESS) {
+                    // Legacy callback - not used in current flow
+                },
+                onCancel = { navController.popBackStack() },
+                onProceedToOnboarding = {
+                    // Navigate to onboarding flow (DateOfBirthScreen)
+                    navController.navigate(Routes.ONBOARDING) {
                         popUpTo(Routes.SIGNUP) { inclusive = true }
                     }
-                },
-                onCancel = { navController.popBackStack() }
+                }
             )
         }
 
@@ -167,6 +164,18 @@ fun NavGraph(
                     popUpTo(Routes.SIGNUP) { inclusive = true }
                 }
             })
+        }
+
+        // Onboarding flow (post-login)
+        composable(Routes.ONBOARDING) {
+            OnboardingScreen(
+                sessionManager = sessionManager,
+                onOnboardingComplete = {
+                    navController.navigate(Routes.HOME) {
+                        popUpTo(Routes.ONBOARDING) { inclusive = true }
+                    }
+                }
+            )
         }
 
         // Forgot Password

@@ -2,18 +2,25 @@ package com.faster.festival
 
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -23,12 +30,14 @@ import com.faster.festival.di.NetworkModule
 import com.faster.festival.ui.navigation.NavGraph
 import com.faster.festival.ui.navigation.Routes
 import com.faster.festival.ui.theme.FastERTheme
-import androidx.compose.ui.res.stringResource
-import com.faster.festival.R
+import kotlinx.coroutines.delay
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Force light mode globally - prevents app from following system dark mode
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             enableEdgeToEdge()
@@ -53,6 +62,7 @@ fun FastERApp(
     authRepository: AuthRepository,
     sessionManager: EncryptedSessionManager
 ) {
+    var showSplash by remember { mutableStateOf(true) }
     val navController = rememberNavController()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
@@ -60,7 +70,9 @@ fun FastERApp(
     val mainViewModel: MainViewModel = viewModel(factory = MainViewModel.Factory(sessionManager))
     val startDestination by mainViewModel.startDestination.collectAsState()
 
-    if (startDestination == null) {
+    if (showSplash) {
+        SplashScreen(onSplashFinished = { showSplash = false })
+    } else if (startDestination == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
@@ -147,5 +159,35 @@ fun FastERBottomNavBar(
                 selected = currentRoute == Routes.PROFILE,
                 onClick = { onNavigate(Routes.PROFILE) }
         )
+    }
+}
+
+@Composable
+fun SplashScreen(onSplashFinished: () -> Unit) {
+    LaunchedEffect(Unit) {
+        delay(1500) // Show splash for 1.5 seconds
+        onSplashFinished()
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Image(
+                painter = painterResource(id = R.drawable.faster_logo),
+                contentDescription = "FASTER Logo",
+                modifier = Modifier
+                    .size(120.dp)
+                    .clip(RoundedCornerShape(0.dp)),
+                contentScale = ContentScale.Fit
+            )
+
+            CircularProgressIndicator(
+                color = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.padding(top = 32.dp)
+            )
+        }
     }
 }
