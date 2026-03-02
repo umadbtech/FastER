@@ -13,15 +13,16 @@ import com.faster.festival.ui.auth.signup.SignupViewModel
 import com.faster.festival.ui.auth.verification.CheckEmailScreen
 import com.faster.festival.ui.auth.verification.VerificationSuccessScreen
 import com.faster.festival.ui.screens.*
+import com.faster.festival.ui.onboarding.OnboardingScreen
 import com.faster.festival.ui.auth.forgot.ForgotPasswordViewModel
 import com.faster.festival.ui.auth.forgot.ForgotPasswordScreen
 import com.faster.festival.ui.auth.reset.ResetPasswordViewModel
 import com.faster.festival.ui.auth.reset.ResetPasswordScreen
 
 object Routes {
-    const val SPLASH = "splash"
     const val LOGIN = "login"
     const val LOGIN_EMAIL = "login/email"
+    const val ONBOARDING = "onboarding"
     const val HOME = "home"
     const val MAP = "map"
     const val SCHEDULE = "schedule"
@@ -31,7 +32,7 @@ object Routes {
     const val WEB = "web/{type}"
     const val SIGNUP = "signup"
     const val CHECK_EMAIL = "otp/{email}"
-    const val ENTER_CODE = "enter_code/{email}"
+    const val ENTER_CODE = "enter_code/{email}/{password}/{fullName}"
     const val SIGNUP_SUCCESS = "signup_success"
     const val FORGOT_PASSWORD = "forgot_password"
     const val RESET_PASSWORD = "reset_password/{email}/{token}"
@@ -42,18 +43,11 @@ object Routes {
 @Composable
 fun NavGraph(
         navController: NavHostController = rememberNavController(),
-        startDestination: String = Routes.SPLASH,
+        startDestination: String = Routes.LOGIN,
         authRepository: AuthRepository,
         sessionManager: EncryptedSessionManager
 ) {
     NavHost(navController = navController, startDestination = startDestination) {
-        // Splash Screen
-        composable(Routes.SPLASH) {
-            SplashScreen(
-                    onLoginClick = { navController.navigate(Routes.LOGIN) },
-                    onSignupClick = { navController.navigate(Routes.SIGNUP) }
-            )
-        }
 
         // Login Screen (placeholder)
         composable(Routes.LOGIN) {
@@ -91,8 +85,9 @@ fun NavGraph(
                     viewModel(factory = SignupViewModel.Factory(authRepository))
             SignupScreen(
                     viewModel = viewModel,
-                    onNavigateToVerification = { email ->
-                        navController.navigate("enter_code/$email") {
+                    onNavigateToVerification = { email, password, fullName ->
+                        // Pass email, password, and fullName to OTP screen
+                        navController.navigate("enter_code/$email/$password/$fullName") {
                             popUpTo(Routes.SIGNUP) { inclusive = true }
                         }
                     },
@@ -115,7 +110,8 @@ fun NavGraph(
                     email = email,
                     sessionManager = sessionManager,
                     onNavigateToEnterCode = { e ->
-                        navController.navigate("enter_code/$e")
+                        // Navigate with empty password/fullName since this is a resend flow
+                        navController.navigate("enter_code/$e//")
                     },
                     onSkip = {
                         navController.navigate(Routes.HOME) {
@@ -137,10 +133,20 @@ fun NavGraph(
                         listOf(
                                 androidx.navigation.navArgument("email") {
                                     type = androidx.navigation.NavType.StringType
+                                },
+                                androidx.navigation.navArgument("password") {
+                                    type = androidx.navigation.NavType.StringType
+                                    defaultValue = ""
+                                },
+                                androidx.navigation.navArgument("fullName") {
+                                    type = androidx.navigation.NavType.StringType
+                                    defaultValue = ""
                                 }
                         )
         ) { backStackEntry ->
             val email = backStackEntry.arguments?.getString("email") ?: ""
+            val password = backStackEntry.arguments?.getString("password") ?: ""
+            val fullName = backStackEntry.arguments?.getString("fullName") ?: ""
             val otpViewModel: com.faster.festival.ui.auth.verification.OtpViewModel = viewModel(
                 factory = com.faster.festival.ui.auth.verification.OtpViewModel.Factory(
                     authRepository = authRepository
@@ -149,14 +155,19 @@ fun NavGraph(
 
             com.faster.festival.ui.auth.verification.OtpVerificationScreen(
                 email = email,
+                password = password,  // Pass password from signup
+                fullName = fullName,  // Pass fullName from signup
                 viewModel = otpViewModel,
                 onVerified = {
-                    // navigate to success screen, then pop up to signup to clear flow
-                    navController.navigate(Routes.SIGNUP_SUCCESS) {
+                    // Legacy callback - not used in current flow
+                },
+                onCancel = { navController.popBackStack() },
+                onProceedToOnboarding = {
+                    // Navigate to onboarding flow (DateOfBirthScreen)
+                    navController.navigate(Routes.ONBOARDING) {
                         popUpTo(Routes.SIGNUP) { inclusive = true }
                     }
-                },
-                onCancel = { navController.popBackStack() }
+                }
             )
         }
 
@@ -167,6 +178,18 @@ fun NavGraph(
                     popUpTo(Routes.SIGNUP) { inclusive = true }
                 }
             })
+        }
+
+        // Onboarding flow (post-login)
+        composable(Routes.ONBOARDING) {
+            OnboardingScreen(
+                sessionManager = sessionManager,
+                onOnboardingComplete = {
+                    navController.navigate(Routes.HOME) {
+                        popUpTo(Routes.ONBOARDING) { inclusive = true }
+                    }
+                }
+            )
         }
 
         // Forgot Password

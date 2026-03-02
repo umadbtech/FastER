@@ -44,7 +44,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun SignupScreen(
         viewModel: SignupViewModel,
-        onNavigateToVerification: (String) -> Unit, // Added email arg
+        onNavigateToVerification: (email: String, password: String, fullName: String) -> Unit, // Updated to pass all credentials
         onBackClick: () -> Unit = {} // new back callback with default no-op
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -56,7 +56,8 @@ fun SignupScreen(
         when (uiState) {
             is SignupUiState.Success -> {
                 val email = (uiState as SignupUiState.Success).email
-                onNavigateToVerification(email)
+                // Pass email, password, and fullName to verification screen
+                onNavigateToVerification(email, formState.password, formState.fullName)
                 viewModel.resetState()
             }
             is SignupUiState.Error -> {

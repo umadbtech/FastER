@@ -13,8 +13,10 @@
     <color name="black">#000000</color>
     <color name="white">#FFFFFF</color>
     <color name="dark_surface">#121212</color>
-    <color name="grey_800">#424242</color>
+    <color name="grey">#808080</color>
     <color name="grey_400">#BDBDBD</color>
+    <color name="grey_800">#424242</color>
+    <color name="light_grey">#E0E0E0</color>
 
     <!-- Functional Colors -->
     <color name="success_green">#16A34A</color>

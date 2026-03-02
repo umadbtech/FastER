@@ -16,6 +16,8 @@ import kotlinx.coroutines.launch
 // UI state for OTP screen
 data class OtpUiState(
     val email: String = "",
+    val password: String = "",  // Store password from initial signup for resend
+    val fullName: String = "",  // Store fullName from initial signup for resend
     val otp: String = "",
     val isLoading: Boolean = false,
     val isResending: Boolean = false,
@@ -54,6 +56,15 @@ class OtpViewModel(private val authRepository: AuthRepository) : ViewModel() {
         updateState { copy(email = email) }
     }
 
+    /**
+     * Store the full signup credentials (email, password, fullName) so they can be
+     * reused when the user clicks "Resend code". This ensures the resend call uses
+     * the exact same payload as the initial signup.
+     */
+    fun setSignupCredentials(email: String, password: String, fullName: String) {
+        updateState { copy(email = email, password = password, fullName = fullName) }
+    }
+
     fun startTimer(seconds: Int = 30) {
         cooldownJob?.cancel()
         updateState { copy(resendCooldown = seconds, isResending = false) }
@@ -79,9 +90,9 @@ class OtpViewModel(private val authRepository: AuthRepository) : ViewModel() {
             try {
                 val result = authRepository.sendOtp(email)
                 if (result.isSuccess) {
-                    // reset otp and start a 30s cooldown
+                    // reset otp and start a 60s cooldown
                     updateState { copy(otp = "", error = null) }
-                    startTimer(30)
+                    startTimer(60)
                     // Emit a success toast only when feedback is enabled
                     if (showFeedback && !successMessage.isNullOrBlank()) _events.emit(VerificationEvent.ShowToast(successMessage))
                 } else {
@@ -112,24 +123,30 @@ class OtpViewModel(private val authRepository: AuthRepository) : ViewModel() {
     }
 
     /**
-     * New: Resend by calling the Supabase /auth/v1/signup endpoint again, reusing the same
-     * SignupRequest shape. This matches your desired server-side flow where calling signup
-     * again will resend the verification code to the same email.
+     * Resend by calling the Supabase /auth/v1/signup endpoint again, reusing the EXACT SAME
+     * signup credentials (email, password, fullName) as the initial signup.
+     * This matches your desired server-side flow where calling signup again with valid
+     * credentials will resend the verification code to the same email.
      */
-    fun resendUsingSignup(fullName: String? = null) {
-        val email = _uiState.value.email
-        if (email.isBlank() || _uiState.value.resendCooldown > 0 || _uiState.value.isResending) return
+    fun resendUsingSignup() {
+        val state = _uiState.value
+        val email = state.email
+        val password = state.password
+        val fullName = state.fullName
+
+        if (email.isBlank() || password.isBlank() || _uiState.value.resendCooldown > 0 || _uiState.value.isResending) return
 
         viewModelScope.launch {
             updateState { copy(isResending = true, error = null) }
             _events.emit(VerificationEvent.ResendStarted)
 
             try {
-                val result = authRepository.resendSignup(email = email, fullName = fullName)
+                // Call resendSignup with full credentials (email, password, fullName)
+                val result = authRepository.resendSignup(email = email, password = password, fullName = fullName)
                 if (result.isSuccess) {
                     // Reset OTP input and start cooldown
                     updateState { copy(otp = "", error = null) }
-                    startTimer(30)
+                    startTimer(60)
                     _events.emit(VerificationEvent.ShowToast("Verification email resent"))
                 } else {
                     val raw = result.exceptionOrNull()?.message

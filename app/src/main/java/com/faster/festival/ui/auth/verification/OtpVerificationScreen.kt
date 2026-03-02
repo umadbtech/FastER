@@ -35,10 +35,13 @@ import androidx.compose.ui.graphics.toArgb
 @Composable
 fun OtpVerificationScreen(
     email: String,
+    password: String = "",  // Password from initial signup for resend
+    fullName: String = "",  // Full name from initial signup for resend
     viewModel: OtpViewModel,
-    onVerified: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onVerified: () -> Unit,
     modifier: Modifier = Modifier,
-    onCancel: () -> Unit = {}
+    onCancel: () -> Unit = {},
+    onProceedToOnboarding: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -55,6 +58,10 @@ fun OtpVerificationScreen(
         try {
             // Store email in ViewModel so resend can reuse it
             viewModel.setEmail(email)
+            // Also store full signup credentials (email, password, fullName) for resend
+            if (password.isNotBlank() && fullName.isNotBlank()) {
+                viewModel.setSignupCredentials(email, password, fullName)
+            }
             // Initial automatic send should be silent (no toast/error); user-visible feedback appears on explicit actions
             viewModel.sendOtp(email, showFeedback = false)
         } catch (_: Exception) {
@@ -134,8 +141,8 @@ fun OtpVerificationScreen(
         }
     }
 
-    // Start 30s timer when entering if not started
-    LaunchedEffect(Unit) { if (state.resendCooldown <= 0) viewModel.startTimer(30) }
+    // Start 60s timer when entering if not started
+    LaunchedEffect(Unit) { if (state.resendCooldown <= 0) viewModel.startTimer(60) }
 
     Surface(modifier = modifier.fillMaxSize()) {
         Column(
@@ -174,7 +181,10 @@ fun OtpVerificationScreen(
             // OTP area
             Spacer(modifier = Modifier.height(32.dp)) // OTP -> 32dp (space before OTP fields)
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 for (i in 0 until 6) {
                     OtpDigitBox(
                         value = digits[i],
@@ -201,6 +211,8 @@ fun OtpVerificationScreen(
                         focusRequester = focusRequesters[i],
                         isError = state.error != null,
                         modifier = Modifier
+                            .weight(1f)
+                            .aspectRatio(1f)
                     )
                 }
             }
@@ -258,14 +270,14 @@ fun OtpVerificationScreen(
             confirmButton = {
                 TextButton(onClick = {
                     showSuccessDialog = false
-                    // Navigate to home only after user acknowledges
-                    onVerified()
+                    // Navigate to onboarding (DateOfBirthScreen) after user acknowledges
+                    onProceedToOnboarding()
                 }) {
                     Text(text = "OK")
                 }
             },
             title = { Text(text = "Email Verified") },
-            text = { Text(text = "Your email has been successfully verified.") }
+            text = { Text(text = "Your email has been successfully verified. Let's continue to complete your profile.") }
         )
     }
 }
@@ -289,7 +301,8 @@ private fun OtpDigitBox(
 
     Box(
         modifier = modifier
-            .size(56.dp)
+            .fillMaxSize()
+            .sizeIn(maxWidth = 56.dp, maxHeight = 56.dp)
             .border(width = 1.dp, color = borderColor, shape = RoundedCornerShape(8.dp)),
         contentAlignment = Alignment.Center
     ) {

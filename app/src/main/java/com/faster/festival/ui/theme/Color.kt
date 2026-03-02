@@ -70,32 +70,32 @@ val md_theme_light_surfaceVariant = Color(0xFFE0E0E0) // Light Grey for refineme
 val md_theme_light_onSurfaceVariant = Grey800
 val md_theme_light_outline = Grey800
 
-// Dark Theme (Night) - Same as Light for high contrast brand consistency
+// Dark Theme (Night) - Proper dark mode with high contrast
 val md_theme_dark_primary = NavyBlue
 val md_theme_dark_onPrimary = White
-val md_theme_dark_primaryContainer = NavyBlueDark
+val md_theme_dark_primaryContainer = Color(0xFF050D25) // Very dark navy
 val md_theme_dark_onPrimaryContainer = White
 
 val md_theme_dark_secondary = EmergencyRed
 val md_theme_dark_onSecondary = White
-val md_theme_dark_secondaryContainer = EmergencyRedLight
+val md_theme_dark_secondaryContainer = Color(0xFF800000) // Very dark red
 val md_theme_dark_onSecondaryContainer = White
 
 val md_theme_dark_tertiary = NavyBlueLight
 val md_theme_dark_onTertiary = White
-val md_theme_dark_tertiaryContainer = NavyBlueDark
+val md_theme_dark_tertiaryContainer = Color(0xFF050D25)
 val md_theme_dark_onTertiaryContainer = White
 
-val md_theme_dark_error = ErrorRed
-val md_theme_dark_onError = White
-val md_theme_dark_errorContainer = EmergencyRedDark
+val md_theme_dark_error = EmergencyRedLight
+val md_theme_dark_onError = Color(0xFF600000)
+val md_theme_dark_errorContainer = Color(0xFF8C0000)
 val md_theme_dark_onErrorContainer = White
 
-val md_theme_dark_background = Black
-val md_theme_dark_onBackground = White
-val md_theme_dark_surface = DarkSurface
-val md_theme_dark_onSurface = White
-val md_theme_dark_surfaceVariant = NavyBlueDark
-val md_theme_dark_onSurfaceVariant = Grey400
-val md_theme_dark_outline = Grey800
-val md_theme_dark_scrim = Black
+val md_theme_dark_background = Color(0xFF0A0A0A) // Pure black for dark mode
+val md_theme_dark_onBackground = Color(0xFFFFFFFF) // Pure white text
+val md_theme_dark_surface = Color(0xFF1A1A1A) // Slightly lighter black for surfaces
+val md_theme_dark_onSurface = Color(0xFFFFFFFF) // Pure white
+val md_theme_dark_surfaceVariant = Color(0xFF2A2A2A) // Dark gray
+val md_theme_dark_onSurfaceVariant = Color(0xFFE0E0E0) // Light gray text
+val md_theme_dark_outline = Color(0xFF808080)
+val md_theme_dark_scrim = Color(0xFF000000)
