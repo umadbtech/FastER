@@ -69,14 +69,24 @@ class AuthRepository(
 
     /**
      * Reuse the Supabase signup endpoint to trigger a resend of the verification email/OTP.
-     * This method constructs a SignupRequest with only the email (password left blank)
-     * to call the same /auth/v1/signup endpoint. It returns a Result<Unit> like sendOtp.
+     * This method constructs a SignupRequest with the FULL credentials (email, password, fullName)
+     * to call the same /auth/v1/signup endpoint with the same payload as the initial signup.
+     * The backend recognizes this as a resend request when called with existing email + valid password.
+     *
+     * @param email The user's email address
+     * @param password The user's password (MUST be included for proper resend)
+     * @param fullName The user's full name
+     * @return Result<Unit> indicating success or failure
      */
-    suspend fun resendSignup(email: String, fullName: String? = null): Result<Unit> {
+    suspend fun resendSignup(email: String, password: String, fullName: String): Result<Unit> {
         return withContext(Dispatchers.IO) {
             try {
-                // Reuse the SignupRequest model. Password is intentionally left blank for resend.
-                val request = SignupRequest(email = email, password = "", data = fullName?.let { mapOf("full_name" to it) })
+                // Construct the SAME SignupRequest as the initial signup with full credentials
+                val request = SignupRequest(
+                    email = email,
+                    password = password,  // IMPORTANT: Include password (not empty) for resend
+                    data = mapOf("full_name" to fullName)
+                )
                 val response = authApiService.signUp(request)
 
                 if (response.isSuccessful) {
@@ -93,7 +103,7 @@ class AuthRepository(
                             }
 
                     val message = when (response.code()) {
-                        400 -> "Invalid email. ${errorResponse?.msg ?: ""}"
+                        400 -> "Invalid credentials. ${errorResponse?.msg ?: ""}"
                         422 -> "Email already exists."
                         429 -> "Too many requests. Please try again later."
                         else -> errorResponse?.msg

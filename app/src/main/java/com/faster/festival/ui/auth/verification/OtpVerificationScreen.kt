@@ -35,6 +35,8 @@ import androidx.compose.ui.graphics.toArgb
 @Composable
 fun OtpVerificationScreen(
     email: String,
+    password: String = "",  // Password from initial signup for resend
+    fullName: String = "",  // Full name from initial signup for resend
     viewModel: OtpViewModel,
     @Suppress("UNUSED_PARAMETER") onVerified: () -> Unit,
     modifier: Modifier = Modifier,
@@ -56,6 +58,10 @@ fun OtpVerificationScreen(
         try {
             // Store email in ViewModel so resend can reuse it
             viewModel.setEmail(email)
+            // Also store full signup credentials (email, password, fullName) for resend
+            if (password.isNotBlank() && fullName.isNotBlank()) {
+                viewModel.setSignupCredentials(email, password, fullName)
+            }
             // Initial automatic send should be silent (no toast/error); user-visible feedback appears on explicit actions
             viewModel.sendOtp(email, showFeedback = false)
         } catch (_: Exception) {
@@ -135,8 +141,8 @@ fun OtpVerificationScreen(
         }
     }
 
-    // Start 30s timer when entering if not started
-    LaunchedEffect(Unit) { if (state.resendCooldown <= 0) viewModel.startTimer(30) }
+    // Start 60s timer when entering if not started
+    LaunchedEffect(Unit) { if (state.resendCooldown <= 0) viewModel.startTimer(60) }
 
     Surface(modifier = modifier.fillMaxSize()) {
         Column(

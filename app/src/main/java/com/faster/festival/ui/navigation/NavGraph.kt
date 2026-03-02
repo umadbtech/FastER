@@ -32,7 +32,7 @@ object Routes {
     const val WEB = "web/{type}"
     const val SIGNUP = "signup"
     const val CHECK_EMAIL = "otp/{email}"
-    const val ENTER_CODE = "enter_code/{email}"
+    const val ENTER_CODE = "enter_code/{email}/{password}/{fullName}"
     const val SIGNUP_SUCCESS = "signup_success"
     const val FORGOT_PASSWORD = "forgot_password"
     const val RESET_PASSWORD = "reset_password/{email}/{token}"
@@ -85,8 +85,9 @@ fun NavGraph(
                     viewModel(factory = SignupViewModel.Factory(authRepository))
             SignupScreen(
                     viewModel = viewModel,
-                    onNavigateToVerification = { email ->
-                        navController.navigate("enter_code/$email") {
+                    onNavigateToVerification = { email, password, fullName ->
+                        // Pass email, password, and fullName to OTP screen
+                        navController.navigate("enter_code/$email/$password/$fullName") {
                             popUpTo(Routes.SIGNUP) { inclusive = true }
                         }
                     },
@@ -109,7 +110,8 @@ fun NavGraph(
                     email = email,
                     sessionManager = sessionManager,
                     onNavigateToEnterCode = { e ->
-                        navController.navigate("enter_code/$e")
+                        // Navigate with empty password/fullName since this is a resend flow
+                        navController.navigate("enter_code/$e//")
                     },
                     onSkip = {
                         navController.navigate(Routes.HOME) {
@@ -131,10 +133,20 @@ fun NavGraph(
                         listOf(
                                 androidx.navigation.navArgument("email") {
                                     type = androidx.navigation.NavType.StringType
+                                },
+                                androidx.navigation.navArgument("password") {
+                                    type = androidx.navigation.NavType.StringType
+                                    defaultValue = ""
+                                },
+                                androidx.navigation.navArgument("fullName") {
+                                    type = androidx.navigation.NavType.StringType
+                                    defaultValue = ""
                                 }
                         )
         ) { backStackEntry ->
             val email = backStackEntry.arguments?.getString("email") ?: ""
+            val password = backStackEntry.arguments?.getString("password") ?: ""
+            val fullName = backStackEntry.arguments?.getString("fullName") ?: ""
             val otpViewModel: com.faster.festival.ui.auth.verification.OtpViewModel = viewModel(
                 factory = com.faster.festival.ui.auth.verification.OtpViewModel.Factory(
                     authRepository = authRepository
@@ -143,6 +155,8 @@ fun NavGraph(
 
             com.faster.festival.ui.auth.verification.OtpVerificationScreen(
                 email = email,
+                password = password,  // Pass password from signup
+                fullName = fullName,  // Pass fullName from signup
                 viewModel = otpViewModel,
                 onVerified = {
                     // Legacy callback - not used in current flow

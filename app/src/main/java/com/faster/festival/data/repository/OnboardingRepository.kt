@@ -5,6 +5,8 @@ import com.faster.festival.data.model.OnboardingResponse
 import com.faster.festival.data.model.SaveDemographicsRequest
 import com.faster.festival.data.model.SaveUsernameRequest
 import com.faster.festival.data.model.EnsureOnboardingResponse
+import com.faster.festival.data.model.SaveEmergencyContactRequest
+import com.faster.festival.data.model.EnsureFestivalOnboardingResponse
 import com.faster.festival.data.remote.OnboardingApiService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -20,9 +22,10 @@ class OnboardingRepository(
     private val json = Json { ignoreUnknownKeys = true }
 
     /**
-     * Initialize onboarding (idempotent call).
+     * Initialize onboarding (idempotent call) and retrieve festival ID.
+     * Returns a Result containing the festival_id from the RPC response.
      */
-    suspend fun ensureOnboarding(): Result<EnsureOnboardingResponse> {
+    suspend fun ensureOnboarding(): Result<String> {
         return withContext(Dispatchers.IO) {
             try {
                 val token = sessionManager.getAccessToken() ?: return@withContext Result.failure(Exception("No access token"))
@@ -31,8 +34,17 @@ class OnboardingRepository(
 
                 if (response.isSuccessful) {
                     val body = response.body()
-                    if (body == null) return@withContext Result.failure(Exception("Empty response"))
-                    Result.success(body)
+                    if (body == null || body.isEmpty()) {
+                        return@withContext Result.failure(Exception("Empty response from ensure_festival_onboarding"))
+                    }
+
+                    // Extract festival_id from the first element in the response array
+                    val festivalId = body.firstOrNull()?.festival_id
+                    if (festivalId.isNullOrBlank()) {
+                        return@withContext Result.failure(Exception("No festival_id in response"))
+                    }
+
+                    Result.success(festivalId)
                 } else {
                     val errorBody = response.errorBody()?.string()
                     Result.failure(Exception("Ensure onboarding failed: ${response.code()} - $errorBody"))
@@ -110,6 +122,30 @@ class OnboardingRepository(
                 } else {
                     val errorBody = response.errorBody()?.string()
                     Result.failure(Exception("Save wristband failed: ${response.code()} - $errorBody"))
+                }
+            } catch (e: Exception) {
+                Result.failure(Exception("Network error: ${e.localizedMessage}"))
+            }
+        }
+    }
+
+    /**
+     * Save emergency contact (create/update/delete).
+     */
+    suspend fun saveEmergencyContact(request: SaveEmergencyContactRequest): Result<OnboardingResponse> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val token = sessionManager.getAccessToken() ?: return@withContext Result.failure(Exception("No access token"))
+                val authHeader = "Bearer $token"
+                val response = onboardingApiService.saveEmergencyContact(authHeader, request)
+
+                if (response.isSuccessful) {
+                    val body = response.body()
+                    if (body == null) return@withContext Result.failure(Exception("Empty response"))
+                    Result.success(body)
+                } else {
+                    val errorBody = response.errorBody()?.string()
+                    Result.failure(Exception("Save emergency contact failed: ${response.code()} - $errorBody"))
                 }
             } catch (e: Exception) {
                 Result.failure(Exception("Network error: ${e.localizedMessage}"))

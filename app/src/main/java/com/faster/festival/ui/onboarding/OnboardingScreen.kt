@@ -58,14 +58,16 @@ fun OnboardingScreen(
     val uiState by viewModel.uiState.collectAsState()
     val formState by viewModel.formState.collectAsState()
 
-    // Initialize pager state with stable API
-    val pagerState: PagerState = rememberPagerState(pageCount = { 4 })
+    // Initialize pager state with dynamic page count
+    @Suppress("EXPERIMENTAL_IS_NOT_ENABLED")
+    val pagerState: PagerState = rememberPagerState(pageCount = { viewModel.getTotalSteps() })
     val snackbarHostState = remember { SnackbarHostState() }
 
     // Initialize onboarding on first load
     LaunchedEffect(Unit) {
         viewModel.initializeOnboarding()
     }
+
 
     // Handle UI state changes
     LaunchedEffect(uiState) {
@@ -83,28 +85,36 @@ fun OnboardingScreen(
         }
     }
 
-    // Update pager position when screen changes
-    LaunchedEffect(formState.currentScreen) {
-        pagerState.animateScrollToPage(formState.currentScreen)
+    // Update pager position when step index changes
+    LaunchedEffect(formState.currentStepIndex) {
+        @Suppress("EXPERIMENTAL_IS_NOT_ENABLED")
+        pagerState.animateScrollToPage(formState.currentStepIndex)
     }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            OnboardingTopBar(currentScreen = formState.currentScreen)
+            OnboardingTopBar(
+                currentStepIndex = formState.currentStepIndex,
+                totalSteps = formState.orderedSteps.size
+            )
         },
         bottomBar = {
             OnboardingBottomBar(
-                currentScreen = formState.currentScreen,
+                currentStepIndex = formState.currentStepIndex,
+                totalSteps = formState.orderedSteps.size,
                 isLoading = uiState is OnboardingUiState.Loading,
                 onBackClick = { viewModel.goBack() },
                 onNextClick = {
-                    when (formState.currentScreen) {
-                        0 -> viewModel.proceedFromDOB()
-                        1 -> viewModel.proceedFromRaceEthnicity()
-                        2 -> viewModel.proceedFromGenderIdentity()
-                        3 -> viewModel.submitOnboarding()
+                    // Validate current step and proceed
+                    val currentStep = viewModel.getCurrentStep()
+                    if (currentStep == formState.orderedSteps.lastOrNull()) {
+                        // Last step - submit onboarding
+                        viewModel.submitOnboarding()
+                    } else {
+                        // Validate and proceed from current step
+                        viewModel.proceedFromCurrentStep()
                     }
                 }
             )
@@ -123,27 +133,54 @@ fun OnboardingScreen(
                 )
             } else {
                 HorizontalPager(state = pagerState, userScrollEnabled = false) { page ->
-                    when (page) {
-                        0 -> DateOfBirthScreen(
+                    val step = viewModel.getStepAtIndex(page)
+
+                    when (step) {
+                        OnboardingStep.USERNAME -> UsernameScreen(
+                            formState = formState,
+                            onUsernameChange = { viewModel.updateUsername(it) }
+                        )
+                        OnboardingStep.DATE_OF_BIRTH -> DateOfBirthScreen(
                             formState = formState,
                             onDateChange = { viewModel.updateDateOfBirth(it) }
                         )
-                        1 -> RaceEthnicityScreen(
+                        OnboardingStep.RACE_ETHNICITY -> RaceEthnicityScreen(
                             formState = formState,
                             onRaceToggle = { viewModel.toggleRaceEthnicity(it) },
                             onCustomTextChange = { viewModel.updateRaceEthnicityText(it) }
                         )
-                        2 -> GenderIdentityScreen(
+                        OnboardingStep.GENDER_IDENTITY -> GenderIdentityScreen(
                             formState = formState,
                             onGenderSelect = { viewModel.updateGenderIdentity(it) },
                             onCustomTextChange = { viewModel.updateGenderIdentityText(it) }
                         )
-                        3 -> WristbandScreen(
+                        OnboardingStep.EMERGENCY_CONTACT -> PrimaryEmergencyContactScreen(
                             formState = formState,
-                            onSkipPairing = { viewModel.submitOnboarding() },
-                            onPairingReady = { viewModel.submitOnboarding() },
+                            onNameChange = { viewModel.updateEmergencyContactName(it) },
+                            onPhoneChange = { viewModel.updateEmergencyContactPhone(it) },
+                            onRelationshipChange = { viewModel.updateEmergencyContactRelationship(it) }
+                        )
+                        OnboardingStep.WRISTBAND -> WristbandScreen(
+                            formState = formState,
+                            onSkipPairing = { viewModel.proceedFromCurrentStep() },
+                            onPairingReady = { viewModel.proceedFromCurrentStep() },
                             onBackPressed = { viewModel.goBack() }
                         )
+                        OnboardingStep.TERMS_ACCEPTANCE -> TermsAcceptanceScreen(
+                            formState = formState,
+                            onTermsAcceptanceChange = { viewModel.updateTermsAcceptance(it) }
+                        )
+                        else -> {
+                            // Fallback if step is unknown
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("Unknown step")
+                            }
+                        }
                     }
                 }
             }
@@ -152,7 +189,7 @@ fun OnboardingScreen(
 }
 
 @Composable
-private fun OnboardingTopBar(currentScreen: Int) {
+private fun OnboardingTopBar(currentStepIndex: Int, totalSteps: Int) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -161,25 +198,25 @@ private fun OnboardingTopBar(currentScreen: Int) {
     ) {
         // Step indicator text
         Text(
-            text = "Step ${currentScreen + 1} of 4",
+            text = "Step ${currentStepIndex + 1} of $totalSteps",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
-        // Progress dots
+        // Progress dots (dynamic)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
         ) {
-            repeat(4) { index ->
+            repeat(totalSteps) { index ->
                 Box(
                     modifier = Modifier
-                        .width(if (index == currentScreen) 24.dp else 8.dp)
+                        .width(if (index == currentStepIndex) 24.dp else 8.dp)
                         .height(8.dp)
                         .background(
-                            if (index <= currentScreen) {
-                                Color(0xFF22C55E) // Green accent
+                            if (index <= currentStepIndex) {
+                                MaterialTheme.colorScheme.onPrimary// Green accent
                             } else {
                                 MaterialTheme.colorScheme.outlineVariant
                             },
@@ -193,7 +230,8 @@ private fun OnboardingTopBar(currentScreen: Int) {
 
 @Composable
 private fun OnboardingBottomBar(
-    currentScreen: Int,
+    currentStepIndex: Int,
+    totalSteps: Int,
     isLoading: Boolean,
     onBackClick: () -> Unit,
     onNextClick: () -> Unit
@@ -205,8 +243,8 @@ private fun OnboardingBottomBar(
             .padding(16.dp),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
     ) {
-        // Back button (visible for screens after 0)
-        if (currentScreen > 0) {
+        // Back button (visible for steps after 0)
+        if (currentStepIndex > 0) {
             Button(
                 onClick = onBackClick,
                 modifier = Modifier
@@ -223,7 +261,7 @@ private fun OnboardingBottomBar(
         // Next/Submit button
         Button(
             onClick = onNextClick,
-            modifier = if (currentScreen > 0) {
+            modifier = if (currentStepIndex > 0) {
                 Modifier
                     .weight(1f)
                     .height(48.dp)
@@ -233,7 +271,7 @@ private fun OnboardingBottomBar(
                     .height(48.dp)
             },
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF081836), // Dark navy
+                containerColor = Color(0xFF081836),
                 contentColor = Color.White
             ),
             enabled = !isLoading
@@ -248,7 +286,7 @@ private fun OnboardingBottomBar(
                 )
             } else {
                 Text(
-                    if (currentScreen == 3) "Submit" else "Continue",
+                    if (currentStepIndex == totalSteps - 1) "Submit" else "Continue",
                     fontWeight = FontWeight.Bold
                 )
             }

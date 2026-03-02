@@ -5,6 +5,7 @@ import android.content.ContextWrapper
 import android.util.Log
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -38,7 +39,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
@@ -68,18 +68,7 @@ private fun findFragmentActivity(context: Context): FragmentActivity? {
     return null
 }
 
-/**
- * Screen 1: Modern Material Design 3 Date of Birth picker.
- *
- * Features:
- * - Uses Material Components MaterialDatePicker (stable, production-ready)
- * - Date range: 1900 to today (no future dates allowed)
- * - Beautiful formatted date display (DD/MM/YYYY)
- * - Clear/Reset button with haptic feedback
- * - Shake animation on validation error
- * - Proper lifecycle & FragmentManager handling
- * - Material 3 theming
- */
+
 @Composable
 fun DateOfBirthScreen(
     formState: OnboardingFormState,
@@ -90,6 +79,8 @@ fun DateOfBirthScreen(
     var hasError by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
+
+    Log.d(TAG, "DateOfBirthScreen rendered - dateOfBirth: ${formState.dateOfBirth}")
 
     // Safely find FragmentActivity by unwrapping ContextWrapper
     val fragmentActivity = remember {
@@ -204,126 +195,150 @@ fun DateOfBirthScreen(
         }
     }
 
-    Column(
+    // Main UI - ensure it's visible
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Top,
-        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Top spacing
-        Box(modifier = Modifier.height(16.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 32.dp),
+            verticalArrangement = Arrangement.Top,
+            horizontalAlignment = Alignment.Start
+        ) {
+            // Heading section with proper spacing
+            Text(
+                text = "Date of Birth",
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.fillMaxWidth()
+            )
 
-        // Heading
-        Text(
-            text = "Date of Birth",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+            // Spacing between heading and description
+            Box(modifier = Modifier.height(8.dp))
 
-        // Subheading
-        Text(
-            text = "We use your date of birth to locate you in a crowd in case of an emergency.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(bottom = 32.dp)
-        )
+            // Description/subtitle with better hierarchy
+            Text(
+                text = "We use your date of birth to locate you in a crowd in case of an emergency.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth()
+            )
 
-        // Modern clickable date picker field
-        BirthdayPickerField(
-            selectedDate = formState.dateOfBirth,
-            isError = hasError,
-            isShaking = isShaking,
-            onDatePickerClick = {
-                Log.d(TAG, "Date picker field clicked")
-                openDatePicker()
-            },
-            onClearClick = {
-                onDateChange("")
-                hasError = false
-                isShaking = false
-                Log.d(TAG, "Date cleared")
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            }
-        )
+            // Major spacing before the input field
+            Box(modifier = Modifier.height(32.dp))
 
-        // Error message with animation
-        if (hasError) {
+            // Date picker field container - Material 3 styled
+            RefactoredBirthdayPickerField(
+                selectedDate = formState.dateOfBirth,
+                isError = formState.dobError != null || hasError,
+                isShaking = isShaking,
+                onDatePickerClick = {
+                    Log.d(TAG, "Date picker field clicked")
+                    openDatePicker()
+                },
+                onClearClick = {
+                    onDateChange("")
+                    hasError = false
+                    Log.d(TAG, "Date cleared")
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                errorMessage = formState.dobError
+            )
+
+            // Spacing before requirements box
+            Box(modifier = Modifier.height(32.dp))
+
+            // Requirements/Helper box with improved styling
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 12.dp)
                     .background(
-                        color = MaterialTheme.colorScheme.errorContainer,
-                        shape = RoundedCornerShape(8.dp)
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(16.dp)
                     )
-                    .padding(12.dp)
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                    .padding(20.dp)
             ) {
-                Text(
-                    text = formState.dobError ?: "Please select a valid birth date",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center,
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
+                ) {
+                    Text(
+                        text = "Requirements",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
 
-        // Helper text box
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 16.dp)
-                .background(
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                    shape = RoundedCornerShape(8.dp)
-                )
-                .padding(12.dp)
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "✓ Must be at least 13 years old",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                Text(
-                    text = "✓ Date range: 1900 - ${today.get(Calendar.YEAR)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                Text(
-                    text = "✓ Tap the date field to open the calendar picker",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
+                    RequirementItem("Must be at least 13 years old")
+                    RequirementItem("Date range: 1900 – ${today.get(Calendar.YEAR)}")
+                    RequirementItem("Tap the date field to open the calendar picker")
+                }
             }
-        }
 
-        Box(modifier = Modifier.weight(1f))
+            // Flexible spacing to push content up
+            Box(modifier = Modifier.weight(1f))
+        }
     }
 }
 
 /**
- * Modern clickable birthday picker field with Material 3 design.
- * Shows formatted date (DD/MM/YYYY) or "Select Birthday" placeholder.
+ * Individual requirement item with checkmark icon
  */
 @Composable
-private fun BirthdayPickerField(
+private fun RequirementItem(text: String) {
+    Row(
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            text = "✓",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+/**
+ * Modern Material 3 Date of Birth picker field with improved spacing and visual design.
+ * Features:
+ * - Outlined text field style with animated border color
+ * - Proper visual hierarchy with label, value, and helper text
+ * - Trailing clear button (only visible when date is selected)
+ * - Smooth animations on error state
+ * - No text overlap, proper spacing throughout
+ */
+@Composable
+private fun RefactoredBirthdayPickerField(
     selectedDate: String,
     isError: Boolean,
     isShaking: Boolean,
     onDatePickerClick: () -> Unit,
     onClearClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    errorMessage: String? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
 
-    // Format date for display
+    // Format date for display (DD/MM/YYYY)
     val displayDate = remember(selectedDate) {
         if (selectedDate.isNotEmpty()) {
             try {
@@ -333,105 +348,169 @@ private fun BirthdayPickerField(
                     val displayFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
                     displayFormat.format(date)
                 } else {
-                    "Invalid date"
+                    null
                 }
             } catch (e: Exception) {
-                "Invalid date"
+                null
             }
         } else {
             null
         }
     }
 
-    // Shake offset for error state
-    val shakeOffset = if (isShaking) 8.dp else 0.dp
+    // Subtle shake offset for error feedback
+    val shakeOffset = if (isShaking) 3.dp else 0.dp
 
-    // Color animation for error state
+    // Animated colors for error state
+    val borderColor by animateColorAsState(
+        targetValue = if (isError)
+            MaterialTheme.colorScheme.error
+        else
+            MaterialTheme.colorScheme.outline,
+        label = "borderColor"
+    )
+
     val containerColor by animateColorAsState(
         targetValue = if (isError)
-            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.12f)
+            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.08f)
         else
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
         label = "containerColor"
     )
 
+    val iconColor by animateColorAsState(
+        targetValue = if (isError)
+            MaterialTheme.colorScheme.error
+        else
+            MaterialTheme.colorScheme.primary,
+        label = "iconColor"
+    )
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = shakeOffset)
-            .height(56.dp)
-            .background(
-                color = containerColor,
-                shape = RoundedCornerShape(12.dp)
-            )
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(
-                interactionSource = interactionSource,
-                indication = rememberRipple(bounded = true),
-                onClick = onDatePickerClick
-            ),
-        contentAlignment = Alignment.CenterStart
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(
+        // Main picker field container
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            // Icon and text
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.CalendarMonth,
-                    contentDescription = "Calendar",
-                    tint = if (isError) MaterialTheme.colorScheme.error
-                           else MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
+                .height(72.dp)
+                .padding(horizontal = shakeOffset)
+                .border(
+                    width = 1.5.dp,
+                    color = borderColor,
+                    shape = RoundedCornerShape(14.dp)
                 )
-
-                Column {
-                    Text(
-                        text = "Date of Birth",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp
-                    )
-                    Text(
-                        text = displayDate ?: "Select Birthday",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = if (displayDate != null) MaterialTheme.colorScheme.onBackground
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = if (displayDate != null) FontWeight.SemiBold else FontWeight.Normal
-                    )
-                }
-            }
-
-            // Clear button (only show when date is selected)
-            if (displayDate != null) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(50))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = rememberRipple(bounded = true, radius = 20.dp),
-                            onClick = onClearClick
-                        ),
-                    contentAlignment = Alignment.Center
+                .background(
+                    color = containerColor,
+                    shape = RoundedCornerShape(14.dp)
+                )
+                .clip(RoundedCornerShape(14.dp))
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = rememberRipple(bounded = true),
+                    onClick = onDatePickerClick
+                )
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Left side: Icon and text content
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.weight(1f)
                 ) {
+                    // Calendar icon
                     Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Clear",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
+                        imageVector = Icons.Default.CalendarMonth,
+                        contentDescription = "Calendar",
+                        tint = iconColor,
+                        modifier = Modifier.size(28.dp)
                     )
+
+                    // Text content: label and date
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(vertical = 4.dp)
+                    ) {
+                        // Label text
+                        Text(
+                            text = "Date of Birth",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1
+                        )
+
+                        // Selected date or placeholder
+                        Text(
+                            text = displayDate ?: "Select your birthday",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = if (displayDate != null)
+                                MaterialTheme.colorScheme.onBackground
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = if (displayDate != null) FontWeight.SemiBold else FontWeight.Normal,
+                            maxLines = 1,
+                            fontSize = 16.sp
+                        )
+                    }
+                }
+
+                // Right side: Clear button (conditional)
+                if (displayDate != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = rememberRipple(bounded = true, radius = 22.dp),
+                                onClick = onClearClick
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Clear date",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                 }
             }
         }
+
+        // Error message (below field, separate line, no overlap)
+        if (isError && errorMessage != null) {
+            Text(
+                text = errorMessage,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.labelSmall,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(start = 20.dp, top = 4.dp)
+            )
+        }
+
+        // Helper/hint text (below error or field)
+        if (!isError && displayDate != null) {
+            Text(
+                text = "Tap to change",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelSmall,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(start = 20.dp, top = 4.dp)
+            )
+        }
     }
 }
+
+
