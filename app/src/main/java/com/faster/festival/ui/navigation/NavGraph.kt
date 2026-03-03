@@ -38,6 +38,20 @@ object Routes {
     const val RESET_PASSWORD = "reset_password/{email}/{token}"
     const val PHONE_LOGIN = "phone_login"
     const val PHONE_OTP = "phone_otp/{phone}"
+
+    // Profile Screen Navigation Routes
+    const val PERSONAL_INFO = "personal_info"
+    const val EMERGENCY_CONTACTS = "emergency_contacts"
+    const val HEALTH_SETTINGS = "health_settings"
+    const val NOTIFICATION_SETTINGS = "notification_settings"
+    const val LOCATION_SETTINGS = "location_settings"
+    const val PAYMENT_SETTINGS = "payment_settings"
+    const val REPORT_ISSUE = "report_issue"
+    const val TERMS_CONDITIONS = "terms_conditions"
+    const val PRIVACY_POLICY = "privacy_policy"
+    const val FAQ = "faq"
+    const val ACCOUNT_MANAGEMENT = "account_management"
+    const val ABOUT_FASTER = "about_faster"
 }
 
 @Composable
@@ -249,31 +263,81 @@ fun NavGraph(
             ScheduleScreen(onTicketsClick = { navController.navigate(Routes.TICKETS) })
         }
 
-        // Profile Tab
+        // Profile Tab - UPDATED WITH FULL NAVIGATION
         composable(Routes.PROFILE) {
-            ProfileScreenNew(
-                name = "First Last",
-                wristbandName = "FASTER Wristband",
-                batteryPercentage = 82,
-                connectionStatus = "Strong Connection",
-                onPersonalInfoClick = { /* TODO: Navigate to personal info */ },
-                onEmergencyContactsClick = { /* TODO: Navigate to emergency contacts */ },
-                onHealthClick = { /* TODO: Navigate to health */ },
-                onNotificationsClick = { /* TODO: Navigate to notifications */ },
-                onLocationClick = { /* TODO: Navigate to location */ },
-                onPaymentsClick = { /* TODO: Navigate to payments */ },
-                onAboutClick = { /* TODO: Navigate to about */ },
-                onReportClick = { /* TODO: Navigate to report */ },
-                onTermsClick = { /* TODO: Navigate to terms */ },
-                onPrivacyClick = { /* TODO: Navigate to privacy */ },
-                onFaqClick = { /* TODO: Navigate to faq */ },
-                onManageAccountClick = { /* TODO: Navigate to manage account */ },
-                onLogoutClick = {
+            val accessToken = sessionManager.getAccessToken() ?: return@composable
+
+            EnhancedProfileScreenWithNavigation(
+                accessToken = accessToken,
+                fullName = "John Doe",  // TODO: Get from ViewModel/API
+                username = "john_doe",  // TODO: Get from ViewModel/API
+                onNavigateToPersonalInfo = { navController.navigate(Routes.PERSONAL_INFO) },
+                onNavigateToEmergencyContacts = { navController.navigate(Routes.EMERGENCY_CONTACTS) },
+                onNavigateToHealth = { navController.navigate(Routes.HEALTH_SETTINGS) },
+                onNavigateToNotifications = { navController.navigate(Routes.NOTIFICATION_SETTINGS) },
+                onNavigateToLocation = { navController.navigate(Routes.LOCATION_SETTINGS) },
+                onNavigateToPayments = { navController.navigate(Routes.PAYMENT_SETTINGS) },
+                onNavigateToReportIssue = { navController.navigate(Routes.REPORT_ISSUE) },
+                onNavigateToTerms = { navController.navigate(Routes.TERMS_CONDITIONS) },
+                onNavigateToPrivacy = { navController.navigate(Routes.PRIVACY_POLICY) },
+                onNavigateToFAQ = { navController.navigate(Routes.FAQ) },
+                onNavigateToManageAccount = { navController.navigate(Routes.ACCOUNT_MANAGEMENT) },
+                onNavigateToLogin = {
+                    sessionManager.clearSession()
                     navController.navigate(Routes.LOGIN) {
                         popUpTo(Routes.HOME) { inclusive = true }
                     }
                 }
             )
+        }
+
+        // NEW DESTINATION ROUTES
+        composable(Routes.PERSONAL_INFO) {
+            PersonalInfoEditScreen(onBackClick = { navController.popBackStack() })
+        }
+
+        composable(Routes.EMERGENCY_CONTACTS) {
+            EmergencyContactsScreen(onBackClick = { navController.popBackStack() })
+        }
+
+        composable(Routes.HEALTH_SETTINGS) {
+            HealthSettingsScreen(onBackClick = { navController.popBackStack() })
+        }
+
+        composable(Routes.NOTIFICATION_SETTINGS) {
+            NotificationSettingsScreen(onBackClick = { navController.popBackStack() })
+        }
+
+        composable(Routes.LOCATION_SETTINGS) {
+            LocationSettingsScreen(onBackClick = { navController.popBackStack() })
+        }
+
+        composable(Routes.PAYMENT_SETTINGS) {
+            PaymentSettingsScreen(onBackClick = { navController.popBackStack() })
+        }
+
+        composable(Routes.REPORT_ISSUE) {
+            SupportTicketScreen(onBackClick = { navController.popBackStack() })
+        }
+
+        composable(Routes.TERMS_CONDITIONS) {
+            TermsScreen(onBackClick = { navController.popBackStack() })
+        }
+
+        composable(Routes.PRIVACY_POLICY) {
+            PrivacyPolicyScreen(onBackClick = { navController.popBackStack() })
+        }
+
+        composable(Routes.FAQ) {
+            FAQScreen(onBackClick = { navController.popBackStack() })
+        }
+
+        composable(Routes.ACCOUNT_MANAGEMENT) {
+            AccountManagementScreen(onBackClick = { navController.popBackStack() })
+        }
+
+        composable(Routes.ABOUT_FASTER) {
+            AboutFasterScreen(onBackClick = { navController.popBackStack() })
         }
 
         // Artist Detail

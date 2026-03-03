@@ -27,6 +27,7 @@ import com.faster.festival.ui.theme.FastERTheme
 @Composable
 fun ProfileCardSection(
     name: String = "First Last",
+    username: String? = null,
     onPersonalInfoClick: () -> Unit = {},
     onEmergencyContactsClick: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -51,7 +52,7 @@ fun ProfileCardSection(
                     .clickable(onClick = onPersonalInfoClick)
                     .padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -60,10 +61,19 @@ fun ProfileCardSection(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
                     )
+                    username?.let {
+                        Text(
+                            text = "@$it",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
                     Text(
                         text = "Update your personal information",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = if (username != null) 4.dp else 0.dp)
                     )
                 }
                 Icon(
@@ -454,6 +464,7 @@ fun BottomActionsSection(
 @Composable
 fun ProfileScreenNew(
     name: String = "First Last",
+    username: String? = null,
     wristbandName: String = "FASTER Wristband",
     batteryPercentage: Int = 82,
     connectionStatus: String = "Strong Connection",
@@ -483,6 +494,7 @@ fun ProfileScreenNew(
         item {
             ProfileCardSection(
                 name = name,
+                username = username,
                 onPersonalInfoClick = onPersonalInfoClick,
                 onEmergencyContactsClick = onEmergencyContactsClick
             )
@@ -526,6 +538,82 @@ fun ProfileScreenNew(
             )
         }
     }
+}
+
+// ============================================================================
+// ENHANCED PROFILE SCREEN WITH FULL NAVIGATION & LOGOUT CONFIRMATION
+// ============================================================================
+
+/**
+ * Enhanced ProfileScreen wrapper with logout confirmation dialog
+ * and full navigation support for all menu items
+ */
+@Composable
+fun EnhancedProfileScreenWithNavigation(
+    accessToken: String,
+    fullName: String = "First Last",
+    username: String? = null,
+    onNavigateToPersonalInfo: () -> Unit,
+    onNavigateToEmergencyContacts: () -> Unit,
+    onNavigateToHealth: () -> Unit,
+    onNavigateToNotifications: () -> Unit,
+    onNavigateToLocation: () -> Unit,
+    onNavigateToPayments: () -> Unit,
+    onNavigateToReportIssue: () -> Unit,
+    onNavigateToTerms: () -> Unit,
+    onNavigateToPrivacy: () -> Unit,
+    onNavigateToFAQ: () -> Unit,
+    onNavigateToManageAccount: () -> Unit,
+    onNavigateToLogin: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var showLogoutConfirm by remember { mutableStateOf(false) }
+
+    // Logout Confirmation Dialog
+    if (showLogoutConfirm) {
+        AlertDialog(
+            onDismissRequest = { showLogoutConfirm = false },
+            title = { Text("Confirm Logout") },
+            text = { Text("Are you sure you want to logout?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLogoutConfirm = false
+                        onNavigateToLogin()
+                    }
+                ) {
+                    Text("Logout")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Main Profile Screen
+    ProfileScreenNew(
+        name = fullName,
+        username = username,
+        wristbandName = "FASTER Wristband",
+        batteryPercentage = 82,
+        connectionStatus = "Strong Connection",
+        onPersonalInfoClick = onNavigateToPersonalInfo,
+        onEmergencyContactsClick = onNavigateToEmergencyContacts,
+        onHealthClick = onNavigateToHealth,
+        onNotificationsClick = onNavigateToNotifications,
+        onLocationClick = onNavigateToLocation,
+        onPaymentsClick = onNavigateToPayments,
+        onReportClick = onNavigateToReportIssue,
+        onTermsClick = onNavigateToTerms,
+        onPrivacyClick = onNavigateToPrivacy,
+        onFaqClick = onNavigateToFAQ,
+        onManageAccountClick = onNavigateToManageAccount,
+        onLogoutClick = { showLogoutConfirm = true },
+        modifier = modifier
+    )
 }
 
 // ============================================================================
