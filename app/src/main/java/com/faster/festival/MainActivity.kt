@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -131,7 +132,12 @@ fun FastERBottomNavBar(
                 icon = { Icon(imageVector = Icons.Default.Home, contentDescription = stringResource(id = R.string.home)) },
                 label = { Text(stringResource(id = R.string.home)) },
                 selected = currentRoute == Routes.HOME,
-                onClick = { onNavigate(Routes.HOME) }
+                onClick = { onNavigate(Routes.HOME) },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.inverseSurface,
+                    selectedTextColor = MaterialTheme.colorScheme.inverseSurface,
+                    indicatorColor = Color.White
+                )
         )
 
         // Map
@@ -139,7 +145,12 @@ fun FastERBottomNavBar(
                 icon = { Icon(imageVector = Icons.Default.Map, contentDescription = stringResource(id = R.string.map)) },
                 label = { Text(stringResource(id = R.string.map)) },
                 selected = currentRoute == Routes.MAP,
-                onClick = { onNavigate(Routes.MAP) }
+                onClick = { onNavigate(Routes.MAP) },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor =MaterialTheme.colorScheme.inverseSurface,
+                    selectedTextColor =MaterialTheme.colorScheme.inverseSurface,
+                    indicatorColor = Color.White
+                )
         )
 
         // Schedule
@@ -149,7 +160,12 @@ fun FastERBottomNavBar(
                 },
                 label = { Text(stringResource(id = R.string.schedule)) },
                 selected = currentRoute == Routes.SCHEDULE,
-                onClick = { onNavigate(Routes.SCHEDULE) }
+                onClick = { onNavigate(Routes.SCHEDULE) },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.inverseSurface,
+                    selectedTextColor = MaterialTheme.colorScheme.inverseSurface,
+                    indicatorColor = Color.White
+                )
         )
 
         // Profile
@@ -157,8 +173,34 @@ fun FastERBottomNavBar(
                 icon = { Icon(imageVector = Icons.Default.Person, contentDescription = "Profile") },
                 label = { Text(stringResource(id = R.string.profile)) },
                 selected = currentRoute == Routes.PROFILE,
-                onClick = { onNavigate(Routes.PROFILE) }
+                onClick = { onNavigate(Routes.PROFILE) },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor =MaterialTheme.colorScheme.inverseSurface,
+                    selectedTextColor = MaterialTheme.colorScheme.inverseSurface,
+                    indicatorColor = Color.White
+                )
         )
+
+        // Wristband
+        NavigationBarItem(
+            icon = {
+                Image(
+                    painter = painterResource(id = R.drawable.faster_red),
+                    contentDescription = "FASTER Logo",
+                    modifier = Modifier.size(24.dp),
+                    contentScale = ContentScale.Fit
+                )
+            },
+            label = { Text(stringResource(id = R.string.band)) },
+            selected = currentRoute == Routes.PROFILE,
+            onClick = { onNavigate(Routes.PROFILE) },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = MaterialTheme.colorScheme.inverseSurface,
+                selectedTextColor =MaterialTheme.colorScheme.inverseSurface,
+                indicatorColor = Color.White
+            )
+        )
+
     }
 }
 

@@ -251,7 +251,29 @@ fun NavGraph(
 
         // Profile Tab
         composable(Routes.PROFILE) {
-            ProfileScreen(onTicketsClick = { navController.navigate(Routes.TICKETS) })
+            ProfileScreenNew(
+                name = "First Last",
+                wristbandName = "FASTER Wristband",
+                batteryPercentage = 82,
+                connectionStatus = "Strong Connection",
+                onPersonalInfoClick = { /* TODO: Navigate to personal info */ },
+                onEmergencyContactsClick = { /* TODO: Navigate to emergency contacts */ },
+                onHealthClick = { /* TODO: Navigate to health */ },
+                onNotificationsClick = { /* TODO: Navigate to notifications */ },
+                onLocationClick = { /* TODO: Navigate to location */ },
+                onPaymentsClick = { /* TODO: Navigate to payments */ },
+                onAboutClick = { /* TODO: Navigate to about */ },
+                onReportClick = { /* TODO: Navigate to report */ },
+                onTermsClick = { /* TODO: Navigate to terms */ },
+                onPrivacyClick = { /* TODO: Navigate to privacy */ },
+                onFaqClick = { /* TODO: Navigate to faq */ },
+                onManageAccountClick = { /* TODO: Navigate to manage account */ },
+                onLogoutClick = {
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(Routes.HOME) { inclusive = true }
+                    }
+                }
+            )
         }
 
         // Artist Detail
