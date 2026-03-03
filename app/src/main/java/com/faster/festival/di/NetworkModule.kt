@@ -2,7 +2,11 @@ package com.faster.festival.di
 
 import com.faster.festival.BuildConfig
 import com.faster.festival.data.remote.AuthApiService
+import com.faster.festival.data.remote.AuthorizationInterceptor
+import com.faster.festival.data.remote.FestivalApi
+import com.faster.festival.data.remote.FestivalApiService
 import com.faster.festival.data.remote.OnboardingApiService
+import com.faster.festival.data.remote.SupabaseHeadersInterceptor
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 // Supabase client and realtime support removed for OTP-based verification flow.
 import java.util.concurrent.TimeUnit
@@ -42,10 +46,22 @@ object NetworkModule {
                 chain.proceed(requestBuilder.build())
             }
 
+    /**
+     * Authorization interceptor for adding Bearer token when available
+     * Default implementation returns null (no token)
+     * Can be injected with a lambda that fetches the current access token
+     */
+    fun createAuthorizationInterceptor(
+        getAccessToken: () -> String? = { null }
+    ): AuthorizationInterceptor {
+        return AuthorizationInterceptor(getAccessToken)
+    }
+
     private val client =
             OkHttpClient.Builder()
                     .addInterceptor(loggingInterceptor)
                     .addInterceptor(authInterceptor)
+                    .addInterceptor(createAuthorizationInterceptor())
                     .connectTimeout(30, TimeUnit.SECONDS)
                     .readTimeout(30, TimeUnit.SECONDS)
                     .writeTimeout(30, TimeUnit.SECONDS)
@@ -70,6 +86,10 @@ object NetworkModule {
     val authApiService: AuthApiService by lazy { retrofit.create(AuthApiService::class.java) }
 
     val onboardingApiService: OnboardingApiService by lazy { retrofit.create(OnboardingApiService::class.java) }
+
+    val festivalApiService: FestivalApiService by lazy { retrofit.create(FestivalApiService::class.java) }
+
+    val festivalApi: FestivalApi by lazy { retrofit.create(FestivalApi::class.java) }
 
     // Supabase realtime client support removed. If you need to re-enable, re-add the dependency and
     // restore the client creation logic here.

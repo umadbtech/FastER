@@ -15,6 +15,7 @@ kotlinx-serialization = "1.6.2"
 retrofit-kotlinx-serialization = "1.0.0"
 security-crypto = "1.1.0-alpha06"
 zxing = "3.5.2"
+coil = "2.6.0"
 # Supabase Kotlin client versions - adjust if different/published elsewhere
 supabase-core = "0.2.1"
 
@@ -57,6 +58,9 @@ security-crypto = { module = "androidx.security:security-crypto", version.ref = 
 
 # QR Code
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
+
+# Image Loading
+coil = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
 
 # Material Design
 material = { module = "com.google.android.material:material", version.ref = "material" }

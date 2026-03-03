@@ -7,9 +7,17 @@ import androidx.compose.ui.graphics.vector.ImageVector
 // Festival Data Models
 data class Festival(
     val id: String,
+    val slug: String,
     val name: String,
-    val location: String,
-    val date: String,
+    val timezone: String,
+    val startsAt: String,
+    val endsAt: String,
+    val logoUrl: String = "",
+    val bannerUrl: String = "",
+    val accentColorHex: String = "",
+    val contextState: String = "",
+    val location: String = "",
+    val date: String = "",
     val heroImageUrl: String = "",
     val description: String = ""
 )

@@ -22,25 +22,40 @@ import androidx.compose.ui.tooling.preview.Preview
 
 @Composable
 fun HomeScreen(
+    modifier: Modifier = Modifier,
     onArtistClick: (String) -> Unit,
     onTicketsClick: () -> Unit,
     onFestivalHomeClick: () -> Unit,
     onFaqsClick: () -> Unit,
+    accessToken: String? = null,
+    festivalSlug: String = "floydfest-26",
     viewModel: HomeViewModel = viewModel(
         factory = object : androidx.lifecycle.ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                return HomeViewModel(FakeFestivalRepository()) as T
+                // Create API-compatible Festival with all required fields
+                val apiFestival = Festival(
+                    id = "550e8400-e29b-41d4-a716-446655440000",
+                    slug = "floydfest-26",
+                    name = "FloydFest 26",
+                    timezone = "America/New_York",
+                    startsAt = "2026-07-22T16:00:00+00:00",
+                    endsAt = "2026-07-27T03:00:00+00:00",
+                    logoUrl = "https://example.com/logo.png",
+                    bannerUrl = "https://example.com/banner.jpg",
+                    accentColorHex = "#00A86B",
+                    contextState = "PRE"
+                )
+                val repository = FakeFestivalRepository(festival = apiFestival)
+                return HomeViewModel(repository) as T
             }
         }
-    ),
-    modifier: Modifier = Modifier
+    )
 ) {
     val festivalState by viewModel.festivalState.collectAsState()
     val artistsState by viewModel.artistsState.collectAsState()
 
     Box(modifier = modifier.fillMaxSize()) {
-        // Main content
         when (festivalState) {
             is UiState.Loading -> {
                 CircularProgressIndicator(
@@ -54,55 +69,48 @@ fun HomeScreen(
                 )
             }
             is UiState.Success -> {
-                val festival = (festivalState as UiState.Success).data
                 val artists = when (artistsState) {
                     is UiState.Success -> (artistsState as UiState.Success).data
                     else -> emptyList()
                 }
 
                 HomeScreenContent(
-                    festival = festival,
                     artists = artists,
                     onArtistClick = onArtistClick,
                     onTicketsClick = onTicketsClick,
                     onFestivalHomeClick = onFestivalHomeClick,
                     onFaqsClick = onFaqsClick,
-                    onSettingsClick = {}
+                    onSettingsClick = {},
+                    festivalSlug = festivalSlug,
+                    accessToken = accessToken
                 )
             }
         }
-
-        // Floating Tickets Button
-        TicketsFabPill(
-            onClick = onTicketsClick,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 20.dp)
-        )
     }
 }
 
 @Composable
 fun HomeScreenContent(
-    festival: Festival,
+    modifier: Modifier = Modifier,
     artists: List<Artist>,
     onArtistClick: (String) -> Unit,
     onTicketsClick: () -> Unit,
     onFestivalHomeClick: () -> Unit,
     onFaqsClick: () -> Unit,
     onSettingsClick: () -> Unit,
-    modifier: Modifier = Modifier
+    festivalSlug: String = "floydfest-26",
+    accessToken: String? = null
 ) {
     Column(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
     ) {
-        // Hero Header
-        FestivalHeroHeader(
-            festivalName = festival.name,
-            location = festival.location,
-            date = festival.date
+        // Festival Header Screen with API integration
+        FestivalHeaderScreen(
+            modifier = Modifier,
+            festivalSlug = festivalSlug,
+            accessToken = accessToken
         )
 
         // Quick Actions
@@ -155,12 +163,6 @@ fun HomeScreenContent(
 fun PreviewHomeScreen() {
     FastERTheme {
         HomeScreenContent(
-            festival = Festival(
-                id = "1",
-                name = "FASTER",
-                location = "Desert Valley, California",
-                date = "May 15-17, 2026"
-            ),
             artists = listOf(
                 Artist(id = "1", name = "Luna Echo"),
                 Artist(id = "2", name = "The Midnight Collective"),
@@ -171,7 +173,9 @@ fun PreviewHomeScreen() {
             onTicketsClick = {},
             onFestivalHomeClick = {},
             onFaqsClick = {},
-            onSettingsClick = {}
+            onSettingsClick = {},
+            festivalSlug = "floydfest-26",
+            accessToken = null
         )
     }
 }

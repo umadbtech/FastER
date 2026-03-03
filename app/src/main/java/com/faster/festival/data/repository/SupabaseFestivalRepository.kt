@@ -1,39 +1,24 @@
 package com.faster.festival.data.repository
 
 import com.faster.festival.data.models.*
+import com.faster.festival.data.remote.FestivalApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 
-// Repository Interface
-interface FestivalRepository {
-    fun getFestival(): Flow<Festival>
-    fun getArtists(): Flow<List<Artist>>
-    fun getArtistById(id: String): Flow<Artist?>
-    fun getPois(): Flow<List<Poi>>
-    fun getSchedule(): Flow<List<ScheduleItem>>
-    fun getProfile(): Flow<AccountProfile>
-    fun updateProfile(profile: AccountProfile): Flow<AccountProfile>
-}
-
-// Fake In-Memory Repository
-class FakeFestivalRepository(
-    private val festival: Festival? = null
+/**
+ * Supabase-backed Festival Repository
+ * Fetches festival header data from Supabase Edge Function
+ * Falls back to fake data for other resources (artists, POIs, schedule)
+ */
+class SupabaseFestivalRepository(
+    private val festivalApi: FestivalApi,
+    private val festivalSlug: String,
+    private val accessToken: String? = null
 ) : FestivalRepository {
 
-    private val defaultFestival = festival ?: Festival(
-        id = "1",
-        slug = "faster-26",
-        name = "FASTER",
-        timezone = "America/Los_Angeles",
-        startsAt = "2026-05-15T16:00:00Z",
-        endsAt = "2026-05-17T23:59:59Z",
-        logoUrl = "",
-        bannerUrl = "",
-        accentColorHex = "#FF6B35",
-        contextState = "PRE"
-    )
-
-    private val artists = listOf(
+    // Fake data for other resources (to be replaced with actual APIs later)
+    private val fakeArtists = listOf(
         Artist(
             id = "1",
             name = "Luna Echo",
@@ -85,7 +70,7 @@ class FakeFestivalRepository(
         )
     )
 
-    private val pois = listOf(
+    private val fakePois = listOf(
         Poi("1", "Main Stage", "stage", 37.7749, -122.4194, "Primary performance venue"),
         Poi("2", "Campground Stage", "stage", 37.7750, -122.4195, "Secondary stage"),
         Poi("3", "Mountain Stage", "stage", 37.7748, -122.4193, "Outdoor mountain venue"),
@@ -94,7 +79,7 @@ class FakeFestivalRepository(
         Poi("6", "Workshop Tent", "workshop", 37.7746, -122.4191, "Educational sessions")
     )
 
-    private val scheduleItems = listOf(
+    private val fakeScheduleItems = listOf(
         ScheduleItem("1", "Main Stage", "Luna Echo", "8:00 PM", "9:15 PM", "May 15"),
         ScheduleItem("2", "Main Stage", "The Midnight Collective", "10:00 PM", "11:30 PM", "May 15"),
         ScheduleItem("3", "Mountain Stage", "Harmony Waves", "2:00 PM", "3:15 PM", "May 16"),
@@ -114,15 +99,90 @@ class FakeFestivalRepository(
         medications = ""
     )
 
-    override fun getFestival(): Flow<Festival> = flowOf(defaultFestival)
+    /**
+     * Fetch festival header from Supabase Edge Function
+     * Maps API response to Festival model
+     * Handles errors with appropriate messages
+     */
+    override fun getFestival(): Flow<Festival> = flow {
+        try {
+            // Call API with festival slug and optional token
+            val response = festivalApi.getFestivalHeader(festivalSlug)
 
-    override fun getArtists(): Flow<List<Artist>> = flowOf(artists)
+            when {
+                response.isSuccessful -> {
+                    val body = response.body()
+                    if (body != null) {
+                        // Map API response to Festival model
+                        val festival = Festival(
+                            id = body.festival.id,
+                            slug = body.festival.slug,
+                            name = body.festival.name,
+                            timezone = body.festival.timezone,
+                            startsAt = body.festival.starts_at,
+                            endsAt = body.festival.ends_at,
+                            logoUrl = body.festival.logo_url,
+                            bannerUrl = body.festival.banner_url,
+                            accentColorHex = body.festival.accent_color_hex.toString(),
+                            contextState = body.festival.context_state
+                        )
+                        emit(festival)
+                    } else {
+                        throw Exception("Empty response body from festival header API")
+                    }
+                }
+                response.code() == 400 -> {
+                    throw Exception("Missing festival slug")
+                }
+                response.code() == 404 -> {
+                    throw Exception("Festival not found")
+                }
+                response.code() == 500 -> {
+                    throw Exception("Server error")
+                }
+                else -> {
+                    throw Exception("API error: ${response.code()} - ${response.message()}")
+                }
+            }
+        } catch (e: Exception) {
+            throw Exception("Failed to fetch festival header: ${e.message}")
+        }
+    }
 
-    override fun getArtistById(id: String): Flow<Artist?> = flowOf(artists.find { it.id == id })
+    /**
+     * Format date range from ISO 8601 timestamps
+     * Example: "July 22 - 27, 2026"
+     */
+    private fun formatDateRange(startsAt: String, endsAt: String): String {
+        return try {
+            // Simple extraction of month, day, year from ISO format
+            // "2026-07-22T16:00:00+00:00" -> extract date part
+            val startParts = startsAt.split("T")[0].split("-")
+            val endParts = endsAt.split("T")[0].split("-")
 
-    override fun getPois(): Flow<List<Poi>> = flowOf(pois)
+            val months = listOf(
+                "", "January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December"
+            )
 
-    override fun getSchedule(): Flow<List<ScheduleItem>> = flowOf(scheduleItems)
+            val startMonth = months.getOrNull(startParts[1].toIntOrNull() ?: 0) ?: "Unknown"
+            val startDay = startParts.getOrNull(2)?.toIntOrNull() ?: 1
+            val endDay = endParts.getOrNull(2)?.toIntOrNull() ?: 1
+            val year = startParts.getOrNull(0) ?: "2026"
+
+            "$startMonth $startDay - $endDay, $year"
+        } catch (e: Exception) {
+            "Festival Dates"
+        }
+    }
+
+    override fun getArtists(): Flow<List<Artist>> = flowOf(fakeArtists)
+
+    override fun getArtistById(id: String): Flow<Artist?> = flowOf(fakeArtists.find { it.id == id })
+
+    override fun getPois(): Flow<List<Poi>> = flowOf(fakePois)
+
+    override fun getSchedule(): Flow<List<ScheduleItem>> = flowOf(fakeScheduleItems)
 
     override fun getProfile(): Flow<AccountProfile> = flowOf(profile)
 

@@ -31,6 +31,10 @@ object OnboardingStepCoordinator {
     /**
      * Build an ordered list of OnboardingStep based on the missing fields.
      *
+     * ⭐ IMPORTANT: TERMS_ACCEPTANCE is ALWAYS included as the final step,
+     * regardless of the missing fields list, to ensure users accept terms
+     * before completing onboarding.
+     *
      * @param missing List of missing field names from the backend response
      * @return Ordered list of OnboardingStep to present to the user
      */
@@ -72,8 +76,9 @@ object OnboardingStepCoordinator {
             steps.add(OnboardingStep.WRISTBAND)
         }
 
-        // TERMS_ACCEPTANCE - always last (if present)
-        if (missing.contains("terms_acceptance") || missing.contains("terms")) {
+        // ⭐ TERMS_ACCEPTANCE - ALWAYS added as final step
+        // (even if not in missing list, to ensure it's always shown)
+        if (!steps.contains(OnboardingStep.TERMS_ACCEPTANCE)) {
             steps.add(OnboardingStep.TERMS_ACCEPTANCE)
         }
 
@@ -88,7 +93,7 @@ object OnboardingStepCoordinator {
     /**
      * Default steps when no missing fields are provided.
      *
-     * Note: TERMS_ACCEPTANCE is always included as the final step to ensure
+     * Note: TERMS_ACCEPTANCE is ALWAYS included as the final step to ensure
      * users accept terms and conditions before completing onboarding.
      * This maintains consistency with buildOrderedSteps() behavior.
      */
@@ -99,7 +104,7 @@ object OnboardingStepCoordinator {
             OnboardingStep.GENDER_IDENTITY,
             OnboardingStep.EMERGENCY_CONTACT,
             OnboardingStep.WRISTBAND,
-            OnboardingStep.TERMS_ACCEPTANCE
+            OnboardingStep.TERMS_ACCEPTANCE  // ⭐ ALWAYS last
         )
     }
 

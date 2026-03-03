@@ -133,6 +133,9 @@ dependencies {
     // Phone number parsing/validation
     implementation("com.googlecode.libphonenumber:libphonenumber:8.13.28")
 
+    // Image Loading
+    implementation(libs.coil)
+
     // Add the real Supabase client artifacts only when requested.
     if (useRealSupabase) {
         // Use version catalog entries instead of hard-coded coordinates.

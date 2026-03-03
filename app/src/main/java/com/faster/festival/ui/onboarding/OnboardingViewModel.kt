@@ -433,17 +433,18 @@ class OnboardingViewModel(
 
             val current = _formState.value
 
-            // Validate all fields
-            val dobError = validateDOB(current.dateOfBirth)
-            if (dobError != null) {
-                _uiState.value = OnboardingUiState.Error(dobError)
-                return@launch
+            // Validate current step data
+            when {
+                current.termsAccepted && current.wristbandCode.isBlank() -> {
+                    _uiState.value = OnboardingUiState.Error("Wristband code is required")
+                    return@launch
+                }
             }
 
             try {
                 // Save demographics (final submission)
                 val demographicsRequest = SaveDemographicsRequest(
-                    dob = current.dateOfBirth,
+                    dob = current.dateOfBirth.ifBlank { null },
                     race_ethnicity = current.selectedRaceEthnicity.ifEmpty { null },
                     race_ethnicity_text = current.raceEthnicityText.ifBlank { null },
                     gender_identity = current.selectedGenderIdentity.ifBlank { null },
@@ -461,8 +462,10 @@ class OnboardingViewModel(
                         // Rebuild the steps to include the missing fields
                         setMissingFields(response.missing)
 
-                        // Advance to the next step in the flow
-                        proceedToNextStep()
+                        // DON'T call proceedToNextStep() here!
+                        // setMissingFields() already reset currentStepIndex to 0
+                        // The pager will automatically show the first missing step
+                        // If only 1 step missing (e.g., terms_acceptance), it will show that
 
                         _uiState.value = OnboardingUiState.Idle
                     } else if (response.activated == true) {
