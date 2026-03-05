@@ -65,4 +65,8 @@ interface AuthApiService {
         // Update user (requires Authorization: Bearer <token>) to change password
         @PUT("auth/v1/user")
         suspend fun updateUser(@Header("Authorization") authorization: String, @Body body: Map<String, String>): Response<AuthResponse>
+
+        // Logout endpoint: POST /auth/v1/logout with Authorization header
+        @POST("auth/v1/logout")
+        suspend fun logout(@Header("Authorization") authorization: String): Response<Unit>
 }

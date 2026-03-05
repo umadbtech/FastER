@@ -409,6 +409,35 @@ class AuthRepository(
         }
     }
 
+    /**
+     * Logout the current user
+     * Calls Supabase logout endpoint and clears session data
+     * POST /auth/v1/logout with Authorization header
+     */
+    suspend fun logout(accessToken: String): Result<Unit> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val header = "Bearer $accessToken"
+                val response = authApiService.logout(header)
+
+                if (response.isSuccessful) {
+                    // Clear all session data after successful logout
+                    sessionManager.clearSession()
+                    Result.success(Unit)
+                } else {
+                    val errorMessage = response.errorBody()?.string() ?: "Logout failed: ${response.code()}"
+                    // Even if API fails, clear session locally to ensure user is logged out
+                    sessionManager.clearSession()
+                    Result.failure(Exception(errorMessage))
+                }
+            } catch (e: Exception) {
+                // Even if API call fails (e.g., network error), clear session locally
+                sessionManager.clearSession()
+                Result.failure(Exception("Network error during logout: ${e.localizedMessage}"))
+            }
+        }
+    }
+
     companion object {
         // Expose login error mapping to allow unit testing without creating the full repository.
         fun mapLoginError(code: Int, errorBody: String?): String {

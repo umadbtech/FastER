@@ -18,6 +18,7 @@ import com.faster.festival.ui.auth.verification.CheckEmailScreen
 import com.faster.festival.ui.auth.verification.VerificationSuccessScreen
 import com.faster.festival.ui.screens.*
 import com.faster.festival.ui.onboarding.OnboardingScreen
+import kotlinx.coroutines.launch
 import com.faster.festival.ui.auth.forgot.ForgotPasswordViewModel
 import com.faster.festival.ui.auth.forgot.ForgotPasswordScreen
 import com.faster.festival.ui.auth.reset.ResetPasswordViewModel
@@ -332,7 +333,21 @@ fun NavGraph(
                 onNavigateToFAQ = { navController.navigate(Routes.FAQ) },
                 onNavigateToManageAccount = { navController.navigate(Routes.ACCOUNT_MANAGEMENT) },
                 onNavigateToLogin = {
+                    // ✅ Logout: Clear session and redirect immediately
+                    // Call logout API in background without blocking navigation
                     sessionManager.clearSession()
+
+                    // Call logout API asynchronously
+                    kotlinx.coroutines.GlobalScope.launch {
+                        try {
+                            authRepository.logout(accessToken)
+                        } catch (e: Exception) {
+                            // Logout API failed, but user is already logged out locally
+                            println("Logout API error: ${e.message}")
+                        }
+                    }
+
+                    // Navigate to login screen immediately
                     navController.navigate(Routes.LOGIN) {
                         popUpTo(Routes.HOME) { inclusive = true }
                     }
