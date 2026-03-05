@@ -167,7 +167,7 @@ fun OnboardingScreen(
                             onBackPressed = { viewModel.goBack() }
                         )
                         OnboardingStep.TERMS_ACCEPTANCE -> TermsAcceptanceScreen(
-                            formState = formState,
+                            viewModel = viewModel,
                             onTermsAcceptanceChange = { viewModel.updateTermsAcceptance(it) }
                         )
                         else -> {

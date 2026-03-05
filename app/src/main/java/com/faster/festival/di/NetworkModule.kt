@@ -1,12 +1,25 @@
 package com.faster.festival.di
 
 import com.faster.festival.BuildConfig
+import com.faster.festival.data.remote.AppExperienceBundleApi
+import com.faster.festival.data.remote.AppHomeApi
 import com.faster.festival.data.remote.AuthApiService
 import com.faster.festival.data.remote.AuthorizationInterceptor
+import com.faster.festival.data.remote.ContentArtistDetailApi
+import com.faster.festival.data.remote.ContentHomeApi
+import com.faster.festival.data.remote.ContentLineupApi
+import com.faster.festival.data.remote.ContentMapApi
+import com.faster.festival.data.remote.ContentStageScheduleApi
 import com.faster.festival.data.remote.FestivalApi
 import com.faster.festival.data.remote.FestivalApiService
+import com.faster.festival.data.remote.FestivalExperienceApi
+import com.faster.festival.data.remote.FestivalHeaderApi
+import com.faster.festival.data.remote.OfflineBundleApi
 import com.faster.festival.data.remote.OnboardingApiService
+import com.faster.festival.data.remote.ProfileApiService
 import com.faster.festival.data.remote.SupabaseHeadersInterceptor
+import com.faster.festival.data.repository.ContentRepository
+import com.faster.festival.data.repository.ProfileRepository
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 // Supabase client and realtime support removed for OTP-based verification flow.
 import java.util.concurrent.TimeUnit
@@ -90,6 +103,53 @@ object NetworkModule {
     val festivalApiService: FestivalApiService by lazy { retrofit.create(FestivalApiService::class.java) }
 
     val festivalApi: FestivalApi by lazy { retrofit.create(FestivalApi::class.java) }
+
+    val appHomeApi: AppHomeApi by lazy { retrofit.create(AppHomeApi::class.java) }
+
+    val profileApiService: ProfileApiService by lazy { retrofit.create(ProfileApiService::class.java) }
+
+    val profileRepository: ProfileRepository by lazy { ProfileRepository(profileApiService) }
+
+    // ========== Content API Services ==========
+
+    val festivalHeaderApi: FestivalHeaderApi by lazy { retrofit.create(FestivalHeaderApi::class.java) }
+
+    val contentHomeApi: ContentHomeApi by lazy { retrofit.create(ContentHomeApi::class.java) }
+
+    val contentLineupApi: ContentLineupApi by lazy { retrofit.create(ContentLineupApi::class.java) }
+
+    val contentArtistDetailApi: ContentArtistDetailApi by lazy { retrofit.create(ContentArtistDetailApi::class.java) }
+
+    val contentStageScheduleApi: ContentStageScheduleApi by lazy { retrofit.create(ContentStageScheduleApi::class.java) }
+
+    val contentMapApi: ContentMapApi by lazy { retrofit.create(ContentMapApi::class.java) }
+
+    // ========== Experience API Services ==========
+
+    val festivalExperienceApi: FestivalExperienceApi by lazy { retrofit.create(FestivalExperienceApi::class.java) }
+
+    val appExperienceBundleApi: AppExperienceBundleApi by lazy { retrofit.create(AppExperienceBundleApi::class.java) }
+
+    // ========== Offline Bundle API Service ==========
+
+    val offlineBundleApi: OfflineBundleApi by lazy { retrofit.create(OfflineBundleApi::class.java) }
+
+    // ========== Content Repository ==========
+
+    val contentRepository: ContentRepository by lazy {
+        ContentRepository(
+            festivalHeaderApi = festivalHeaderApi,
+            contentHomeApi = contentHomeApi,
+            contentLineupApi = contentLineupApi,
+            contentArtistDetailApi = contentArtistDetailApi,
+            contentStageScheduleApi = contentStageScheduleApi,
+            contentMapApi = contentMapApi,
+            appHomeApi = appHomeApi,
+            festivalExperienceApi = festivalExperienceApi,
+            appExperienceBundleApi = appExperienceBundleApi,
+            offlineBundleApi = offlineBundleApi
+        )
+    }
 
     // Supabase realtime client support removed. If you need to re-enable, re-add the dependency and
     // restore the client creation logic here.

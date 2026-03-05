@@ -1,6 +1,10 @@
 package com.faster.festival.ui.navigation
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -18,6 +22,8 @@ import com.faster.festival.ui.auth.forgot.ForgotPasswordViewModel
 import com.faster.festival.ui.auth.forgot.ForgotPasswordScreen
 import com.faster.festival.ui.auth.reset.ResetPasswordViewModel
 import com.faster.festival.ui.auth.reset.ResetPasswordScreen
+import com.faster.festival.ui.viewmodel.EnhancedProfileViewModel
+import com.faster.festival.ui.viewmodel.ProfileState
 
 object Routes {
     const val LOGIN = "login"
@@ -54,6 +60,7 @@ object Routes {
     const val ABOUT_FASTER = "about_faster"
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun NavGraph(
         navController: NavHostController = rememberNavController(),
@@ -245,11 +252,35 @@ fun NavGraph(
 
         // Home Tab
         composable(Routes.HOME) {
+            val accessToken = sessionManager.getAccessToken()
+            // TODO: festivalSlug could be fetched from API config or deep link
+            val festivalSlug = "floydfest-26"  // Using default for now
+
             HomeScreen(
-                    onArtistClick = { artistId -> navController.navigate("artist/$artistId") },
                     onTicketsClick = { navController.navigate(Routes.TICKETS) },
                     onFestivalHomeClick = { navController.navigate("web/festival_home") },
-                    onFaqsClick = { navController.navigate("web/faqs") }
+                    onFaqsClick = { navController.navigate("web/faqs") },
+                    onDeepLink = { url ->
+                        // Only navigate to known valid routes
+                        val isValidRoute = url.startsWith("artist/") ||
+                                url.startsWith("schedule") ||
+                                url.startsWith("web/") ||
+                                url.startsWith("tickets") ||
+                                url == Routes.MAP ||
+                                url == Routes.PROFILE
+
+                        if (isValidRoute) {
+                            try {
+                                navController.navigate(url)
+                            } catch (e: IllegalArgumentException) {
+                                println("Navigation error for '$url': ${e.message}")
+                            }
+                        } else {
+                            println("Invalid navigation route: $url - skipping navigation")
+                        }
+                    },
+                    accessToken = accessToken,
+                    festivalSlug = festivalSlug
             )
         }
 
@@ -263,14 +294,32 @@ fun NavGraph(
             ScheduleScreen(onTicketsClick = { navController.navigate(Routes.TICKETS) })
         }
 
-        // Profile Tab - UPDATED WITH FULL NAVIGATION
+        // Profile Tab - UPDATED WITH FULL NAVIGATION & API DATA
         composable(Routes.PROFILE) {
             val accessToken = sessionManager.getAccessToken() ?: return@composable
 
+            // Load profile data from API using ViewModel
+            val profileViewModel: EnhancedProfileViewModel = viewModel(
+                factory = EnhancedProfileViewModel.createFactory(
+                    profileRepository = com.faster.festival.di.NetworkModule.profileRepository
+                )
+            )
+
+            // Trigger profile load on screen entry
+            LaunchedEffect(accessToken) {
+                profileViewModel.loadProfile(accessToken)
+            }
+
+            val profileState = profileViewModel.profileState.collectAsState()
+            val fullName = profileViewModel.fullName.collectAsState()
+
+            // Extract username from profile state if available
+            val username = (profileState.value as? ProfileState.Success)?.profile?.username
+
             EnhancedProfileScreenWithNavigation(
                 accessToken = accessToken,
-                fullName = "John Doe",  // TODO: Get from ViewModel/API
-                username = "john_doe",  // TODO: Get from ViewModel/API
+                fullName = fullName.value,  // ✅ From API via ViewModel
+                username = username,  // ✅ From API response
                 onNavigateToPersonalInfo = { navController.navigate(Routes.PERSONAL_INFO) },
                 onNavigateToEmergencyContacts = { navController.navigate(Routes.EMERGENCY_CONTACTS) },
                 onNavigateToHealth = { navController.navigate(Routes.HEALTH_SETTINGS) },

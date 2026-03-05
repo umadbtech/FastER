@@ -4,13 +4,10 @@ import com.faster.festival.data.local.EncryptedSessionManager
 import com.faster.festival.data.model.OnboardingResponse
 import com.faster.festival.data.model.SaveDemographicsRequest
 import com.faster.festival.data.model.SaveUsernameRequest
-import com.faster.festival.data.model.EnsureOnboardingResponse
 import com.faster.festival.data.model.SaveEmergencyContactRequest
-import com.faster.festival.data.model.EnsureFestivalOnboardingResponse
 import com.faster.festival.data.remote.OnboardingApiService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
 
 /**
  * Repository for onboarding-related API calls.
@@ -19,7 +16,25 @@ class OnboardingRepository(
     private val onboardingApiService: OnboardingApiService,
     private val sessionManager: EncryptedSessionManager
 ) {
-    private val json = Json { ignoreUnknownKeys = true }
+
+    /**
+     * Maps HTTP error codes to user-friendly error messages
+     */
+    private fun mapErrorMessage(code: Int, defaultMessage: String = ""): String {
+        return when (code) {
+            400 -> "Invalid input. Please check your information and try again."
+            401 -> "Your session has expired. Please log in again."
+            403 -> "You don't have permission to perform this action."
+            404 -> "The requested resource was not found."
+            409 -> "This information is already taken. Please try another value."
+            422 -> "Please check your information and try again."
+            429 -> "Too many requests. Please wait a moment and try again."
+            500 -> "Server error. Please try again later."
+            else -> defaultMessage.ifEmpty { "An error occurred. Please try again." }
+        }
+    }
+
+    // ...existing code...
 
     /**
      * Initialize onboarding (idempotent call) and retrieve festival ID.
@@ -35,22 +50,22 @@ class OnboardingRepository(
                 if (response.isSuccessful) {
                     val body = response.body()
                     if (body == null || body.isEmpty()) {
-                        return@withContext Result.failure(Exception("Empty response from ensure_festival_onboarding"))
+                        return@withContext Result.failure(Exception("Failed to initialize onboarding"))
                     }
 
                     // Extract festival_id from the first element in the response array
                     val festivalId = body.firstOrNull()?.festival_id
                     if (festivalId.isNullOrBlank()) {
-                        return@withContext Result.failure(Exception("No festival_id in response"))
+                        return@withContext Result.failure(Exception("Failed to retrieve festival information"))
                     }
 
                     Result.success(festivalId)
                 } else {
-                    val errorBody = response.errorBody()?.string()
-                    Result.failure(Exception("Ensure onboarding failed: ${response.code()} - $errorBody"))
+                    val userMessage = mapErrorMessage(response.code())
+                    Result.failure(Exception(userMessage))
                 }
             } catch (e: Exception) {
-                Result.failure(Exception("Network error: ${e.localizedMessage}"))
+                Result.failure(Exception("Network error. Please check your connection and try again."))
             }
         }
     }
@@ -71,11 +86,15 @@ class OnboardingRepository(
                     if (body == null) return@withContext Result.failure(Exception("Empty response"))
                     Result.success(body)
                 } else {
-                    val errorBody = response.errorBody()?.string()
-                    Result.failure(Exception("Save username failed: ${response.code()} - $errorBody"))
+                    val userMessage = when (response.code()) {
+                        409 -> "This username is already taken. Please choose another."
+                        422 -> "Username must be 3-20 characters, alphanumeric and underscores only."
+                        else -> mapErrorMessage(response.code())
+                    }
+                    Result.failure(Exception(userMessage))
                 }
             } catch (e: Exception) {
-                Result.failure(Exception("Network error: ${e.localizedMessage}"))
+                Result.failure(Exception("Network error. Please check your connection and try again."))
             }
         }
     }
@@ -95,11 +114,11 @@ class OnboardingRepository(
                     if (body == null) return@withContext Result.failure(Exception("Empty response"))
                     Result.success(body)
                 } else {
-                    val errorBody = response.errorBody()?.string()
-                    Result.failure(Exception("Save demographics failed: ${response.code()} - $errorBody"))
+                    val userMessage = mapErrorMessage(response.code())
+                    Result.failure(Exception(userMessage))
                 }
             } catch (e: Exception) {
-                Result.failure(Exception("Network error: ${e.localizedMessage}"))
+                Result.failure(Exception("Network error. Please check your connection and try again."))
             }
         }
     }
@@ -120,11 +139,15 @@ class OnboardingRepository(
                     if (respBody == null) return@withContext Result.failure(Exception("Empty response"))
                     Result.success(respBody)
                 } else {
-                    val errorBody = response.errorBody()?.string()
-                    Result.failure(Exception("Save wristband failed: ${response.code()} - $errorBody"))
+                    val userMessage = when (response.code()) {
+                        404 -> "Wristband not found. Please check the code and try again."
+                        409 -> "This wristband is already paired. Please contact support."
+                        else -> mapErrorMessage(response.code())
+                    }
+                    Result.failure(Exception(userMessage))
                 }
             } catch (e: Exception) {
-                Result.failure(Exception("Network error: ${e.localizedMessage}"))
+                Result.failure(Exception("Network error. Please check your connection and try again."))
             }
         }
     }
@@ -144,11 +167,64 @@ class OnboardingRepository(
                     if (body == null) return@withContext Result.failure(Exception("Empty response"))
                     Result.success(body)
                 } else {
-                    val errorBody = response.errorBody()?.string()
-                    Result.failure(Exception("Save emergency contact failed: ${response.code()} - $errorBody"))
+                    val userMessage = when (response.code()) {
+                        400 -> "Please check your contact information and try again."
+                        422 -> "Phone number format is invalid. Please enter a valid phone number."
+                        else -> mapErrorMessage(response.code())
+                    }
+                    Result.failure(Exception(userMessage))
                 }
             } catch (e: Exception) {
-                Result.failure(Exception("Network error: ${e.localizedMessage}"))
+                Result.failure(Exception("Network error. Please check your connection and try again."))
+            }
+        }
+    }
+
+    /**
+     * Accept terms and conditions.
+     */
+    suspend fun acceptTerms(): Result<OnboardingResponse> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val token = sessionManager.getAccessToken() ?: return@withContext Result.failure(Exception("No access token"))
+                val authHeader = "Bearer $token"
+                val body = mapOf("accepted" to true)
+                val response = onboardingApiService.acceptTerms(authHeader, body)
+
+                if (response.isSuccessful) {
+                    val respBody = response.body()
+                    if (respBody == null) return@withContext Result.failure(Exception("Empty response"))
+                    Result.success(respBody)
+                } else {
+                    val userMessage = mapErrorMessage(response.code())
+                    Result.failure(Exception(userMessage))
+                }
+            } catch (e: Exception) {
+                Result.failure(Exception("Network error. Please check your connection and try again."))
+            }
+        }
+    }
+
+    /**
+     * Get profile summary for current user.
+     */
+    suspend fun getProfileSummary(): Result<com.faster.festival.data.models.ProfileSummaryResponse> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val token = sessionManager.getAccessToken() ?: return@withContext Result.failure(Exception("No access token"))
+                val authHeader = "Bearer $token"
+                val response = onboardingApiService.getProfileSummary(authHeader)
+
+                if (response.isSuccessful) {
+                    val body = response.body()
+                    if (body == null) return@withContext Result.failure(Exception("Empty response"))
+                    Result.success(body)
+                } else {
+                    val userMessage = mapErrorMessage(response.code())
+                    Result.failure(Exception(userMessage))
+                }
+            } catch (e: Exception) {
+                Result.failure(Exception("Network error. Please check your connection and try again."))
             }
         }
     }

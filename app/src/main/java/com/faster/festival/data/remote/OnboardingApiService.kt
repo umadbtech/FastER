@@ -6,8 +6,10 @@ import com.faster.festival.data.model.SaveUsernameRequest
 import com.faster.festival.data.model.EnsureOnboardingResponse
 import com.faster.festival.data.model.SaveEmergencyContactRequest
 import com.faster.festival.data.model.EnsureFestivalOnboardingResponse
+import com.faster.festival.data.models.ProfileSummaryResponse
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
 
@@ -66,4 +68,23 @@ interface OnboardingApiService {
         @Header("Authorization") authorization: String,
         @Body request: SaveEmergencyContactRequest
     ): Response<OnboardingResponse>
+
+    /**
+     * POST /functions/v1/accept-terms
+     * Accept terms and conditions.
+     */
+    @POST("functions/v1/accept-terms")
+    suspend fun acceptTerms(
+        @Header("Authorization") authorization: String,
+        @Body body: Map<String, Boolean> = mapOf("accepted" to true)
+    ): Response<OnboardingResponse>
+
+    /**
+     * GET /functions/v1/profile-summary
+     * Get profile summary for current user.
+     */
+    @GET("functions/v1/profile-summary")
+    suspend fun getProfileSummary(
+        @Header("Authorization") authorization: String
+    ): Response<ProfileSummaryResponse>
 }

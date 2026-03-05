@@ -87,6 +87,10 @@ class OnboardingViewModel(
     private val _festivalId = MutableStateFlow(defaultFestivalId)
     val festivalId: StateFlow<String> = _festivalId.asStateFlow()
 
+    // Terms and Conditions text
+    private val _termsAndConditionsText = MutableStateFlow<String?>(null)
+    val termsAndConditionsText: StateFlow<String?> = _termsAndConditionsText.asStateFlow()
+
     private val dateFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
 
     /**
@@ -158,8 +162,59 @@ class OnboardingViewModel(
     fun getTotalSteps(): Int = _formState.value.orderedSteps.size
 
     /**
-     * Get the current step based on currentStepIndex.
+     * Load Terms and Conditions text.
+     * In a real app, this could load from an API or local assets.
      */
+    fun loadTermsAndConditions() {
+        // Default T&C text - in production, this would come from API or assets
+        val termsText = """
+            TERMS AND CONDITIONS
+            
+            Last Updated: March 2026
+            
+            1. ACCEPTANCE OF TERMS
+            By registering for this application and accessing the festival, you agree to be bound by these Terms and Conditions. If you do not agree to abide by the above, please do not use this service.
+            
+            2. USE LICENSE
+            Permission is granted to temporarily download one copy of the materials (information or software) on the FastER Festival app for personal, non-commercial transitory viewing only. This is the grant of a license, not a transfer of title, and under this license you may not:
+            • Modifying or copying the materials
+            • Using the materials for any commercial purpose or for any public display
+            • Attempting to decompile or reverse engineer any software contained on the app
+            • Transferring the materials to another person or "mirroring" the materials on any other server
+            • Removing any copyright or other proprietary notations from the materials
+            • Transferring the materials to another person or "mirroring" the materials on any other server
+            
+            3. DISCLAIMER
+            The materials on the FastER Festival app are provided on an 'as is' basis. The FastER Festival makes no warranties, expressed or implied, and hereby disclaims and negates all other warranties including, without limitation, implied warranties or conditions of merchantability, fitness for a particular purpose, or non-infringement of intellectual property or other violation of rights.
+            
+            4. LIMITATIONS
+            In no event shall the FastER Festival or its suppliers be liable for any damages (including, without limitation, damages for loss of data or profit, or due to business interruption) arising out of the use or inability to use the materials on the FastER Festival app, even if the FastER Festival or an authorized representative has been notified orally or in writing of the possibility of such damage.
+            
+            5. ACCURACY OF MATERIALS
+            The materials appearing on the FastER Festival app could include technical, typographical, or photographic errors. The FastER Festival does not warrant that any of the materials on the app are accurate, complete, or current. The FastER Festival may make changes to the materials contained on the app at any time without notice.
+            
+            6. LINKS
+            The FastER Festival has not reviewed all of the sites linked to its website and is not responsible for the contents of any such linked site. The inclusion of any link does not imply endorsement by the FastER Festival of the site. Use of any such linked website is at the user's own risk.
+            
+            7. MODIFICATIONS
+            The FastER Festival may revise these terms and conditions for its website at any time without notice. By using this website, you are agreeing to be bound by the then current version of these terms and conditions.
+            
+            8. GOVERNING LAW
+            These terms and conditions are governed by and construed in accordance with the laws of the jurisdiction where the festival is held, and you irrevocably submit to the exclusive jurisdiction of the courts in that location.
+            
+            9. PRIVACY
+            Your use of the app is also governed by our Privacy Policy, which you acknowledge that you have read and understood.
+            
+            10. CONTACT INFORMATION
+            If you have any questions about these Terms and Conditions, please contact us at support@faster-festival.com
+            
+            By clicking "Accept," you acknowledge that you have read these Terms and Conditions and agree to be bound by them.
+        """.trimIndent()
+
+        _termsAndConditionsText.value = termsText
+    }
+
+    // ...existing code...
     fun getCurrentStep(): OnboardingStep? {
         val state = _formState.value
         return OnboardingStepCoordinator.getStepAtIndex(state.orderedSteps, state.currentStepIndex)
@@ -223,10 +278,19 @@ class OnboardingViewModel(
             _uiState.value = OnboardingUiState.Loading
             val result = onboardingRepository.saveUsername(username)
             result.onSuccess { response ->
-                // Clear error and proceed to next step
+                // Clear error
                 _formState.update { it.copy(usernameError = null) }
-                proceedToNextStep()
-                _uiState.value = OnboardingUiState.Idle
+
+                // Check if onboarding is complete
+                if (response.activated == true) {
+                    // All steps complete!
+                    _uiState.value = OnboardingUiState.OnboardingComplete
+                } else {
+                    // Update missing fields based on response
+                    setMissingFields(response.missing)
+                    proceedToNextStep()
+                    _uiState.value = OnboardingUiState.Idle
+                }
             }.onFailure { error ->
                 _uiState.value = OnboardingUiState.Error(error.message ?: "Failed to save username")
             }
@@ -308,10 +372,50 @@ class OnboardingViewModel(
     }
 
     /**
-     * Proceed from Screen 3 to Screen 4.
+     * Proceed from Screen 3 to Screen 4 - Save demographics data.
      */
     fun proceedFromGenderIdentity() {
-        proceedToNextStep()
+        saveDemographicsToBackend()
+    }
+
+    /**
+     * Save demographics (DOB, race/ethnicity, gender) to backend.
+     */
+    private fun saveDemographicsToBackend() {
+        viewModelScope.launch {
+            _uiState.value = OnboardingUiState.Loading
+
+            val current = _formState.value
+
+            try {
+                // Create demographics request with all collected data
+                val request = SaveDemographicsRequest(
+                    dob = current.dateOfBirth,
+                    race_ethnicity = current.selectedRaceEthnicity,
+                    race_ethnicity_text = current.raceEthnicityText.ifBlank { null },
+                    gender_identity = current.selectedGenderIdentity,
+                    gender_identity_text = current.genderIdentityText.ifBlank { null }
+                )
+
+                val result = onboardingRepository.saveDemographics(request)
+
+                result.onSuccess { response ->
+                    // Check if onboarding is complete
+                    if (response.activated == true) {
+                        _uiState.value = OnboardingUiState.OnboardingComplete
+                    } else {
+                        // Update missing fields based on response
+                        setMissingFields(response.missing)
+                        proceedToNextStep()
+                        _uiState.value = OnboardingUiState.Idle
+                    }
+                }.onFailure { error ->
+                    _uiState.value = OnboardingUiState.Error(error.message ?: "Failed to save demographics")
+                }
+            } catch (e: Exception) {
+                _uiState.value = OnboardingUiState.Error(e.message ?: "Unknown error saving demographics")
+            }
+        }
     }
 
     /**
@@ -374,8 +478,16 @@ class OnboardingViewModel(
                 val result = onboardingRepository.saveEmergencyContact(request)
 
                 result.onSuccess { response ->
-                    proceedToNextStep()
-                    _uiState.value = OnboardingUiState.Idle
+                    // Check if onboarding is complete
+                    if (response.activated == true) {
+                        // All steps complete!
+                        _uiState.value = OnboardingUiState.OnboardingComplete
+                    } else {
+                        // Update missing fields based on response
+                        setMissingFields(response.missing)
+                        proceedToNextStep()
+                        _uiState.value = OnboardingUiState.Idle
+                    }
                 }.onFailure { error ->
                     _uiState.value = OnboardingUiState.Error(error.message ?: "Failed to save emergency contact")
                 }
@@ -396,7 +508,35 @@ class OnboardingViewModel(
      * Proceed from wristband screen.
      */
     private fun proceedFromWristband() {
-        proceedToNextStep()
+        val wristbandCode = _formState.value.wristbandCode
+
+        if (wristbandCode.isEmpty()) {
+            // Skip wristband - it's optional
+            proceedToNextStep()
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.value = OnboardingUiState.Loading
+            val result = onboardingRepository.saveWristband(wristbandCode)
+            result.onSuccess { response ->
+                // Clear error
+                _formState.update { it.copy(wristbandError = null) }
+
+                // Check if onboarding is complete
+                if (response.activated == true) {
+                    // All steps complete!
+                    _uiState.value = OnboardingUiState.OnboardingComplete
+                } else {
+                    // Update missing fields based on response
+                    setMissingFields(response.missing)
+                    proceedToNextStep()
+                    _uiState.value = OnboardingUiState.Idle
+                }
+            }.onFailure { error ->
+                _uiState.value = OnboardingUiState.Error(error.message ?: "Failed to save wristband")
+            }
+        }
     }
 
     /**
@@ -415,7 +555,24 @@ class OnboardingViewModel(
             _uiState.value = OnboardingUiState.Error("You must accept the terms to proceed")
             return
         }
-        proceedToNextStep()
+
+        viewModelScope.launch {
+            _uiState.value = OnboardingUiState.Loading
+            val result = onboardingRepository.acceptTerms()
+            result.onSuccess { response ->
+                // Onboarding should be complete after accepting terms
+                if (response.activated == true) {
+                    _uiState.value = OnboardingUiState.OnboardingComplete
+                } else {
+                    // Still more steps
+                    setMissingFields(response.missing)
+                    proceedToNextStep()
+                    _uiState.value = OnboardingUiState.Idle
+                }
+            }.onFailure { error ->
+                _uiState.value = OnboardingUiState.Error(error.message ?: "Failed to accept terms")
+            }
+        }
     }
 
     /**
@@ -470,7 +627,15 @@ class OnboardingViewModel(
                         _uiState.value = OnboardingUiState.Idle
                     } else if (response.activated == true) {
                         // No missing fields and activated = true → onboarding complete
-                        _uiState.value = OnboardingUiState.OnboardingComplete
+                        // Load profile summary to populate user data
+                        val profileResult = onboardingRepository.getProfileSummary()
+                        profileResult.onSuccess { profile ->
+                            // Profile loaded successfully - stored in local state if needed
+                            _uiState.value = OnboardingUiState.OnboardingComplete
+                        }.onFailure { profileError ->
+                            // Continue even if profile load fails
+                            _uiState.value = OnboardingUiState.OnboardingComplete
+                        }
                     } else {
                         // Saved but not activated and no missing fields reported
                         _uiState.value = OnboardingUiState.Success("Onboarding saved successfully.")
