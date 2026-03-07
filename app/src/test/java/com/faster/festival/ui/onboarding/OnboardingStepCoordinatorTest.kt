@@ -1,7 +1,157 @@
 package com.faster.festival.ui.onboarding
 
+import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
 /**
- * Unit test helper for OnboardingStepCoordinator
+ * JUnit 4 Test Suite for OnboardingStepCoordinator
+ * Tests step ordering logic based on missing fields
+ */
+class OnboardingStepCoordinatorTest {
+
+    // ============= STEP ORDERING TESTS =============
+
+    @Test
+    fun `test single field missing returns correct order`() {
+        // Arrange
+        val missing = listOf("username")
+
+        // Act
+        val steps = OnboardingStepCoordinator.buildOrderedSteps(missing)
+
+        // Assert
+        assertTrue(steps.contains(OnboardingStep.USERNAME))
+        assertEquals(OnboardingStep.TERMS_ACCEPTANCE, steps.last())
+    }
+
+    @Test
+    fun `test all 7 fields missing returns correct order`() {
+        // Arrange
+        val missing = listOf(
+            "username",
+            "date_of_birth",
+            "race_ethnicity",
+            "gender_identity",
+            "emergency_contact",
+            "wristband",
+            "terms_acceptance"
+        )
+
+        // Act
+        val steps = OnboardingStepCoordinator.buildOrderedSteps(missing)
+
+        // Assert
+        val expectedOrder = listOf(
+            OnboardingStep.USERNAME,
+            OnboardingStep.DATE_OF_BIRTH,
+            OnboardingStep.RACE_ETHNICITY,
+            OnboardingStep.GENDER_IDENTITY,
+            OnboardingStep.EMERGENCY_CONTACT,
+            OnboardingStep.WRISTBAND,
+            OnboardingStep.TERMS_ACCEPTANCE
+        )
+        assertEquals(expectedOrder, steps)
+    }
+
+    @Test
+    fun `test TERMS_ACCEPTANCE always last even if not in missing`() {
+        // Arrange
+        val missing = listOf("username", "date_of_birth")
+
+        // Act
+        val steps = OnboardingStepCoordinator.buildOrderedSteps(missing)
+
+        // Assert
+        assertEquals(OnboardingStep.TERMS_ACCEPTANCE, steps.last())
+    }
+
+    @Test
+    fun `test empty missing list returns default steps with TERMS_ACCEPTANCE last`() {
+        // Act
+        val steps = OnboardingStepCoordinator.buildOrderedSteps(emptyList())
+
+        // Assert
+        assertTrue(steps.isNotEmpty())
+        assertEquals(OnboardingStep.TERMS_ACCEPTANCE, steps.last())
+    }
+
+    @Test
+    fun `test null missing list returns default steps`() {
+        // Act
+        val steps = OnboardingStepCoordinator.buildOrderedSteps(null)
+
+        // Assert
+        assertTrue(steps.isNotEmpty())
+        assertEquals(OnboardingStep.TERMS_ACCEPTANCE, steps.last())
+    }
+
+    // ============= INDEX LOOKUP TESTS =============
+
+    @Test
+    fun `test getStepIndex returns correct indices`() {
+        // Arrange
+        val missing = listOf("username", "date_of_birth", "wristband", "terms_acceptance")
+        val steps = OnboardingStepCoordinator.buildOrderedSteps(missing)
+
+        // Act
+        val usernameIndex = OnboardingStepCoordinator.getStepIndex(steps, OnboardingStep.USERNAME)
+        val wristbandIndex = OnboardingStepCoordinator.getStepIndex(steps, OnboardingStep.WRISTBAND)
+
+        // Assert
+        assertEquals(0, usernameIndex)
+        assertTrue(wristbandIndex > usernameIndex)
+    }
+
+    @Test
+    fun `test getStepAtIndex returns correct steps`() {
+        // Arrange
+        val missing = listOf("username", "date_of_birth", "wristband")
+        val steps = OnboardingStepCoordinator.buildOrderedSteps(missing)
+
+        // Act
+        val firstStep = OnboardingStepCoordinator.getStepAtIndex(steps, 0)
+        val lastStep = OnboardingStepCoordinator.getStepAtIndex(steps, steps.size - 1)
+
+        // Assert
+        assertEquals(OnboardingStep.USERNAME, firstStep)
+        assertEquals(OnboardingStep.TERMS_ACCEPTANCE, lastStep)
+    }
+
+    @Test
+    fun `test getStepAtIndex returns null for out of bounds`() {
+        // Arrange
+        val missing = listOf("username")
+        val steps = OnboardingStepCoordinator.buildOrderedSteps(missing)
+
+        // Act
+        val outOfBounds = OnboardingStepCoordinator.getStepAtIndex(steps, 999)
+
+        // Assert
+        assertNull(outOfBounds)
+    }
+
+    // ============= DUPLICATE HANDLING TESTS =============
+
+    @Test
+    fun `test duplicate missing fields handled correctly`() {
+        // Arrange
+        val missing = listOf("username", "username", "date_of_birth", "date_of_birth")
+
+        // Act
+        val steps = OnboardingStepCoordinator.buildOrderedSteps(missing)
+
+        // Assert
+        val usernameCount = steps.filter { it == OnboardingStep.USERNAME }.size
+        val dobCount = steps.filter { it == OnboardingStep.DATE_OF_BIRTH }.size
+        assertEquals(1, usernameCount)
+        assertEquals(1, dobCount)
+    }
+}
+
+/**
+ * Unit test helper for OnboardingStepCoordinator (legacy)
  * Tests step ordering logic based on missing fields
  */
 object OnboardingStepCoordinatorTestHelper {
@@ -244,7 +394,147 @@ object OnboardingStepCoordinatorTestHelper {
 }
 
 /**
- * Unit test helper for OnboardingFormState validation
+ * JUnit 4 Test Suite for OnboardingFormState validation
+ */
+class OnboardingFormStateTest {
+
+    // ============= INITIAL STATE TESTS =============
+
+    @Test
+    fun `test initial state has empty fields`() {
+        // Act
+        val state = OnboardingFormState()
+
+        // Assert
+        assertTrue(state.dateOfBirth.isEmpty())
+        assertTrue(state.selectedRaceEthnicity.isEmpty())
+        assertTrue(state.selectedGenderIdentity.isEmpty())
+        assertTrue(state.emergencyContactName.isEmpty())
+        assertTrue(state.username.isEmpty())
+        assertTrue(!state.termsAccepted)
+    }
+
+    // ============= FIELD UPDATE TESTS =============
+
+    @Test
+    fun `test can update username`() {
+        // Arrange
+        val state = OnboardingFormState()
+
+        // Act
+        val newState = state.copy(username = "testuser")
+
+        // Assert
+        assertEquals("testuser", newState.username)
+    }
+
+    @Test
+    fun `test can update date of birth`() {
+        // Arrange
+        val state = OnboardingFormState()
+
+        // Act
+        val newState = state.copy(dateOfBirth = "1990-01-01")
+
+        // Assert
+        assertEquals("1990-01-01", newState.dateOfBirth)
+    }
+
+    @Test
+    fun `test can update race ethnicity selections`() {
+        // Arrange
+        val state = OnboardingFormState()
+        val selections = listOf("Black", "Asian")
+
+        // Act
+        val newState = state.copy(selectedRaceEthnicity = selections)
+
+        // Assert
+        assertEquals(selections, newState.selectedRaceEthnicity)
+    }
+
+    @Test
+    fun `test can update gender identity`() {
+        // Arrange
+        val state = OnboardingFormState()
+
+        // Act
+        val newState = state.copy(selectedGenderIdentity = "Non-binary")
+
+        // Assert
+        assertEquals("Non-binary", newState.selectedGenderIdentity)
+    }
+
+    @Test
+    fun `test can update emergency contact`() {
+        // Arrange
+        val state = OnboardingFormState()
+
+        // Act
+        val newState = state.copy(
+            emergencyContactName = "John Doe",
+            emergencyContactPhone = "+1234567890",
+            emergencyContactRelationship = "Parent"
+        )
+
+        // Assert
+        assertEquals("John Doe", newState.emergencyContactName)
+        assertEquals("+1234567890", newState.emergencyContactPhone)
+        assertEquals("Parent", newState.emergencyContactRelationship)
+    }
+
+    @Test
+    fun `test can update wristband code`() {
+        // Arrange
+        val state = OnboardingFormState()
+
+        // Act
+        val newState = state.copy(wristbandCode = "ABC123XYZ")
+
+        // Assert
+        assertEquals("ABC123XYZ", newState.wristbandCode)
+    }
+
+    @Test
+    fun `test can accept terms`() {
+        // Arrange
+        val state = OnboardingFormState()
+
+        // Act
+        val newState = state.copy(termsAccepted = true)
+
+        // Assert
+        assertTrue(newState.termsAccepted)
+    }
+
+    @Test
+    fun `test can update ordered steps`() {
+        // Arrange
+        val state = OnboardingFormState()
+        val steps = listOf(OnboardingStep.USERNAME, OnboardingStep.DATE_OF_BIRTH)
+
+        // Act
+        val newState = state.copy(orderedSteps = steps)
+
+        // Assert
+        assertEquals(steps, newState.orderedSteps)
+    }
+
+    @Test
+    fun `test can update current step index`() {
+        // Arrange
+        val state = OnboardingFormState()
+
+        // Act
+        val newState = state.copy(currentStepIndex = 3)
+
+        // Assert
+        assertEquals(3, newState.currentStepIndex)
+    }
+}
+
+/**
+ * Unit test helper for OnboardingFormState validation (legacy)
  */
 object OnboardingFormStateTestHelper {
 
