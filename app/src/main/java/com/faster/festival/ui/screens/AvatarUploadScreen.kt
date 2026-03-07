@@ -85,7 +85,7 @@ fun AvatarUploadScreen(
             },
             navigationIcon = {
                 IconButton(onClick = onBackClick) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    Icon(Icons.Filled.Close, contentDescription = "Back")
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
@@ -167,7 +167,7 @@ fun AvatarUploadScreen(
             ) {
                 // Camera Button
                 UploadOptionButton(
-                    icon = Icons.Default.PhotoCamera,
+                    icon = Icons.Filled.CameraAlt,
                     label = "Camera",
                     onClick = {
                         // Create temp file for camera
@@ -185,7 +185,7 @@ fun AvatarUploadScreen(
 
                 // Gallery Button
                 UploadOptionButton(
-                    icon = Icons.Default.PhotoLibrary,
+                    icon = Icons.Filled.Collections,
                     label = "Gallery",
                     onClick = { galleryLauncher.launch("image/*") },
                     modifier = Modifier.weight(1f)

@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.*
@@ -18,9 +18,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.faster.festival.data.local.EncryptedSessionManager
 import com.faster.festival.data.repository.ProfileRepository
-import com.faster.festival.ui.theme.FastERTheme
+import com.faster.festival.di.NetworkModule
 import com.faster.festival.ui.viewmodel.ProfileEditUiState
 import com.faster.festival.ui.viewmodel.ProfileEditViewModel
+import androidx.compose.ui.platform.LocalContext
 
 /**
  * Personal Information Edit Screen
@@ -30,11 +31,19 @@ import com.faster.festival.ui.viewmodel.ProfileEditViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PersonalInfoEditScreen(
-    viewModel: ProfileEditViewModel = viewModel(),
+    modifier: Modifier = Modifier,
     onBackClick: () -> Unit = {},
-    onSaveSuccess: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onSaveSuccess: () -> Unit = {}
 ) {
+    // ✅ FIX: Get context and create ViewModel with proper factory
+    val context = LocalContext.current
+    val sessionManager = EncryptedSessionManager(context)
+    val profileRepository = ProfileRepository(NetworkModule.profileApiService)
+
+    val viewModel: ProfileEditViewModel = viewModel(
+        factory = ProfileEditViewModel.Factory(profileRepository, sessionManager)
+    )
+
     val formState by viewModel.formState.collectAsState()
     val editState by viewModel.editState.collectAsState()
 
@@ -53,7 +62,7 @@ fun PersonalInfoEditScreen(
             },
             navigationIcon = {
                 IconButton(onClick = onBackClick) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
