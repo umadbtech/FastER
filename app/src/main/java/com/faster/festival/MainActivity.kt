@@ -47,8 +47,12 @@ class MainActivity : FragmentActivity() {
 
         val sessionManager = EncryptedSessionManager(applicationContext)
 
-        // ✅ FIX: Inject SessionManager into NetworkModule to enable Bearer token in API calls
-        NetworkModule.setSessionManager(sessionManager)
+        // ✅ FIX: Initialize NetworkModule with SessionManager BEFORE creating AuthRepository
+        // This enables:
+        // 1. Bearer token to be added to all requests
+        // 2. Automatic token refresh on 401 errors
+        // 3. Session persistence across app restarts
+        NetworkModule.initializeWithSessionManager(sessionManager)
 
         val authRepository = AuthRepository(NetworkModule.authApiService, sessionManager)
 

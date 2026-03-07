@@ -1,5 +1,6 @@
 package com.faster.festival.di
 
+import android.util.Log
 import com.faster.festival.BuildConfig
 import com.faster.festival.data.remote.AppExperienceBundleApi
 import com.faster.festival.data.remote.AppHomeApi
@@ -28,6 +29,8 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 
+private const val TAG = "NetworkModule"
+
 object NetworkModule {
 
     private val json = Json {
@@ -46,14 +49,22 @@ object NetworkModule {
                         }
             }
 
-    // ✅ FIX: Inject SessionManager to get real access token
+    // ✅ SOLUTION PART 1: Session Manager (source of truth for tokens)
+    // This is set during app initialization in MainActivity
     private var sessionManager: EncryptedSessionManager? = null
 
-    fun setSessionManager(manager: EncryptedSessionManager) {
+    /**
+     * Initialize the NetworkModule with SessionManager.
+     * ✅ MUST be called from MainActivity before making any API calls.
+     *
+     * This ensures that TokenRefreshInterceptor can access the session.
+     */
+    fun initializeWithSessionManager(manager: EncryptedSessionManager) {
         sessionManager = manager
+        Log.d(TAG, "✅ NetworkModule initialized with SessionManager")
     }
 
-    private val authInterceptor =
+    private val apiKeyInterceptor =
             okhttp3.Interceptor { chain ->
                 val original = chain.request()
                 val requestBuilder =
@@ -66,35 +77,41 @@ object NetworkModule {
             }
 
     /**
-     * Authorization interceptor for adding Bearer token when available
-     * ✅ FIXED: Now fetches real access token from SessionManager
+     * ✅ SOLUTION PART 2: Authorization Interceptor
+     * Adds Bearer token to all requests (if available in SessionManager)
      */
-    fun createAuthorizationInterceptor(): AuthorizationInterceptor {
+    private fun createAuthorizationInterceptor(): AuthorizationInterceptor {
         return AuthorizationInterceptor {
-            // ✅ FIX: Get access token from SessionManager if available
             sessionManager?.getAccessToken()
         }
     }
 
     /**
-     * Token refresh interceptor for automatically refreshing expired tokens
-     * Detects 401 / JWT expired responses and refreshes the token before retrying
+     * ✅ SOLUTION PART 3: Token Refresh Interceptor
+     * Detects 401 responses and automatically refreshes the token
+     * Retries the request once with the new token
      */
-    fun createTokenRefreshInterceptor(): TokenRefreshInterceptor? {
+    private fun createTokenRefreshInterceptor(): TokenRefreshInterceptor? {
         return if (sessionManager != null) {
+            Log.d(TAG, "✅ Creating TokenRefreshInterceptor with SessionManager")
             TokenRefreshInterceptor(sessionManager!!, authApiService)
         } else {
+            Log.w(TAG, "⚠️ SessionManager not initialized, TokenRefreshInterceptor disabled")
             null
         }
     }
 
+    // ✅ Build OkHttp client with all interceptors in correct order
     private val client =
             OkHttpClient.Builder()
+                    // Step 1: Log requests
                     .addInterceptor(loggingInterceptor)
-                    .addInterceptor(authInterceptor)
+                    // Step 2: Add API key to all requests
+                    .addInterceptor(apiKeyInterceptor)
+                    // Step 3: Add Bearer token if available
                     .addInterceptor(createAuthorizationInterceptor())
+                    // Step 4: Detect 401 and refresh token (MUST be LAST to retry with new token)
                     .also { builder ->
-                        // Add token refresh interceptor if session manager is available
                         createTokenRefreshInterceptor()?.let {
                             builder.addInterceptor(it)
                         }
