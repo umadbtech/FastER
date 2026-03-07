@@ -14,6 +14,8 @@ import com.faster.festival.data.model.VerifyOtpRequest
 import com.faster.festival.data.model.AuthResponse
 import com.faster.festival.data.model.User
 import com.faster.festival.data.model.EnrollFactorResponse
+import com.faster.festival.data.model.RefreshTokenRequest
+import com.faster.festival.data.model.RefreshTokenResponse
 import com.faster.festival.data.local.EncryptedSessionManager
 
 /**
@@ -66,6 +68,10 @@ class FakeAuthApiService(private val loginResponse: Response<LoginResponse>) : A
     }
 
     override suspend fun login(request: LoginRequest): Response<LoginResponse> = loginResponse
+
+    override suspend fun refreshToken(request: RefreshTokenRequest): Response<RefreshTokenResponse> {
+        throw NotImplementedError("Not needed for login test")
+    }
 }
 
 /**

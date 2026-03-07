@@ -47,6 +47,9 @@ object LoginViewModelTestHelper {
 
         override suspend fun login(request: com.faster.festival.data.model.LoginRequest) =
             throw NotImplementedError("Not needed for login test")
+
+        override suspend fun refreshToken(request: com.faster.festival.data.model.RefreshTokenRequest) =
+            throw NotImplementedError("Not needed for login test")
     }
 
     // ...existing code...

@@ -214,17 +214,17 @@ Step 7: TERMS_ACCEPTANCE ⭐ (ALWAYS LAST)
 
 ### Run Tests
 ```bash
-# All tests
-./gradlew test
+# All unit tests
+./gradlew testDebugUnitTest
 
-# Onboarding tests only
-./gradlew test --tests "*OnboardingViewModelTest*"
+# All unit tests without daemon (cleaner)
+./gradlew testDebugUnitTest --no-daemon
 
 # With coverage report
 ./gradlew testDebugUnitTestCoverage
 
 # With verbose output
-./gradlew test --info
+./gradlew testDebugUnitTest --info
 ```
 
 ---
