@@ -17,37 +17,34 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.faster.festival.R
 import com.faster.festival.data.models.Poi
-import com.faster.festival.data.repository.FakeFestivalRepository
 import com.faster.festival.ui.components.*
 import com.faster.festival.ui.theme.FastERTheme
-import com.faster.festival.ui.theme.NavyBlue
-import com.faster.festival.ui.theme.NavyBlueDark
-import com.faster.festival.ui.viewmodel.MapViewModel
-import com.faster.festival.ui.viewmodel.UiState
 import androidx.compose.ui.res.stringResource
 import com.faster.festival.ui.theme.Grey
 import com.faster.festival.ui.theme.White
+import com.faster.festival.ui.viewmodel.MapViewModel
+import com.faster.festival.ui.viewmodel.MapViewModelFactory
+import com.faster.festival.ui.viewmodel.UiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen(
         onTicketsClick: () -> Unit,
-        viewModel: MapViewModel =
-                viewModel(
-                        factory =
-                                object : androidx.lifecycle.ViewModelProvider.Factory {
-                                    @Suppress("UNCHECKED_CAST")
-                                    override fun <T : androidx.lifecycle.ViewModel> create(
-                                            modelClass: Class<T>
-                                    ): T {
-                                        return MapViewModel(FakeFestivalRepository()) as T
-                                    }
-                                }
-                ),
-        modifier: Modifier = Modifier
+        modifier: Modifier = Modifier,
+        festivalSlug: String = "floydfest-26",
+        accessToken: String? = null,
+        viewModel: MapViewModel = viewModel(
+                factory = MapViewModelFactory(
+                    festivalSlug = festivalSlug,
+                    accessToken = accessToken
+                )
+        )
 ) {
     val poisState by viewModel.poisState.collectAsState()
     var selectedPoi by remember { mutableStateOf<Poi?>(null) }
+
+    // ...existing code...
+
 
     Box(modifier = modifier.fillMaxSize()) {
         when (poisState) {

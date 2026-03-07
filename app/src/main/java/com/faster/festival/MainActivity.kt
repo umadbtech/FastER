@@ -4,6 +4,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -45,8 +46,13 @@ class MainActivity : FragmentActivity() {
         }
 
         val sessionManager = EncryptedSessionManager(applicationContext)
+
+        // ✅ FIX: Inject SessionManager into NetworkModule to enable Bearer token in API calls
+        NetworkModule.setSessionManager(sessionManager)
+
         val authRepository = AuthRepository(NetworkModule.authApiService, sessionManager)
 
+        @Suppress("NewApi")
         setContent {
             FastERTheme {
                 FastERApp(
@@ -59,6 +65,7 @@ class MainActivity : FragmentActivity() {
 }
 
 @Composable
+@RequiresApi(Build.VERSION_CODES.O)
 fun FastERApp(
     authRepository: AuthRepository,
     sessionManager: EncryptedSessionManager

@@ -159,6 +159,8 @@ data class AppFestivalHeader(
     val logoUrl: String? = null,
     @SerialName("banner_url")
     val bannerUrl: String? = null,
+    @SerialName("banner_urls")
+    val bannerUrls: List<String> = emptyList(),  // Array of banner images for carousel
     @SerialName("accent_color_hex")
     val accentColorHex: String? = null,
     @SerialName("context_state")

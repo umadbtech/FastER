@@ -9,6 +9,8 @@ import com.faster.festival.data.model.LoginRequest
 import com.faster.festival.data.model.LoginResponse
 import com.faster.festival.data.model.SendOtpRequest
 import com.faster.festival.data.model.VerifyOtpRequest
+import com.faster.festival.data.model.RefreshTokenRequest
+import com.faster.festival.data.model.RefreshTokenResponse
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -57,6 +59,10 @@ interface AuthApiService {
         // Supabase password grant login: POST /auth/v1/token?grant_type=password
         @POST("auth/v1/token?grant_type=password")
         suspend fun login(@Body request: LoginRequest): Response<LoginResponse>
+
+        // Token refresh: POST /auth/v1/token?grant_type=refresh_token
+        @POST("auth/v1/token?grant_type=refresh_token")
+        suspend fun refreshToken(@Body request: RefreshTokenRequest): Response<RefreshTokenResponse>
 
         // Password recovery: send recovery email
         @POST("auth/v1/recover")

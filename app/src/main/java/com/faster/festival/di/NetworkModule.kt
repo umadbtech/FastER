@@ -5,21 +5,20 @@ import com.faster.festival.data.remote.AppExperienceBundleApi
 import com.faster.festival.data.remote.AppHomeApi
 import com.faster.festival.data.remote.AuthApiService
 import com.faster.festival.data.remote.AuthorizationInterceptor
+import com.faster.festival.data.remote.TokenRefreshInterceptor
 import com.faster.festival.data.remote.ContentArtistDetailApi
 import com.faster.festival.data.remote.ContentHomeApi
 import com.faster.festival.data.remote.ContentLineupApi
 import com.faster.festival.data.remote.ContentMapApi
 import com.faster.festival.data.remote.ContentStageScheduleApi
-import com.faster.festival.data.remote.FestivalApi
 import com.faster.festival.data.remote.FestivalApiService
 import com.faster.festival.data.remote.FestivalExperienceApi
 import com.faster.festival.data.remote.FestivalHeaderApi
 import com.faster.festival.data.remote.OfflineBundleApi
 import com.faster.festival.data.remote.OnboardingApiService
 import com.faster.festival.data.remote.ProfileApiService
-import com.faster.festival.data.remote.SupabaseHeadersInterceptor
-import com.faster.festival.data.repository.ContentRepository
 import com.faster.festival.data.repository.ProfileRepository
+import com.faster.festival.data.local.EncryptedSessionManager
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 // Supabase client and realtime support removed for OTP-based verification flow.
 import java.util.concurrent.TimeUnit
@@ -47,6 +46,13 @@ object NetworkModule {
                         }
             }
 
+    // ✅ FIX: Inject SessionManager to get real access token
+    private var sessionManager: EncryptedSessionManager? = null
+
+    fun setSessionManager(manager: EncryptedSessionManager) {
+        sessionManager = manager
+    }
+
     private val authInterceptor =
             okhttp3.Interceptor { chain ->
                 val original = chain.request()
@@ -61,13 +67,25 @@ object NetworkModule {
 
     /**
      * Authorization interceptor for adding Bearer token when available
-     * Default implementation returns null (no token)
-     * Can be injected with a lambda that fetches the current access token
+     * ✅ FIXED: Now fetches real access token from SessionManager
      */
-    fun createAuthorizationInterceptor(
-        getAccessToken: () -> String? = { null }
-    ): AuthorizationInterceptor {
-        return AuthorizationInterceptor(getAccessToken)
+    fun createAuthorizationInterceptor(): AuthorizationInterceptor {
+        return AuthorizationInterceptor {
+            // ✅ FIX: Get access token from SessionManager if available
+            sessionManager?.getAccessToken()
+        }
+    }
+
+    /**
+     * Token refresh interceptor for automatically refreshing expired tokens
+     * Detects 401 / JWT expired responses and refreshes the token before retrying
+     */
+    fun createTokenRefreshInterceptor(): TokenRefreshInterceptor? {
+        return if (sessionManager != null) {
+            TokenRefreshInterceptor(sessionManager!!, authApiService)
+        } else {
+            null
+        }
     }
 
     private val client =
@@ -75,6 +93,12 @@ object NetworkModule {
                     .addInterceptor(loggingInterceptor)
                     .addInterceptor(authInterceptor)
                     .addInterceptor(createAuthorizationInterceptor())
+                    .also { builder ->
+                        // Add token refresh interceptor if session manager is available
+                        createTokenRefreshInterceptor()?.let {
+                            builder.addInterceptor(it)
+                        }
+                    }
                     .connectTimeout(30, TimeUnit.SECONDS)
                     .readTimeout(30, TimeUnit.SECONDS)
                     .writeTimeout(30, TimeUnit.SECONDS)
@@ -96,15 +120,15 @@ object NetworkModule {
                 .build()
     }
 
-    val authApiService: AuthApiService by lazy { retrofit.create(AuthApiService::class.java) }
-
+    // ...existing code...
     val onboardingApiService: OnboardingApiService by lazy { retrofit.create(OnboardingApiService::class.java) }
+
+    val authApiService: AuthApiService by lazy { retrofit.create(AuthApiService::class.java) }
 
     val festivalApiService: FestivalApiService by lazy { retrofit.create(FestivalApiService::class.java) }
 
-    val festivalApi: FestivalApi by lazy { retrofit.create(FestivalApi::class.java) }
-
     val appHomeApi: AppHomeApi by lazy { retrofit.create(AppHomeApi::class.java) }
+
 
     val profileApiService: ProfileApiService by lazy { retrofit.create(ProfileApiService::class.java) }
 
@@ -134,22 +158,8 @@ object NetworkModule {
 
     val offlineBundleApi: OfflineBundleApi by lazy { retrofit.create(OfflineBundleApi::class.java) }
 
-    // ========== Content Repository ==========
-
-    val contentRepository: ContentRepository by lazy {
-        ContentRepository(
-            festivalHeaderApi = festivalHeaderApi,
-            contentHomeApi = contentHomeApi,
-            contentLineupApi = contentLineupApi,
-            contentArtistDetailApi = contentArtistDetailApi,
-            contentStageScheduleApi = contentStageScheduleApi,
-            contentMapApi = contentMapApi,
-            appHomeApi = appHomeApi,
-            festivalExperienceApi = festivalExperienceApi,
-            appExperienceBundleApi = appExperienceBundleApi,
-            offlineBundleApi = offlineBundleApi
-        )
-    }
+    // ========== Note: ContentRepository is created directly in repositories when needed ==========
+    // No need to expose it here as it's only used internally
 
     // Supabase realtime client support removed. If you need to re-enable, re-add the dependency and
     // restore the client creation logic here.

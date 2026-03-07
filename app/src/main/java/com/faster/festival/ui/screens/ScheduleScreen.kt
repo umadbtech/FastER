@@ -3,8 +3,6 @@ package com.faster.festival.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -14,26 +12,29 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.faster.festival.data.models.ScheduleItem
-import com.faster.festival.data.repository.FakeFestivalRepository
 import com.faster.festival.ui.theme.FastERTheme
 import com.faster.festival.ui.viewmodel.ScheduleViewModel
 import com.faster.festival.ui.viewmodel.UiState
 import androidx.compose.ui.tooling.preview.Preview
+import com.faster.festival.ui.viewmodel.ScheduleViewModelFactory
 
 @Composable
 fun ScheduleScreen(
-    onTicketsClick: () -> Unit,
+    onTicketsClick: () -> Unit = {},
+    modifier: Modifier = Modifier,
+    festivalSlug: String = "floydfest-26",
+    accessToken: String? = null,
     viewModel: ScheduleViewModel = viewModel(
-        factory = object : androidx.lifecycle.ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                return ScheduleViewModel(FakeFestivalRepository()) as T
-            }
-        }
-    ),
-    modifier: Modifier = Modifier
+        factory = ScheduleViewModelFactory(
+            festivalSlug = festivalSlug,
+            accessToken = accessToken
+        )
+    )
 ) {
     val scheduleState by viewModel.scheduleState.collectAsState()
+
+    // ...existing code...
+
 
     Box(modifier = modifier.fillMaxSize()) {
         when (scheduleState) {

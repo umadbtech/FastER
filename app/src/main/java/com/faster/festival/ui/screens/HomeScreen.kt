@@ -2,6 +2,7 @@ package com.faster.festival.ui.screens
 
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,11 +14,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import java.time.Instant
+import java.time.ZoneId
 
 import com.faster.festival.data.models.AppHomeBundleResponse
 import com.faster.festival.data.models.AppFestivalHeader
@@ -29,6 +36,7 @@ import com.faster.festival.ui.viewmodel.AppHomeViewModel
 import com.faster.festival.ui.viewmodel.UiState
 import androidx.compose.ui.tooling.preview.Preview
 import android.net.Uri
+import androidx.compose.ui.graphics.Color
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -325,14 +333,153 @@ fun HomeScreenContent(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
+
         item {
-            // Festival Header
-            Text(
-                text = bundle.festival.name,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
+            // Full Festival Header Banner Carousel with Image Slider
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(280.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(0.dp)
+                    )
+            ) {
+                // Banner Slider - Auto-rotates through multiple banner URLs
+                if (bundle.festival.bannerUrls.isNotEmpty()) {
+                    BannerSlider(
+                        bannerUrls = bundle.festival.bannerUrls,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(280.dp),
+                        autoScrollInterval = 5000L  // 5 seconds
+                    )
+                } else if (!bundle.festival.bannerUrl.isNullOrEmpty()) {
+                    // Fallback to single banner URL if array is empty
+                    AsyncImage(
+                        model = bundle.festival.bannerUrl,
+                        contentDescription = "${bundle.festival.name} banner",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+
+                    // Dark Gradient Overlay
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.Black.copy(alpha = 0.3f),
+                                        Color.Black.copy(alpha = 0.6f)
+                                    )
+                                )
+                            )
+                    )
+                } else {
+                    // Fallback gradient if no banner URLs
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                brush = Brush.linearGradient(
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f)
+                                    )
+                                )
+                            )
+                    )
+
+                    // Dark Gradient Overlay
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.Black.copy(alpha = 0.3f),
+                                        Color.Black.copy(alpha = 0.6f)
+                                    )
+                                )
+                            )
+                    )
+                }
+
+                // Festival Content (text overlay)
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.Bottom
+                ) {
+                    // Logo Circle Avatar (Left Side) - if available
+                    if (!bundle.festival.logoUrl.isNullOrEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .background(
+                                    color = Color.White.copy(alpha = 0.95f),
+                                    shape = RoundedCornerShape(50)
+                                )
+                                .padding(4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            AsyncImage(
+                                model = bundle.festival.logoUrl,
+                                contentDescription = "Festival logo",
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        color = MaterialTheme.colorScheme.surface,
+                                        shape = RoundedCornerShape(50)
+                                    ),
+                                contentScale = ContentScale.Fit
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = bundle.festival.name,
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Location and Date Info
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        // Location Text
+                        Text(
+                            text = "FestivalPark, Floyd County, Virginia",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White.copy(alpha = 0.9f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
+                        // Formatted Date Range
+                        Text(
+                            text = formatFestivalDateRange(
+                                bundle.festival.startsAt,
+                                bundle.festival.endsAt,
+                                bundle.festival.timezone
+                            ),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+            }
         }
 
         item {
@@ -369,7 +516,6 @@ fun HomeScreenContent(
             Spacer(modifier = Modifier.height(12.dp))
         }
 
-        // ...existing code...
         // EXPLORE SECTION - Check login and published status gate
         val isLoggedIn = accessToken != null && accessToken.isNotBlank()
         val isFestivalPublished = bundle.festival.status == "published"
@@ -560,6 +706,40 @@ fun QuickActionTile(
                 maxLines = 1
             )
         }
+    }
+}
+
+/**
+ * Format festival date range from ISO timestamps
+ * Example: "July 21 - 27, 2026" or "Jul 30 - Aug 2, 2026"
+ */
+@RequiresApi(Build.VERSION_CODES.O)
+fun formatFestivalDateRange(startsAt: String, endsAt: String, timezone: String): String {
+    return try {
+        val zoneId = ZoneId.of(timezone)
+        val startInstant = Instant.parse(startsAt)
+        val endInstant = Instant.parse(endsAt)
+
+        val startZoned = startInstant.atZone(zoneId)
+        val endZoned = endInstant.atZone(zoneId)
+
+        val startMonth = startZoned.month.toString().take(3)
+        val startDay = startZoned.dayOfMonth
+        val endMonth = endZoned.month.toString().take(3)
+        val endDay = endZoned.dayOfMonth
+        val year = endZoned.year
+
+        if (startZoned.month == endZoned.month) {
+            // Same month: "July 21 - 27, 2026"
+            val monthFull = startZoned.month.toString()
+            "$monthFull $startDay - $endDay, $year"
+        } else {
+            // Different months: "Jul 30 - Aug 2, 2026"
+            "$startMonth $startDay - $endMonth $endDay, $year"
+        }
+    } catch (e: Exception) {
+        // Fallback if parsing fails
+        "Festival Dates"
     }
 }
 

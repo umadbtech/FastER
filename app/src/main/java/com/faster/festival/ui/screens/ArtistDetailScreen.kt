@@ -17,32 +17,33 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.faster.festival.data.models.Artist
 import com.faster.festival.data.models.FestivalSet
-import com.faster.festival.data.repository.FakeFestivalRepository
 import com.faster.festival.ui.theme.*
 import com.faster.festival.ui.viewmodel.ArtistDetailViewModel
+import com.faster.festival.ui.viewmodel.ArtistDetailViewModelFactory
 import com.faster.festival.ui.viewmodel.UiState
 
 @Composable
 fun ArtistDetailScreen(
         artistId: String,
         onBackClick: () -> Unit,
+        modifier: Modifier = Modifier,
+        festivalSlug: String = "floydfest-26",
+        accessToken: String? = null,
         viewModel: ArtistDetailViewModel =
                 viewModel(
                         factory =
-                                object : androidx.lifecycle.ViewModelProvider.Factory {
-                                    @Suppress("UNCHECKED_CAST")
-                                    override fun <T : androidx.lifecycle.ViewModel> create(
-                                            modelClass: Class<T>
-                                    ): T {
-                                        return ArtistDetailViewModel(FakeFestivalRepository()) as T
-                                    }
-                                }
-                ),
-        modifier: Modifier = Modifier
+                                ArtistDetailViewModelFactory(
+                                    festivalSlug = festivalSlug,
+                                    accessToken = accessToken
+                                )
+                )
 ) {
     LaunchedEffect(artistId) { viewModel.loadArtist(artistId) }
 
     val artistState by viewModel.artistState.collectAsState()
+
+    // ...existing code...
+
 
     Box(modifier = modifier.fillMaxSize()) {
         when (artistState) {

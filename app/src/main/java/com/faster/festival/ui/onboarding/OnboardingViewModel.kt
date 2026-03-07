@@ -214,7 +214,9 @@ class OnboardingViewModel(
         _termsAndConditionsText.value = termsText
     }
 
-    // ...existing code...
+    /**
+     * Get the current step.
+     */
     fun getCurrentStep(): OnboardingStep? {
         val state = _formState.value
         return OnboardingStepCoordinator.getStepAtIndex(state.orderedSteps, state.currentStepIndex)
