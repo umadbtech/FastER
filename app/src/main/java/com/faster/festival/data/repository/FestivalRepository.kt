@@ -4,19 +4,33 @@ import com.faster.festival.data.models.*
 import kotlinx.coroutines.flow.Flow
 
 // ============================================================================
-// FESTIVAL REPOSITORY INTERFACE
+// FESTIVAL REPOSITORY INTERFACE - DEPRECATED
 // ============================================================================
 
 /**
- * Festival Repository Interface
+ * ⚠️ DEPRECATED: Festival Repository Interface
  *
- * All implementations must fetch data from Supabase Edge Function APIs
- * NO hardcoded default values or fake data allowed
+ * This interface is deprecated. Use AppHomeRepository instead.
  *
- * Implementations:
- * - SupabaseFestivalRepository: Implements all endpoints with real API calls
- * - ContentRepository: Separate repository for app-home-bundle and content endpoints
+ * AppHomeRepository provides server-driven UI with festival header + modules,
+ * which is the new standard for content delivery in the app.
+ *
+ * Migration path:
+ * 1. Replace FestivalRepository usage with AppHomeRepository
+ * 2. Use AppHomeViewModel for loading home content
+ * 3. Access festival data from AppHomeBundleResponse.festival
+ *
+ * Legacy implementations:
+ * - SupabaseFestivalRepository: DELETED (Phase 2)
+ * - ContentRepository: Use AppHomeRepository instead
+ *
+ * This interface is kept for backward compatibility with legacy screens.
+ * Will be removed in Phase 3 once all screens are migrated.
  */
+@Deprecated(
+    message = "Use AppHomeRepository instead for server-driven UI",
+    replaceWith = ReplaceWith("AppHomeRepository")
+)
 interface FestivalRepository {
     /**
      * Get festival header information

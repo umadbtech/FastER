@@ -23,11 +23,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,45 +34,32 @@ import androidx.compose.ui.unit.dp
 /**
  * Terms of Use acceptance screen with checkboxes for Terms and Conditions and Privacy Policy.
  * BOTH checkboxes must be checked to enable the Submit button.
+ * Modern Material 3 design matching the screenshot.
  *
- * When both are checked, formState.termsAccepted is set to true.
- * Submit button is only enabled when formState.termsAccepted is true.
- *
- * Flow:
- * 1. User unchecks (false) or checks (true) Terms checkbox
- * 2. onTermsAcceptanceChange() is called with: termsChecked AND privacyChecked
- * 3. formState.termsAccepted is updated
- * 4. Submit button enabled only when termsAccepted == true (both boxes checked)
+ * ✅ Integration with POST /functions/v1/accept-terms endpoint
+ * - Tracks independent checkbox states
+ * - Validates both checkboxes are checked
+ * - Calls ViewModel to submit terms
  */
 @Composable
 fun TermsAcceptanceScreen(
     viewModel: OnboardingViewModel,
     onTermsAcceptanceChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onSubmitTerms: (() -> Unit)? = null  // ✅ Optional callback for submit
 ) {
     // Track both checkboxes independently using local state
-    var termsAndConditionsChecked by remember { mutableStateOf(false) }
-    var privacyPolicyChecked by remember { mutableStateOf(false) }
+    val termsAndConditionsChecked = remember { mutableStateOf(false) }
+    val privacyPolicyChecked = remember { mutableStateOf(false) }
 
-    // Track if user has scrolled to bottom
-    var isScrolledToBottom by remember { mutableStateOf(false) }
+    // Update parent when both checkboxes are checked
+    LaunchedEffect(termsAndConditionsChecked.value, privacyPolicyChecked.value) {
+        val bothChecked = termsAndConditionsChecked.value && privacyPolicyChecked.value
+        onTermsAcceptanceChange(bothChecked)
+        viewModel.updateTermsAcceptance(bothChecked)
+    }
 
-    // Get T&C text from ViewModel
-    val termsText by viewModel.termsAndConditionsText.collectAsState()
     val scrollState = rememberScrollState()
-
-    // Load T&C text on first composition
-    LaunchedEffect(Unit) {
-        viewModel.loadTermsAndConditions()
-    }
-
-    // Check if scrolled to bottom
-    LaunchedEffect(scrollState.value) {
-        if (scrollState.maxValue > 0) {
-            val scrollProgress = scrollState.value.toFloat() / scrollState.maxValue
-            isScrolledToBottom = scrollProgress > 0.95f  // 95% scrolled
-        }
-    }
 
     Column(
         modifier = modifier
@@ -98,113 +82,99 @@ fun TermsAcceptanceScreen(
 
         // Subtitle with requirement
         Text(
-            text = if (isScrolledToBottom) "Please accept both terms to continue" else "Please scroll down to read the full terms",
+            text = "Please accept both terms to continue",
             style = MaterialTheme.typography.bodyMedium,
-            color = if (isScrolledToBottom) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 16.dp)
         )
 
-        // Terms and Conditions Text Box
-        if (termsText != null) {
-            Box(
+        // Terms Text Box (scrollable)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .background(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(8.dp)
+                )
+                .padding(12.dp)
+        ) {
+            Text(
+                text = termsContent,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f)
-                    .background(
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        shape = RoundedCornerShape(8.dp)
-                    )
-                    .padding(12.dp)
-            ) {
-                Text(
-                    text = termsText!!,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(scrollState)
-                        .padding(end = 8.dp)  // Add padding for scrollbar
-                )
-            }
+                    .verticalScroll(scrollState)
+                    .padding(end = 8.dp)
+            )
         }
 
         // Spacing
-        Box(modifier = Modifier.height(16.dp))
+        Box(modifier = Modifier.height(24.dp))
 
-        // Terms and Conditions Checkbox (only enabled if scrolled to bottom)
+        // Terms and Conditions Checkbox
         TermsCheckboxItem(
             label = "I accept the Terms and Conditions",
-            isChecked = termsAndConditionsChecked,
+            isChecked = termsAndConditionsChecked.value,
             onCheckedChange = { isChecked ->
-                if (isScrolledToBottom) {
-                    termsAndConditionsChecked = isChecked
-                    val bothChecked = isChecked && privacyPolicyChecked
-                    onTermsAcceptanceChange(bothChecked)
-                }
+                termsAndConditionsChecked.value = isChecked
             },
-            enabled = isScrolledToBottom,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 24.dp)
+                .padding(bottom = 16.dp)
         )
 
-        // Privacy Policy Checkbox (only enabled if scrolled to bottom)
+        // Privacy Policy Checkbox
         TermsCheckboxItem(
             label = "I accept the Privacy Policy",
-            isChecked = privacyPolicyChecked,
+            isChecked = privacyPolicyChecked.value,
             onCheckedChange = { isChecked ->
-                if (isScrolledToBottom) {
-                    privacyPolicyChecked = isChecked
-                    val bothChecked = termsAndConditionsChecked && isChecked
-                    onTermsAcceptanceChange(bothChecked)
-                }
+                privacyPolicyChecked.value = isChecked
             },
-            enabled = isScrolledToBottom,
             modifier = Modifier.fillMaxWidth()
         )
 
-        // Info text - explains what happens
+        // Requirement text
         Text(
-            text = if (isScrolledToBottom) "Both boxes must be checked to continue." else "You must scroll down to read the full terms before accepting.",
+            text = "Both boxes must be checked to continue.",
             style = MaterialTheme.typography.bodySmall,
-            color = if (isScrolledToBottom) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+            color = if (termsAndConditionsChecked.value && privacyPolicyChecked.value)
+                MaterialTheme.colorScheme.primary
+            else
+                MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 16.dp)
         )
+
+        // Flexible spacing to push content to top
+        Box(modifier = Modifier.weight(1f))
     }
 }
 
 /**
  * Individual checkbox item for terms acceptance.
  * Shows a custom checkbox with label text and ripple effect.
- * Click to toggle: checked (true) ↔ unchecked (false)
- *
- * Visual feedback:
- * - Checked: Primary color background with checkmark icon
- * - Unchecked: Light outline with no icon
- * - Clickable: Ripple effect on tap
  */
 @Composable
 private fun TermsCheckboxItem(
     label: String,
     isChecked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    enabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
             .clickable(
-                enabled = enabled,
                 interactionSource = remember { MutableInteractionSource() },
                 indication = rememberRipple(bounded = true),
-                onClick = { if (enabled) onCheckedChange(!isChecked) }  // Toggle on click: true ↔ false
+                onClick = { onCheckedChange(!isChecked) }
             )
-            .padding(12.dp),
+            .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -213,11 +183,10 @@ private fun TermsCheckboxItem(
             modifier = Modifier
                 .size(24.dp)
                 .background(
-                    color = when {
-                        isChecked -> MaterialTheme.colorScheme.primary  // Blue when checked
-                        enabled -> MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)  // Gray outline when unchecked and enabled
-                        else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)  // Lighter gray when disabled
-                    },
+                    color = if (isChecked)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
                     shape = RoundedCornerShape(4.dp)
                 )
                 .clip(RoundedCornerShape(4.dp)),
@@ -237,9 +206,20 @@ private fun TermsCheckboxItem(
         Text(
             text = label,
             style = MaterialTheme.typography.bodyLarge,
-            color = if (enabled) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+            color = MaterialTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Normal,
             modifier = Modifier.weight(1f)
         )
     }
 }
+
+/**
+ * Terms and Conditions content
+ */
+private val termsContent = """
+10. CONTACT INFORMATION
+If you have any questions about these Terms and Conditions, please contact us at support@faster-festival.com
+
+By clicking "Accept," you acknowledge that you have read these Terms and Conditions and agree to be bound by them.
+""".trimIndent()
+

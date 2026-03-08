@@ -57,16 +57,26 @@ data class Demographics(
 
 @Serializable
 data class EmergencyContact(
+    @SerialName("id")
+    val id: String,
+    @SerialName("festival_id")
+    val festivalId: String,
+    @SerialName("owner_user_id")
+    val ownerUserId: String,
+    @SerialName("contact_user_id")
+    val contactUserId: String? = null,
     @SerialName("external_id")
-    val externalId: String,
+    val externalId: String? = null,
     @SerialName("external_name")
-    val externalName: String,
+    val externalName: String? = null,
     @SerialName("external_phone_e164")
-    val externalPhoneE164: String,
+    val externalPhoneE164: String? = null,
     @SerialName("relationship")
     val relationship: String? = null,
     @SerialName("is_primary")
-    val isPrimary: Boolean = false
+    val isPrimary: Boolean = false,
+    @SerialName("updated_at")
+    val updatedAt: String? = null
 )
 
 @Serializable
@@ -96,6 +106,7 @@ data class ProfileSummary(
     val avatarUrl: String?,
     val isMinor: Boolean?,
     val emergencyContactsCount: Int,
+    val emergencyContacts: List<EmergencyContact> = emptyList(),
     val termsComplete: Boolean,
     val festivalId: String?,
     val connectionStatus: String = "Strong Connection",
@@ -111,6 +122,7 @@ fun ProfileSummaryResponse.toProfileSummary(): ProfileSummary {
         avatarUrl = signedAvatarUrl,
         isMinor = profile.isMinor,
         emergencyContactsCount = emergencyContacts.size,
+        emergencyContacts = emergencyContacts,
         termsComplete = terms?.complete ?: false,
         festivalId = context?.festivalId
     )

@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -14,10 +15,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.faster.festival.ui.theme.FastERTheme
 
 // ============================================================================
@@ -112,6 +115,434 @@ fun ProfileCardSection(
                     contentDescription = null,
                     modifier = Modifier.size(20.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+// ============================================================================
+// SECTION 1.5: AVATAR DISPLAY (WITH SIGNED URL)
+// ============================================================================
+
+@Composable
+fun AvatarSection(
+    avatarUrl: String?,
+    displayName: String = "User",
+    onUploadAvatarClick: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Avatar Circle with fallback
+        Box(
+            modifier = Modifier
+                .size(100.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            if (!avatarUrl.isNullOrEmpty()) {
+                // Display avatar with Coil AsyncImage
+                AsyncImage(
+                    model = avatarUrl,
+                    contentDescription = "User Avatar",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                // Fallback: Show initials or icon
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Avatar Placeholder",
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        // Display Name
+        Text(
+            text = displayName,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+
+        // Upload Avatar Button
+        OutlinedButton(
+            onClick = onUploadAvatarClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(40.dp),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PhotoCamera,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text("Update Avatar", style = MaterialTheme.typography.labelMedium)
+            }
+        }
+    }
+}
+
+// ============================================================================
+// SECTION 1.7: DEMOGRAPHICS DISPLAY
+// ============================================================================
+
+data class DemographicsData(
+    val dateOfBirth: String? = null,
+    val genderIdentity: String? = null,
+    val raceEthnicity: List<String> = emptyList(),
+    val isMinor: Boolean = false
+)
+
+@Composable
+fun DemographicsSection(
+    demographics: DemographicsData,
+    onEditDemographicsClick: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    OutlinedCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Header row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Demographics",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                IconButton(
+                    onClick = onEditDemographicsClick,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit Demographics",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            HorizontalDivider()
+
+            // Date of Birth
+            if (!demographics.dateOfBirth.isNullOrEmpty()) {
+                DemographicsRow(
+                    label = "Date of Birth",
+                    value = demographics.dateOfBirth
+                )
+            }
+
+            // Gender Identity
+            if (!demographics.genderIdentity.isNullOrEmpty()) {
+                DemographicsRow(
+                    label = "Gender Identity",
+                    value = demographics.genderIdentity
+                        .replace("_", " ")
+                        .replaceFirstChar { it.uppercase() }
+                )
+            }
+
+            // Race/Ethnicity
+            if (demographics.raceEthnicity.isNotEmpty()) {
+                DemographicsRow(
+                    label = "Race/Ethnicity",
+                    value = demographics.raceEthnicity.joinToString(", ") { race ->
+                        race.replace("_", " ").replaceFirstChar { it.uppercase() }
+                    }
+                )
+            }
+
+            // Minor Status
+            if (demographics.isMinor) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "You are registered as a minor",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Empty state
+            if (demographics.dateOfBirth.isNullOrEmpty() &&
+                demographics.genderIdentity.isNullOrEmpty() &&
+                demographics.raceEthnicity.isEmpty()
+            ) {
+                Text(
+                    text = "No demographics information yet. Tap Edit to add.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DemographicsRow(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+    }
+}
+
+// ============================================================================
+// SECTION 1.8: EMERGENCY CONTACTS LIST
+// ============================================================================
+
+data class EmergencyContactInfo(
+    val id: String,
+    val name: String,
+    val phone: String,
+    val relationship: String,
+    val isPrimary: Boolean = false
+)
+
+@Composable
+fun EmergencyContactCard(
+    contact: EmergencyContactInfo,
+    onEditClick: () -> Unit = {},
+    onDeleteClick: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    ElevatedCard(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Header with name and primary badge
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = contact.name,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = contact.relationship,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (contact.isPrimary) {
+                    AssistChip(
+                        onClick = { },
+                        label = { Text("Primary", style = MaterialTheme.typography.labelSmall) },
+                        modifier = Modifier.height(24.dp),
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    )
+                }
+            }
+
+            // Phone number
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Phone,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = contact.phone,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            // Action buttons
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onEditClick,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(32.dp),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Edit", style = MaterialTheme.typography.labelSmall)
+                }
+                OutlinedButton(
+                    onClick = onDeleteClick,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(32.dp),
+                    shape = RoundedCornerShape(6.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Delete", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EmergencyContactsSection(
+    contacts: List<EmergencyContactInfo> = emptyList(),
+    onAddContactClick: () -> Unit = {},
+    onEditContact: (EmergencyContactInfo) -> Unit = {},
+    onDeleteContact: (EmergencyContactInfo) -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Emergency Contacts",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            IconButton(
+                onClick = onAddContactClick,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add Contact",
+                    modifier = Modifier.size(24.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+
+        // Contacts list
+        if (contacts.isEmpty()) {
+            OutlinedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PersonAdd,
+                        contentDescription = null,
+                        modifier = Modifier.size(40.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "No emergency contacts",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Add at least one emergency contact",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else {
+            contacts.forEach { contact ->
+                EmergencyContactCard(
+                    contact = contact,
+                    onEditClick = { onEditContact(contact) },
+                    onDeleteClick = { onDeleteContact(contact) }
                 )
             }
         }
@@ -465,11 +896,19 @@ fun BottomActionsSection(
 fun ProfileScreenNew(
     name: String = "First Last",
     username: String? = null,
+    avatarUrl: String? = null,
+    demographics: DemographicsData = DemographicsData(),
+    emergencyContacts: List<EmergencyContactInfo> = emptyList(),
     wristbandName: String = "FASTER Wristband",
     batteryPercentage: Int = 82,
     connectionStatus: String = "Strong Connection",
     onPersonalInfoClick: () -> Unit = {},
     onEmergencyContactsClick: () -> Unit = {},
+    onUploadAvatarClick: () -> Unit = {},
+    onEditDemographicsClick: () -> Unit = {},
+    onAddEmergencyContactClick: () -> Unit = {},
+    onEditEmergencyContact: (EmergencyContactInfo) -> Unit = {},
+    onDeleteEmergencyContact: (EmergencyContactInfo) -> Unit = {},
     onHealthClick: () -> Unit = {},
     onNotificationsClick: () -> Unit = {},
     onLocationClick: () -> Unit = {},
@@ -490,6 +929,15 @@ fun ProfileScreenNew(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(vertical = 16.dp)
     ) {
+        // Section 0: Avatar
+        item {
+            AvatarSection(
+                avatarUrl = avatarUrl,
+                displayName = name,
+                onUploadAvatarClick = onUploadAvatarClick
+            )
+        }
+
         // Section 1: Profile Card
         item {
             ProfileCardSection(
@@ -497,6 +945,24 @@ fun ProfileScreenNew(
                 username = username,
                 onPersonalInfoClick = onPersonalInfoClick,
                 onEmergencyContactsClick = onEmergencyContactsClick
+            )
+        }
+
+        // Section 1.5: Demographics
+        item {
+            DemographicsSection(
+                demographics = demographics,
+                onEditDemographicsClick = onEditDemographicsClick
+            )
+        }
+
+        // Section 1.7: Emergency Contacts
+        item {
+            EmergencyContactsSection(
+                contacts = emergencyContacts,
+                onAddContactClick = onAddEmergencyContactClick,
+                onEditContact = onEditEmergencyContact,
+                onDeleteContact = onDeleteEmergencyContact
             )
         }
 
@@ -553,8 +1019,16 @@ fun EnhancedProfileScreenWithNavigation(
     accessToken: String,
     fullName: String = "First Last",
     username: String? = null,
+    avatarUrl: String? = null,
+    demographics: DemographicsData = DemographicsData(),
+    emergencyContacts: List<EmergencyContactInfo> = emptyList(),
     onNavigateToPersonalInfo: () -> Unit,
     onNavigateToEmergencyContacts: () -> Unit,
+    onNavigateToUploadAvatar: () -> Unit = {},
+    onNavigateToEditDemographics: () -> Unit = {},
+    onNavigateToAddContact: () -> Unit = {},
+    onNavigateToEditContact: (EmergencyContactInfo) -> Unit = {},
+    onNavigateToDeleteContact: (EmergencyContactInfo) -> Unit = {},
     onNavigateToHealth: () -> Unit,
     onNavigateToNotifications: () -> Unit,
     onNavigateToLocation: () -> Unit,
@@ -574,15 +1048,18 @@ fun EnhancedProfileScreenWithNavigation(
         AlertDialog(
             onDismissRequest = { showLogoutConfirm = false },
             title = { Text("Confirm Logout") },
-            text = { Text("Are you sure you want to logout?") },
+            text = { Text("Are you sure you want to logout? You will need to login again.") },
             confirmButton = {
                 Button(
                     onClick = {
                         showLogoutConfirm = false
                         onNavigateToLogin()
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
                 ) {
-                    Text("Logout")
+                    Text("Logout", color = Color.White)
                 }
             },
             dismissButton = {
@@ -597,11 +1074,19 @@ fun EnhancedProfileScreenWithNavigation(
     ProfileScreenNew(
         name = fullName,
         username = username,
+        avatarUrl = avatarUrl,
+        demographics = demographics,
+        emergencyContacts = emergencyContacts,
         wristbandName = "FASTER Wristband",
         batteryPercentage = 82,
         connectionStatus = "Strong Connection",
         onPersonalInfoClick = onNavigateToPersonalInfo,
         onEmergencyContactsClick = onNavigateToEmergencyContacts,
+        onUploadAvatarClick = onNavigateToUploadAvatar,
+        onEditDemographicsClick = onNavigateToEditDemographics,
+        onAddEmergencyContactClick = onNavigateToAddContact,
+        onEditEmergencyContact = onNavigateToEditContact,
+        onDeleteEmergencyContact = onNavigateToDeleteContact,
         onHealthClick = onNavigateToHealth,
         onNotificationsClick = onNavigateToNotifications,
         onLocationClick = onNavigateToLocation,

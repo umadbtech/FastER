@@ -18,13 +18,13 @@ class MainViewModel(private val sessionManager: EncryptedSessionManager) : ViewM
 
     private fun checkSession() {
         val token = sessionManager.getAccessToken()
-        val isEmailConfirmed = sessionManager.isEmailConfirmed()
 
-        _startDestination.value = if (token != null && isEmailConfirmed) {
-            // Session exists and email is confirmed -> Full access to Home
+        // ✅ FIXED: If token exists, user is authenticated → go to Home
+        // Email confirmation is handled within the onboarding flow if needed
+        // This prevents users from getting stuck after successful authentication
+        _startDestination.value = if (token != null) {
             "home"
         } else {
-            // No token or email not confirmed -> Show login (previously signup)
             "login"
         }
     }

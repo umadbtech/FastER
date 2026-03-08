@@ -168,7 +168,8 @@ fun OnboardingScreen(
                         )
                         OnboardingStep.TERMS_ACCEPTANCE -> TermsAcceptanceScreen(
                             viewModel = viewModel,
-                            onTermsAcceptanceChange = { viewModel.updateTermsAcceptance(it) }
+                            onTermsAcceptanceChange = { viewModel.updateTermsAcceptance(it) },
+                            onSubmitTerms = { viewModel.submitOnboarding() }
                         )
                         else -> {
                             // Fallback if step is unknown

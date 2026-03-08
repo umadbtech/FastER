@@ -3,9 +3,12 @@ package com.faster.festival.ui.onboarding
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.faster.festival.AppConfig
 import com.faster.festival.data.model.SaveDemographicsRequest
 import com.faster.festival.data.model.SaveEmergencyContactRequest
 import com.faster.festival.data.repository.OnboardingRepository
+import com.faster.festival.data.util.RetryHelper
+import com.faster.festival.ui.util.ErrorMapper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -71,10 +74,14 @@ data class OnboardingFormState(
 
 /**
  * ViewModel for managing onboarding flow state and API interactions.
+ *
+ * ✅ Improvements:
+ * - Uses AppConfig for centralized configuration
+ * - Uses ErrorMapper for consistent error handling
  */
 class OnboardingViewModel(
     private val onboardingRepository: OnboardingRepository,
-    private val defaultFestivalId: String = "297d5837-a7b6-49a4-873b-4e3b17b60657"
+    private val defaultFestivalId: String = AppConfig.DEFAULT_FESTIVAL_ID  // ✅ Use AppConfig
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<OnboardingUiState>(OnboardingUiState.Idle)
@@ -278,23 +285,27 @@ class OnboardingViewModel(
 
         viewModelScope.launch {
             _uiState.value = OnboardingUiState.Loading
-            val result = onboardingRepository.saveUsername(username)
-            result.onSuccess { response ->
+            try {
+                // ✅ Use RetryHelper to handle 500/network errors with retry
+                val result = RetryHelper.retryOnError {
+                    onboardingRepository.saveUsername(username).getOrThrow()
+                }
+
                 // Clear error
                 _formState.update { it.copy(usernameError = null) }
 
                 // Check if onboarding is complete
-                if (response.activated == true) {
+                if (result.activated == true) {
                     // All steps complete!
                     _uiState.value = OnboardingUiState.OnboardingComplete
                 } else {
-                    // Update missing fields based on response
-                    setMissingFields(response.missing)
+                    // Simply proceed to next step in the current ordered list
                     proceedToNextStep()
                     _uiState.value = OnboardingUiState.Idle
                 }
-            }.onFailure { error ->
-                _uiState.value = OnboardingUiState.Error(error.message ?: "Failed to save username")
+            } catch (error: Exception) {
+                // ✅ Use ErrorMapper for consistent error messages
+                _uiState.value = OnboardingUiState.Error(ErrorMapper.mapThrowableToMessage(error))
             }
         }
     }
@@ -406,8 +417,7 @@ class OnboardingViewModel(
                     if (response.activated == true) {
                         _uiState.value = OnboardingUiState.OnboardingComplete
                     } else {
-                        // Update missing fields based on response
-                        setMissingFields(response.missing)
+                        // Simply proceed to next step in the current ordered list
                         proceedToNextStep()
                         _uiState.value = OnboardingUiState.Idle
                     }
@@ -485,8 +495,7 @@ class OnboardingViewModel(
                         // All steps complete!
                         _uiState.value = OnboardingUiState.OnboardingComplete
                     } else {
-                        // Update missing fields based on response
-                        setMissingFields(response.missing)
+                        // Simply proceed to next step in the current ordered list
                         proceedToNextStep()
                         _uiState.value = OnboardingUiState.Idle
                     }
@@ -530,8 +539,7 @@ class OnboardingViewModel(
                     // All steps complete!
                     _uiState.value = OnboardingUiState.OnboardingComplete
                 } else {
-                    // Update missing fields based on response
-                    setMissingFields(response.missing)
+                    // Simply proceed to next step in the current ordered list
                     proceedToNextStep()
                     _uiState.value = OnboardingUiState.Idle
                 }
@@ -566,8 +574,7 @@ class OnboardingViewModel(
                 if (response.activated == true) {
                     _uiState.value = OnboardingUiState.OnboardingComplete
                 } else {
-                    // Still more steps
-                    setMissingFields(response.missing)
+                    // Still more steps - proceed to next
                     proceedToNextStep()
                     _uiState.value = OnboardingUiState.Idle
                 }
@@ -592,55 +599,55 @@ class OnboardingViewModel(
 
             val current = _formState.value
 
-            // Validate current step data
-            when {
-                current.termsAccepted && current.wristbandCode.isBlank() -> {
-                    _uiState.value = OnboardingUiState.Error("Wristband code is required")
-                    return@launch
-                }
+            // Validate terms acceptance (required for submission)
+            if (!current.termsAccepted) {
+                _uiState.value = OnboardingUiState.Error("You must accept the terms to proceed")
+                return@launch
             }
 
             try {
                 // Save demographics (final submission)
+                // Note: wristband_code is OPTIONAL - can be null if user skipped pairing
                 val demographicsRequest = SaveDemographicsRequest(
                     dob = current.dateOfBirth.ifBlank { null },
                     race_ethnicity = current.selectedRaceEthnicity.ifEmpty { null },
                     race_ethnicity_text = current.raceEthnicityText.ifBlank { null },
                     gender_identity = current.selectedGenderIdentity.ifBlank { null },
                     gender_identity_text = current.genderIdentityText.ifBlank { null },
-                    wristband_code = current.wristbandCode.ifBlank { null },
+                    wristband_code = current.wristbandCode.ifBlank { null },  // ✅ OPTIONAL - null allowed
                     terms_acceptance = if (current.termsAccepted) true else null
                 )
 
                 val result = onboardingRepository.saveDemographics(demographicsRequest)
 
                 result.onSuccess { response ->
-                    // Check if there are missing fields
-                    if (!response.missing.isNullOrEmpty()) {
-                        // API indicates more fields are needed
-                        // Rebuild the steps to include the missing fields
-                        setMissingFields(response.missing)
+                    // After saving demographics, also call accept-terms endpoint
+                    // ✅ This ensures terms_acceptance is properly recorded
+                    val acceptTermsResult = onboardingRepository.acceptTerms()
 
-                        // DON'T call proceedToNextStep() here!
-                        // setMissingFields() already reset currentStepIndex to 0
-                        // The pager will automatically show the first missing step
-                        // If only 1 step missing (e.g., terms_acceptance), it will show that
-
-                        _uiState.value = OnboardingUiState.Idle
-                    } else if (response.activated == true) {
-                        // No missing fields and activated = true → onboarding complete
-                        // Load profile summary to populate user data
-                        val profileResult = onboardingRepository.getProfileSummary()
-                        profileResult.onSuccess { profile ->
-                            // Profile loaded successfully - stored in local state if needed
-                            _uiState.value = OnboardingUiState.OnboardingComplete
-                        }.onFailure { profileError ->
-                            // Continue even if profile load fails
-                            _uiState.value = OnboardingUiState.OnboardingComplete
+                    acceptTermsResult.onSuccess { termsResponse ->
+                        // Check if onboarding is complete
+                        if (termsResponse.activated == true) {
+                            // No missing fields and activated = true → onboarding complete
+                            // Load profile summary to populate user data
+                            val profileResult = onboardingRepository.getProfileSummary()
+                            profileResult.onSuccess { profile ->
+                                // Profile loaded successfully - stored in local state if needed
+                                _uiState.value = OnboardingUiState.OnboardingComplete
+                            }.onFailure { profileError ->
+                                // Continue even if profile load fails
+                                _uiState.value = OnboardingUiState.OnboardingComplete
+                            }
+                        } else if (!termsResponse.missing.isNullOrEmpty()) {
+                            // API indicates more fields are needed
+                            setMissingFields(termsResponse.missing)
+                            _uiState.value = OnboardingUiState.Idle
+                        } else {
+                            // Saved but not activated
+                            _uiState.value = OnboardingUiState.Success("Onboarding saved successfully.")
                         }
-                    } else {
-                        // Saved but not activated and no missing fields reported
-                        _uiState.value = OnboardingUiState.Success("Onboarding saved successfully.")
+                    }.onFailure { acceptTermsError ->
+                        _uiState.value = OnboardingUiState.Error(acceptTermsError.message ?: "Failed to accept terms")
                     }
                 }.onFailure { error ->
                     _uiState.value = OnboardingUiState.Error(error.message ?: "Failed to submit onboarding")

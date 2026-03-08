@@ -6,46 +6,47 @@ import androidx.lifecycle.viewModelScope
 import com.faster.festival.data.local.EncryptedSessionManager
 import com.faster.festival.data.models.ProfileSummary
 import com.faster.festival.data.repository.ProfileRepository
+import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.io.File
 
-/**
- * UI State for Profile Edit operations
- */
+/** UI State for Profile Edit operations */
 sealed class ProfileEditUiState {
     data object Idle : ProfileEditUiState()
     data object Loading : ProfileEditUiState()
-    data class Success(val message: String, val updatedProfile: ProfileSummary? = null) : ProfileEditUiState()
-    data class Error(val message: String, val retryAction: (() -> Unit)? = null) : ProfileEditUiState()
+    data class Success(val message: String, val updatedProfile: ProfileSummary? = null) :
+            ProfileEditUiState()
+    data class Error(val message: String, val retryAction: (() -> Unit)? = null) :
+            ProfileEditUiState()
 }
 
-/**
- * Form state for profile editing
- */
+/** Form state for profile editing */
 data class ProfileEditFormState(
-    val firstName: String = "",
-    val lastName: String = "",
-    val firstNameError: String? = null,
-    val lastNameError: String? = null,
-    val isFormValid: Boolean = false,
-    val contactName: String = "",
-    val contactPhone: String = "",
-    val contactRelationship: String = "",
-    val contactNameError: String? = null,
-    val contactPhoneError: String? = null
+        val firstName: String = "",
+        val lastName: String = "",
+        val firstNameError: String? = null,
+        val lastNameError: String? = null,
+        val isFormValid: Boolean = false,
+        val contactName: String = "",
+        val contactPhone: String = "",
+        val contactRelationship: String = "",
+        val contactNameError: String? = null,
+        val contactPhoneError: String? = null,
+        val dateOfBirth: String = "",
+        val genderIdentity: String = "",
+        val raceEthnicity: String = "" // For simplicity, single string input for race/ethnicity
 )
 
 /**
- * ViewModel for Profile Edit Screen
- * Handles saving legal name, uploading avatar, managing emergency contacts
+ * ViewModel for Profile Edit Screen Handles saving legal name, demographics, uploading avatar,
+ * managing emergency contacts
  */
 class ProfileEditViewModel(
-    private val profileRepository: ProfileRepository,
-    private val sessionManager: EncryptedSessionManager
+        private val profileRepository: ProfileRepository,
+        private val sessionManager: EncryptedSessionManager
 ) : ViewModel() {
 
     private val _editState = MutableStateFlow<ProfileEditUiState>(ProfileEditUiState.Idle)
@@ -56,25 +57,19 @@ class ProfileEditViewModel(
 
     private var lastRetryAction: (() -> Unit)? = null
 
-    /**
-     * Update first name field
-     */
+    /** Update first name field */
     fun updateFirstName(value: String) {
         _formState.update { it.copy(firstName = value, firstNameError = null) }
         validateForm()
     }
 
-    /**
-     * Update last name field
-     */
+    /** Update last name field */
     fun updateLastName(value: String) {
         _formState.update { it.copy(lastName = value, lastNameError = null) }
         validateForm()
     }
 
-    /**
-     * Validate form fields
-     */
+    /** Validate form fields */
     private fun validateForm() {
         val state = _formState.value
         var isValid = true
@@ -99,16 +94,14 @@ class ProfileEditViewModel(
 
         _formState.update {
             it.copy(
-                firstNameError = firstNameErr,
-                lastNameError = lastNameErr,
-                isFormValid = isValid
+                    firstNameError = firstNameErr,
+                    lastNameError = lastNameErr,
+                    isFormValid = isValid
             )
         }
     }
 
-    /**
-     * Save legal name to API
-     */
+    /** Save legal name to API */
     fun saveLegalName() {
         val state = _formState.value
         if (!state.isFormValid) {
@@ -121,36 +114,37 @@ class ProfileEditViewModel(
             val token = sessionManager.getAccessToken()
 
             if (token.isNullOrBlank()) {
-                _editState.value = ProfileEditUiState.Error(
-                    "Session expired. Please log in again.",
-                    { saveLegalName() }
-                )
+                _editState.value =
+                        ProfileEditUiState.Error(
+                                "Session expired. Please log in again.",
+                                { saveLegalName() }
+                        )
                 return@launch
             }
 
-            profileRepository.saveLegalName(state.firstName, state.lastName, token)
-                .collect { result ->
-                    _editState.value = result.fold(
-                        onSuccess = { profile ->
-                            ProfileEditUiState.Success("Name saved successfully", profile)
-                        },
-                        onFailure = { error ->
-                            ProfileEditUiState.Error(
-                                error.message ?: "Failed to save name",
-                                { saveLegalName() }
-                            )
-                        }
-                    )
-                }
+            profileRepository.saveLegalName(state.firstName, state.lastName, token).collect { result
+                ->
+                _editState.value =
+                        result.fold(
+                                onSuccess = { profile ->
+                                    ProfileEditUiState.Success("Name saved successfully", profile)
+                                },
+                                onFailure = { error ->
+                                    ProfileEditUiState.Error(
+                                            error.message ?: "Failed to save name",
+                                            { saveLegalName() }
+                                    )
+                                }
+                        )
+            }
         }
     }
 
-    /**
-     * Upload avatar image
-     */
+    /** Upload avatar image */
     fun uploadAvatar(imageFile: File) {
         if (!imageFile.exists()) {
-            _editState.value = ProfileEditUiState.Error("File not found", { uploadAvatar(imageFile) })
+            _editState.value =
+                    ProfileEditUiState.Error("File not found", { uploadAvatar(imageFile) })
             return
         }
 
@@ -159,71 +153,121 @@ class ProfileEditViewModel(
             val token = sessionManager.getAccessToken()
 
             if (token.isNullOrBlank()) {
-                _editState.value = ProfileEditUiState.Error(
-                    "Session expired. Please log in again.",
-                    { uploadAvatar(imageFile) }
-                )
+                _editState.value =
+                        ProfileEditUiState.Error(
+                                "Session expired. Please log in again.",
+                                { uploadAvatar(imageFile) }
+                        )
                 return@launch
             }
 
-            profileRepository.uploadAvatar(imageFile, token)
-                .collect { result ->
-                    _editState.value = result.fold(
-                        onSuccess = { _url ->
-                            ProfileEditUiState.Success("Avatar uploaded successfully")
-                        },
-                        onFailure = { error ->
-                            ProfileEditUiState.Error(
-                                error.message ?: "Failed to upload avatar",
-                                { uploadAvatar(imageFile) }
-                            )
-                        }
-                    )
-                }
+            profileRepository.uploadAvatar(imageFile, token).collect { result ->
+                _editState.value =
+                        result.fold(
+                                onSuccess = { _url ->
+                                    ProfileEditUiState.Success("Avatar uploaded successfully")
+                                },
+                                onFailure = { error ->
+                                    ProfileEditUiState.Error(
+                                            error.message ?: "Failed to upload avatar",
+                                            { uploadAvatar(imageFile) }
+                                    )
+                                }
+                        )
+            }
         }
     }
 
-    /**
-     * Get signed avatar URL
-     */
+    /** Get signed avatar URL */
     fun getAvatarUrl(): String? {
         var result: String? = null
         viewModelScope.launch {
             val token = sessionManager.getAccessToken()
             if (token != null) {
-                profileRepository.getAvatarUrl(token)
-                    .collect { urlResult ->
-                        result = urlResult.getOrNull()
-                    }
+                profileRepository.getAvatarUrl(token).collect { urlResult ->
+                    result = urlResult.getOrNull()
+                }
             }
         }
         return result
     }
 
-    /**
-     * Update emergency contact name
-     */
+    /** Update date of birth */
+    fun updateDateOfBirth(value: String) {
+        _formState.update { it.copy(dateOfBirth = value) }
+    }
+
+    /** Update gender identity */
+    fun updateGenderIdentity(value: String) {
+        _formState.update { it.copy(genderIdentity = value) }
+    }
+
+    /** Update race/ethnicity */
+    fun updateRaceEthnicity(value: String) {
+        _formState.update { it.copy(raceEthnicity = value) }
+    }
+
+    /** Save demographics */
+    fun saveDemographics() {
+        viewModelScope.launch {
+            _editState.value = ProfileEditUiState.Loading
+            val token = sessionManager.getAccessToken()
+
+            if (token.isNullOrBlank()) {
+                _editState.value =
+                        ProfileEditUiState.Error(
+                                "Session expired. Please log in again.",
+                                { saveDemographics() }
+                        )
+                return@launch
+            }
+
+            val state = _formState.value
+            val raceList =
+                    if (state.raceEthnicity.isNotBlank()) listOf(state.raceEthnicity) else null
+
+            profileRepository.saveDemographics(
+                            dateOfBirth = state.dateOfBirth.ifBlank { null },
+                            genderIdentity = state.genderIdentity.ifBlank { null },
+                            raceEthnicity = raceList,
+                            accessToken = token
+                    )
+                    .collect { result ->
+                        _editState.value =
+                                result.fold(
+                                        onSuccess = {
+                                            ProfileEditUiState.Success(
+                                                    "Demographics saved successfully",
+                                                    null
+                                            )
+                                        },
+                                        onFailure = { error ->
+                                            ProfileEditUiState.Error(
+                                                    error.message ?: "Failed to save demographics",
+                                                    { saveDemographics() }
+                                            )
+                                        }
+                                )
+                    }
+        }
+    }
+
+    /** Update emergency contact name */
     fun updateContactName(value: String) {
         _formState.update { it.copy(contactName = value, contactNameError = null) }
     }
 
-    /**
-     * Update emergency contact phone
-     */
+    /** Update emergency contact phone */
     fun updateContactPhone(value: String) {
         _formState.update { it.copy(contactPhone = value, contactPhoneError = null) }
     }
 
-    /**
-     * Update emergency contact relationship
-     */
+    /** Update emergency contact relationship */
     fun updateContactRelationship(value: String) {
         _formState.update { it.copy(contactRelationship = value) }
     }
 
-    /**
-     * Validate emergency contact fields
-     */
+    /** Validate emergency contact fields */
     private fun validateContactForm(): Boolean {
         val state = _formState.value
         var isValid = true
@@ -243,16 +287,12 @@ class ProfileEditViewModel(
             isValid = false
         }
 
-        _formState.update {
-            it.copy(contactNameError = nameErr, contactPhoneError = phoneErr)
-        }
+        _formState.update { it.copy(contactNameError = nameErr, contactPhoneError = phoneErr) }
 
         return isValid
     }
 
-    /**
-     * Save emergency contact
-     */
+    /** Save emergency contact */
     fun saveEmergencyContact() {
         if (!validateContactForm()) return
 
@@ -261,82 +301,86 @@ class ProfileEditViewModel(
             val token = sessionManager.getAccessToken()
 
             if (token.isNullOrBlank()) {
-                _editState.value = ProfileEditUiState.Error(
-                    "Session expired. Please log in again.",
-                    { saveEmergencyContact() }
-                )
+                _editState.value =
+                        ProfileEditUiState.Error(
+                                "Session expired. Please log in again.",
+                                { saveEmergencyContact() }
+                        )
                 return@launch
             }
 
             val state = _formState.value
             profileRepository.saveEmergencyContact(
-                name = state.contactName,
-                phone = state.contactPhone,
-                relationship = state.contactRelationship.ifBlank { null },
-                accessToken = token
-            ).collect { result ->
-                _editState.value = result.fold(
-                    onSuccess = { profile ->
-                        // Clear form
-                        _formState.update {
-                            it.copy(
-                                contactName = "",
-                                contactPhone = "",
-                                contactRelationship = ""
-                            )
-                        }
-                        ProfileEditUiState.Success("Emergency contact saved successfully", profile)
-                    },
-                    onFailure = { error ->
-                        ProfileEditUiState.Error(
-                            error.message ?: "Failed to save emergency contact",
-                            { saveEmergencyContact() }
-                        )
+                            name = state.contactName,
+                            phone = state.contactPhone,
+                            relationship = state.contactRelationship.ifBlank { null },
+                            accessToken = token
+                    )
+                    .collect { result ->
+                        _editState.value =
+                                result.fold(
+                                        onSuccess = { profile ->
+                                            // Clear form
+                                            _formState.update {
+                                                it.copy(
+                                                        contactName = "",
+                                                        contactPhone = "",
+                                                        contactRelationship = ""
+                                                )
+                                            }
+                                            ProfileEditUiState.Success(
+                                                    "Emergency contact saved successfully",
+                                                    profile
+                                            )
+                                        },
+                                        onFailure = { error ->
+                                            ProfileEditUiState.Error(
+                                                    error.message
+                                                            ?: "Failed to save emergency contact",
+                                                    { saveEmergencyContact() }
+                                            )
+                                        }
+                                )
                     }
-                )
-            }
         }
     }
 
-    /**
-     * Delete emergency contact
-     */
+    /** Delete emergency contact */
     fun deleteEmergencyContact(contactId: String) {
         viewModelScope.launch {
             _editState.value = ProfileEditUiState.Loading
             val token = sessionManager.getAccessToken()
 
             if (token.isNullOrBlank()) {
-                _editState.value = ProfileEditUiState.Error(
-                    "Session expired. Please log in again.",
-                    { deleteEmergencyContact(contactId) }
-                )
+                _editState.value =
+                        ProfileEditUiState.Error(
+                                "Session expired. Please log in again.",
+                                { deleteEmergencyContact(contactId) }
+                        )
                 return@launch
             }
 
-            profileRepository.deleteEmergencyContact(contactId, token)
-                .collect { result ->
-                    _editState.value = result.fold(
-                        onSuccess = { profile ->
-                            ProfileEditUiState.Success("Emergency contact deleted", profile)
-                        },
-                        onFailure = { error ->
-                            ProfileEditUiState.Error(
-                                error.message ?: "Failed to delete emergency contact",
-                                { deleteEmergencyContact(contactId) }
-                            )
-                        }
-                    )
-                }
+            profileRepository.deleteEmergencyContact(contactId, token).collect { result ->
+                _editState.value =
+                        result.fold(
+                                onSuccess = { profile ->
+                                    ProfileEditUiState.Success("Emergency contact deleted", profile)
+                                },
+                                onFailure = { error ->
+                                    ProfileEditUiState.Error(
+                                            error.message ?: "Failed to delete emergency contact",
+                                            { deleteEmergencyContact(contactId) }
+                                    )
+                                }
+                        )
+            }
         }
     }
 
-    /**
-     * Factory for creating instances
-     */
+    /** Factory for creating instances */
     class Factory(
-        private val profileRepository: ProfileRepository,
-        private val sessionManager: EncryptedSessionManager
+            private val profileRepository: ProfileRepository,
+            private val sessionManager: EncryptedSessionManager
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
