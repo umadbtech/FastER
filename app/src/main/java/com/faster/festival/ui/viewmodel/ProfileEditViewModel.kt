@@ -168,8 +168,10 @@ class ProfileEditViewModel(
                                     ProfileEditUiState.Success("Avatar uploaded successfully")
                                 },
                                 onFailure = { error ->
+                                    // ✅ Parse error message for user-friendly output
+                                    val userMessage = parseAvatarUploadError(error)
                                     ProfileEditUiState.Error(
-                                            error.message ?: "Failed to upload avatar",
+                                            userMessage,
                                             { uploadAvatar(imageFile) }
                                     )
                                 }
@@ -178,6 +180,39 @@ class ProfileEditViewModel(
         }
     }
 
+    /**
+     * ✅ Parse avatar upload error and return human-readable message
+     * Handles: File too large, invalid format, server errors, etc.
+     */
+    private fun parseAvatarUploadError(error: Throwable): String {
+        val errorMessage = error.message ?: "Unknown error"
+
+        return when {
+            errorMessage.contains("413", ignoreCase = true) ||
+            errorMessage.contains("too large", ignoreCase = true) ||
+            errorMessage.contains("file exceeds", ignoreCase = true) ->
+                "Image is too large. Please compress to under 5MB and try again."
+
+            errorMessage.contains("415", ignoreCase = true) ||
+            errorMessage.contains("unsupported", ignoreCase = true) ||
+            errorMessage.contains("invalid format", ignoreCase = true) ->
+                "Unsupported image format. Please use JPG, PNG, or WebP."
+
+            errorMessage.contains("401", ignoreCase = true) ||
+            errorMessage.contains("unauthorized", ignoreCase = true) ->
+                "Authorization failed. Please log in again."
+
+            errorMessage.contains("500", ignoreCase = true) ||
+            errorMessage.contains("server error", ignoreCase = true) ->
+                "Server error. Please try again later."
+
+            errorMessage.contains("network", ignoreCase = true) ||
+            errorMessage.contains("connection", ignoreCase = true) ->
+                "Network error. Please check your connection and try again."
+
+            else -> errorMessage
+        }
+    }
     /** Get signed avatar URL */
     fun getAvatarUrl(): String? {
         var result: String? = null
@@ -377,6 +412,88 @@ class ProfileEditViewModel(
         }
     }
 
+    /**
+     * ✅ Compress image to max 5MB for API constraints
+     * Uses android.graphics.Bitmap for compression
+     * Returns compressed file or null if compression fails
+     */
+    fun compressImageToMaxSize(
+        context: android.content.Context,
+        imageFile: File,
+        maxSizeBytes: Long = 5 * 1024 * 1024 // 5MB
+    ): File? {
+        return try {
+            if (!imageFile.exists()) return null
+
+            // Decode bitmap
+            val originalBitmap = android.graphics.BitmapFactory.decodeFile(imageFile.absolutePath)
+                ?: return null
+
+            // Check if compression needed
+            if (originalBitmap.byteCount <= maxSizeBytes) {
+                originalBitmap.recycle()
+                return imageFile // Already small enough
+            }
+
+            // Compress iteratively
+            var quality = 90
+            val outputFile = File(context.cacheDir, "avatar_compressed_${System.currentTimeMillis()}.jpg")
+            var fileSize: Long
+
+            do {
+                outputFile.delete()
+                outputFile.outputStream().use { out ->
+                    originalBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, quality, out)
+                }
+                fileSize = outputFile.length()
+
+                if (fileSize > maxSizeBytes && quality > 20) {
+                    quality -= 10
+                } else {
+                    break
+                }
+            } while (fileSize > maxSizeBytes && quality > 20)
+
+            // Scale down if still too large
+            if (fileSize > maxSizeBytes) {
+                val scaleFactor = 0.8
+                val newWidth = (originalBitmap.width * scaleFactor).toInt()
+                val newHeight = (originalBitmap.height * scaleFactor).toInt()
+
+                val scaledBitmap = android.graphics.Bitmap.createScaledBitmap(
+                    originalBitmap,
+                    newWidth,
+                    newHeight,
+                    true
+                )
+
+                quality = 85
+                do {
+                    outputFile.delete()
+                    outputFile.outputStream().use { out ->
+                        scaledBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, quality, out)
+                    }
+                    fileSize = outputFile.length()
+
+                    if (fileSize > maxSizeBytes && quality > 20) {
+                        quality -= 10
+                    } else {
+                        break
+                    }
+                } while (fileSize > maxSizeBytes && quality > 20)
+
+                scaledBitmap.recycle()
+            }
+
+            originalBitmap.recycle()
+            android.util.Log.d("ProfileEditViewModel", "Image compressed to ${outputFile.length()} bytes")
+            outputFile
+        } catch (e: Exception) {
+            android.util.Log.e("ProfileEditViewModel", "Compression failed", e)
+            null
+        }
+    }
+
     /** Factory for creating instances */
     class Factory(
             private val profileRepository: ProfileRepository,
@@ -389,5 +506,15 @@ class ProfileEditViewModel(
             }
             throw IllegalArgumentException("Unknown ViewModel class")
         }
+    }
+
+    /**
+     * ✅ Set error state manually
+     * Used for non-API errors like file conversion failures
+     *
+     * @param message Error message to display
+     */
+    fun setError(message: String) {
+        _editState.value = ProfileEditUiState.Error(message, null)
     }
 }

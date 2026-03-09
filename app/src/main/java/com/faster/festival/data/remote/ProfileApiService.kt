@@ -66,16 +66,18 @@ data class SaveLegalNameRequest(
 
 @kotlinx.serialization.Serializable
 data class UploadAvatarResponse(
-        @kotlinx.serialization.SerialName("ok") val ok: Boolean,
-        @kotlinx.serialization.SerialName("signed_url") val signedUrl: String? = null,
-        @kotlinx.serialization.SerialName("avatar_path") val avatarPath: String? = null
+        @kotlinx.serialization.SerialName("saved") val saved: Boolean,
+        @kotlinx.serialization.SerialName("avatar_path") val avatarPath: String? = null,
+        @kotlinx.serialization.SerialName("signed_avatar_url") val signedAvatarUrl: String? = null,
+        @kotlinx.serialization.SerialName("signed_avatar_url_expires_in_seconds") val signedAvatarUrlExpiresInSeconds: Int? = null
 )
 
 @kotlinx.serialization.Serializable
 data class AvatarUrlResponse(
         @kotlinx.serialization.SerialName("ok") val ok: Boolean,
-        @kotlinx.serialization.SerialName("signed_url") val signedUrl: String? = null,
-        @kotlinx.serialization.SerialName("expires_in_seconds") val expiresInSeconds: Int? = null
+        @kotlinx.serialization.SerialName("avatar_path") val avatarPath: String? = null,
+        @kotlinx.serialization.SerialName("signed_avatar_url") val signedAvatarUrl: String? = null,
+        @kotlinx.serialization.SerialName("signed_avatar_url_expires_in_seconds") val signedAvatarUrlExpiresInSeconds: Int? = null
 )
 
 @kotlinx.serialization.Serializable

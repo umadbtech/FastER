@@ -21,7 +21,7 @@ import android.util.Log
  */
 class TokenRefreshInterceptor(
     private val sessionManager: EncryptedSessionManager,
-    private val authApiService: AuthApiService
+    private val getAuthApiService: () -> AuthApiService
 ) : Interceptor {
 
     private val lock = Any()
@@ -77,6 +77,8 @@ class TokenRefreshInterceptor(
         return try {
             Log.d("TokenRefresh", "Attempting to refresh access token...")
             val request = RefreshTokenRequest(refreshToken = refreshToken)
+            // ✅ Get authApiService lazily when actually needed
+            val authApiService = getAuthApiService()
             val response = authApiService.refreshToken(request)
 
             if (response.isSuccessful) {

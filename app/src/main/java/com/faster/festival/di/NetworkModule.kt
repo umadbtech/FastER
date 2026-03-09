@@ -94,7 +94,10 @@ object NetworkModule {
     private fun createTokenRefreshInterceptor(): TokenRefreshInterceptor? {
         return if (sessionManager != null) {
             Log.d(TAG, "✅ Creating TokenRefreshInterceptor with SessionManager")
-            TokenRefreshInterceptor(sessionManager!!, authApiService)
+            // Use lambda to lazily get authApiService when actually needed
+            TokenRefreshInterceptor(sessionManager!!) {
+                authApiService
+            }
         } else {
             Log.w(TAG, "⚠️ SessionManager not initialized, TokenRefreshInterceptor disabled")
             null

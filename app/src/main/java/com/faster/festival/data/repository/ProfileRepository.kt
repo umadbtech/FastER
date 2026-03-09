@@ -1,12 +1,18 @@
 package com.faster.festival.data.repository
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import android.util.Log
+import android.webkit.MimeTypeMap
 import com.faster.festival.data.models.ProfileSummary
 import com.faster.festival.data.models.toProfileSummary
 import com.faster.festival.data.remote.ProfileApiService
 import com.faster.festival.data.remote.SaveEmergencyContactRequest
 import com.faster.festival.data.remote.SaveLegalNameRequest
 import java.io.File
+import java.io.FileOutputStream
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import okhttp3.MediaType.Companion.toMediaType
@@ -102,12 +108,14 @@ class ProfileRepository(private val profileApiService: ProfileApiService) {
             emit(Result.failure(e))
         }
     }
-
-    /** Upload profile avatar image */
+    /** ✅ Upload profile avatar image with proper MIME type and JPEG conversion */
     fun uploadAvatar(imageFile: File, accessToken: String): Flow<Result<String>> = flow {
         try {
-            val requestBody = imageFile.asRequestBody("image/*".toMediaType())
-            val part = MultipartBody.Part.createFormData("avatar", imageFile.name, requestBody)
+            // ✅ Image is already JPEG from compression phase in AvatarUploadScreen
+            // But ensure MIME type is explicitly "image/jpeg" (not "image/*")
+            val jpegMimeType = "image/jpeg"
+            val requestBody = imageFile.asRequestBody(jpegMimeType.toMediaType())
+            val part = MultipartBody.Part.createFormData("file", imageFile.name, requestBody)
 
             val response =
                     profileApiService.uploadAvatar(
@@ -117,13 +125,20 @@ class ProfileRepository(private val profileApiService: ProfileApiService) {
 
             if (response.isSuccessful) {
                 val body = response.body()
-                if (body != null && body.ok && !body.signedUrl.isNullOrBlank()) {
-                    emit(Result.success(body.signedUrl))
+                // ✅ Check 'saved' field (API spec) and 'signedAvatarUrl'
+                if (body != null && body.saved && !body.signedAvatarUrl.isNullOrBlank()) {
+                    Log.d("ProfileRepository", "Avatar uploaded: ${body.avatarPath}")
+                    emit(Result.success(body.signedAvatarUrl))
                 } else {
-                    emit(Result.failure(Exception("No signed URL in response")))
+                    emit(Result.failure(Exception("Avatar save failed or no signed URL returned")))
                 }
             } else {
-                val errorMsg = response.errorBody()?.string() ?: "Error ${response.code()}"
+                // ✅ Handle HTTP 415 Unsupported Media Type with user-friendly error
+                val errorMsg = when (response.code()) {
+                    415 -> "Upload failed: image format not supported. Use JPEG, PNG, or WebP."
+                    else -> response.errorBody()?.string() ?: "Error ${response.code()}"
+                }
+                Log.e("ProfileRepository", "Upload error: $errorMsg (code: ${response.code()})")
                 emit(Result.failure(Exception(errorMsg)))
             }
         } catch (e: Exception) {
@@ -132,20 +147,92 @@ class ProfileRepository(private val profileApiService: ProfileApiService) {
         }
     }
 
-    /** Get signed avatar URL */
+    /** ✅ Convert URI to JPEG file for upload - guarantees supported MIME type */
+    fun uriToJpegFile(context: Context, uri: Uri): File {
+        return try {
+            val inputStream = context.contentResolver.openInputStream(uri)
+                ?: throw IllegalArgumentException("Cannot open URI: $uri")
+
+            // Decode bitmap
+            val bitmap = BitmapFactory.decodeStream(inputStream)
+                ?: throw IllegalArgumentException("Cannot decode image from URI: $uri")
+            inputStream.close()
+
+            // Create output JPEG file in cache
+            val outputFile = File(
+                context.cacheDir,
+                "avatar_${System.currentTimeMillis()}.jpg"
+            )
+
+            // Compress to JPEG with 85% quality
+            val out = FileOutputStream(outputFile)
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
+            out.flush()
+            out.close()
+
+            bitmap.recycle()
+
+            Log.d("ProfileRepository", "✅ Converted to JPEG: ${outputFile.length()} bytes")
+            outputFile
+        } catch (e: Exception) {
+            Log.e("ProfileRepository", "Failed to convert to JPEG: ${e.message}", e)
+            throw e
+        }
+    }
+
+    /** ✅ Detect actual MIME type from URI (ContentResolver first, then extension fallback) */
+    fun getMimeType(context: Context, uri: Uri): String {
+        return try {
+            // Try ContentResolver first (most reliable for gallery picks)
+            val mimeFromResolver = context.contentResolver.getType(uri)
+            if (mimeFromResolver != null &&
+                mimeFromResolver in listOf("image/jpeg", "image/png", "image/webp")
+            ) {
+                Log.d("ProfileRepository", "MIME type from resolver: $mimeFromResolver")
+                return mimeFromResolver
+            }
+
+            // Fallback: check file extension
+            val extension = MimeTypeMap.getFileExtensionFromUrl(uri.toString())
+                ?: uri.path?.substringAfterLast('.', "")
+
+            val detectedMime = when (extension?.lowercase()) {
+                "jpg", "jpeg" -> "image/jpeg"
+                "png" -> "image/png"
+                "webp" -> "image/webp"
+                else -> "image/jpeg"  // safe default
+            }
+
+            Log.d("ProfileRepository", "MIME type from extension [$extension]: $detectedMime")
+            detectedMime
+        } catch (e: Exception) {
+            Log.w("ProfileRepository", "Failed to detect MIME type: ${e.message}, using image/jpeg")
+            "image/jpeg"  // safe default
+        }
+    }
+
+    /** ✅ Get signed avatar URL with proper API response handling */
     fun getAvatarUrl(accessToken: String): Flow<Result<String>> = flow {
         try {
             val response = profileApiService.getAvatarUrl(authorization = "Bearer $accessToken")
 
             if (response.isSuccessful) {
                 val body = response.body()
-                if (body != null && body.ok && !body.signedUrl.isNullOrBlank()) {
-                    emit(Result.success(body.signedUrl))
+                // ✅ Check 'ok' field and 'signedAvatarUrl'
+                if (body != null && body.ok) {
+                    if (!body.signedAvatarUrl.isNullOrBlank()) {
+                        Log.d("ProfileRepository", "Got avatar URL, expires in ${body.signedAvatarUrlExpiresInSeconds}s")
+                        emit(Result.success(body.signedAvatarUrl))
+                    } else {
+                        // No avatar exists yet
+                        emit(Result.success(""))
+                    }
                 } else {
-                    emit(Result.failure(Exception("No signed URL in response")))
+                    emit(Result.failure(Exception("Failed to get avatar URL")))
                 }
             } else {
                 val errorMsg = response.errorBody()?.string() ?: "Error ${response.code()}"
+                Log.e("ProfileRepository", "Get URL error: $errorMsg")
                 emit(Result.failure(Exception(errorMsg)))
             }
         } catch (e: Exception) {
@@ -242,4 +329,6 @@ class ProfileRepository(private val profileApiService: ProfileApiService) {
             else -> "User"
         }
     }
+
+
 }

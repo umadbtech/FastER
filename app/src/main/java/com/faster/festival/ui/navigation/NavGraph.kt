@@ -48,6 +48,7 @@ object Routes {
 
     // Profile Screen Navigation Routes
     const val PERSONAL_INFO = "personal_info"
+    const val AVATAR_UPLOAD = "avatar_upload"
     const val EDIT_DEMOGRAPHICS = "edit_demographics"
     const val EMERGENCY_CONTACTS = "emergency_contacts"
     const val HEALTH_SETTINGS = "health_settings"
@@ -348,6 +349,9 @@ fun NavGraph(
                     onNavigateToEmergencyContacts = {
                         navController.navigate(Routes.EMERGENCY_CONTACTS)
                     },
+                    onNavigateToUploadAvatar = {
+                        navController.navigate(Routes.AVATAR_UPLOAD)
+                    },
                     onNavigateToHealth = { navController.navigate(Routes.HEALTH_SETTINGS) },
                     onNavigateToNotifications = {
                         navController.navigate(Routes.NOTIFICATION_SETTINGS)
@@ -387,6 +391,34 @@ fun NavGraph(
         // NEW DESTINATION ROUTES
         composable(Routes.PERSONAL_INFO) {
             PersonalInfoEditScreen(onBackClick = { navController.popBackStack() })
+        }
+
+        composable(Routes.AVATAR_UPLOAD) {
+            val accessToken = sessionManager.getAccessToken() ?: return@composable
+            val profileViewModel: EnhancedProfileViewModel =
+                    viewModel(
+                            factory =
+                                    EnhancedProfileViewModel.createFactory(
+                                            profileRepository =
+                                                    com.faster.festival.di.NetworkModule
+                                                            .profileRepository
+                                    )
+                    )
+
+            // Get profile state for current avatar URL
+            val profileState = profileViewModel.profileState.collectAsState()
+            val currentAvatarUrl = (profileState.value as? ProfileState.Success)?.profile?.avatarUrl
+
+            AvatarUploadScreen(
+                    currentAvatarUrl = currentAvatarUrl,
+                    userName = (profileState.value as? ProfileState.Success)?.profile?.username,
+                    onBackClick = { navController.popBackStack() },
+                    onUploadSuccess = {
+                        navController.popBackStack()
+                        // Trigger profile refresh on return
+                        profileViewModel.loadProfile(accessToken)
+                    }
+            )
         }
 
         composable(Routes.EDIT_DEMOGRAPHICS) {
