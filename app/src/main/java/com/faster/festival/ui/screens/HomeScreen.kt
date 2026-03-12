@@ -42,9 +42,10 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material.icons.filled.WarningAmber
@@ -59,8 +60,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -77,9 +76,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.faster.festival.AppConfig
@@ -128,39 +130,23 @@ fun HomeScreen(
         onRefresh = { viewModel.refresh() },
         modifier = Modifier.fillMaxSize()
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "FastER",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                },
-                actions = {
-                    IconButton(onClick = {}) {
-                        Icon(
-                            imageVector = Icons.Default.Notifications,
-                            contentDescription = "Notifications",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            )
-
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Main content
             when (val state = uiState) {
                 is HomeUiState.Loading -> {
-                    HomeShimmerLoading()
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Spacer(modifier = Modifier.height(56.dp))
+                        HomeShimmerLoading()
+                    }
                 }
                 is HomeUiState.Error -> {
-                    HomeErrorState(
-                        message = state.message,
-                        onRetry = { viewModel.refresh() }
-                    )
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Spacer(modifier = Modifier.height(56.dp))
+                        HomeErrorState(
+                            message = state.message,
+                            onRetry = { viewModel.refresh() }
+                        )
+                    }
                 }
                 is HomeUiState.Success -> {
                     HomeSuccessContent(
@@ -177,6 +163,16 @@ fun HomeScreen(
                     )
                 }
             }
+
+            // Floating top bar overlapping the banner
+            FasterTopAppBar(
+                logoUrl = (uiState as? HomeUiState.Success)?.data?.festival?.logoUrl,
+                onSearchClick = {},
+                onWristbandClick = {},
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .zIndex(1f)
+            )
         }
     }
 }
@@ -342,22 +338,7 @@ private fun HomeSuccessContent(
         val announcements = bundle.announcements
         if (announcements.isNotEmpty()) {
             item {
-                Text(
-                    text = "Happening Now",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp)
-                )
-            }
-            item {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(announcements) { announcement ->
-                        AnnouncementCard(announcement = announcement)
-                    }
-                }
+                HappeningNowSection(announcements = announcements)
             }
             item { Spacer(modifier = Modifier.height(16.dp)) }
         }
@@ -837,132 +818,112 @@ private fun FestivalBannerHeader(
         listOfNotNull(festival.bannerUrl)
     }
 
-    Column(modifier = modifier.fillMaxWidth()) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp)
-        ) {
-            if (bannerImages.isNotEmpty()) {
-                val pagerState = rememberPagerState(pageCount = { bannerImages.size })
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(280.dp)
+    ) {
+        if (bannerImages.isNotEmpty()) {
+            val pagerState = rememberPagerState(pageCount = { bannerImages.size })
 
-                // Auto-scroll every 4 seconds
-                if (bannerImages.size > 1) {
-                    LaunchedEffect(pagerState) {
-                        while (true) {
-                            delay(4000L)
-                            val nextPage = (pagerState.currentPage + 1) % bannerImages.size
-                            pagerState.animateScrollToPage(nextPage)
-                        }
+            // Auto-scroll every 4 seconds
+            if (bannerImages.size > 1) {
+                LaunchedEffect(pagerState) {
+                    while (true) {
+                        delay(4000L)
+                        val nextPage = (pagerState.currentPage + 1) % bannerImages.size
+                        pagerState.animateScrollToPage(nextPage)
                     }
                 }
+            }
 
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxSize()
-                ) { page ->
-                    AsyncImage(
-                        model = bannerImages[page],
-                        contentDescription = "Festival banner ${page + 1} - ${festival.name}",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                }
-
-                // Page indicator dots
-                if (bannerImages.size > 1) {
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        repeat(bannerImages.size) { index ->
-                            val isSelected = pagerState.currentPage == index
-                            Box(
-                                modifier = Modifier
-                                    .size(if (isSelected) 8.dp else 6.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (isSelected) Color.White
-                                        else Color.White.copy(alpha = 0.5f)
-                                    )
-                            )
-                        }
-                    }
-                }
-            } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            brush = Brush.linearGradient(
-                                colors = listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    MaterialTheme.colorScheme.tertiary
-                                )
-                            )
-                        )
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                AsyncImage(
+                    model = bannerImages[page],
+                    contentDescription = "Festival banner ${page + 1} - ${festival.name}",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
                 )
             }
 
-            // Dark gradient overlay
+            // Pagination dots — top-right, below the top bar area
+            if (bannerImages.size > 1) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 68.dp, end = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    repeat(bannerImages.size) { index ->
+                        val isSelected = pagerState.currentPage == index
+                        Box(
+                            modifier = Modifier
+                                .size(if (isSelected) 8.dp else 6.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (isSelected) Color.White
+                                    else Color.White.copy(alpha = 0.5f)
+                                )
+                        )
+                    }
+                }
+            }
+        } else {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
-                        brush = Brush.verticalGradient(
+                        brush = Brush.linearGradient(
                             colors = listOf(
-                                Color.Black.copy(alpha = 0.1f),
-                                Color.Black.copy(alpha = 0.6f)
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.tertiary
                             )
                         )
                     )
             )
+        }
 
-            // Content: circle logo + festival info
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Circle avatar logo
-                if (!festival.logoUrl.isNullOrEmpty()) {
-                    AsyncImage(
-                        model = festival.logoUrl,
-                        contentDescription = "Festival logo - ${festival.name}",
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(Color.White),
-                        contentScale = ContentScale.Crop
+        // Dark gradient overlay for text readability
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Black.copy(alpha = 0.05f),
+                            Color.Black.copy(alpha = 0.65f)
+                        )
                     )
-                }
+                )
+        )
 
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = festival.name,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = formatDateRange(
-                            festival.startsAt,
-                            festival.endsAt,
-                            festival.timezone
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.9f)
-                    )
-                }
-            }
+        // Bottom-left: festival title + dates (no circle logo)
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 20.dp, bottom = 20.dp, end = 20.dp)
+        ) {
+            Text(
+                text = festival.name,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = formatDateRange(
+                    festival.startsAt,
+                    festival.endsAt,
+                    festival.timezone
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = 0.9f)
+            )
         }
     }
 }
@@ -1221,47 +1182,76 @@ private fun ExploreCategoryItem(
 }
 
 @Composable
-private fun AnnouncementCard(
+fun HappeningNowSection(
+    announcements: List<Announcement>,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.padding(horizontal = 16.dp)) {
+        Text(
+            text = "Happening Now",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 16.dp, bottom = 12.dp)
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            announcements.forEach { announcement ->
+                HappeningNowItem(announcement = announcement)
+            }
+        }
+    }
+}
+
+@Composable
+fun HappeningNowItem(
     announcement: Announcement,
     modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = modifier
-            .width(280.dp)
-            .height(180.dp),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            if (announcement.imageUrl != null) {
-                AsyncImage(
-                    model = announcement.imageUrl,
-                    contentDescription = announcement.title,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(90.dp),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(90.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center
-                ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(88.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left: thumbnail
+            Box(
+                modifier = Modifier
+                    .width(88.dp)
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                if (announcement.imageUrl != null) {
+                    AsyncImage(
+                        model = announcement.imageUrl,
+                        contentDescription = announcement.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
                     Icon(
                         imageVector = Icons.Default.CalendarMonth,
                         contentDescription = null,
-                        modifier = Modifier.size(32.dp),
+                        modifier = Modifier.size(28.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
+
+            // Right: text content
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp)
+                    .weight(1f)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.Center
             ) {
                 Text(
                     text = announcement.title,
@@ -1277,8 +1267,16 @@ private fun AnnouncementCard(
                         text = it,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis
+                    )
+                }
+                announcement.publishedAt?.let {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
                     )
                 }
             }
@@ -1364,5 +1362,168 @@ private fun formatDateRange(startsAt: String, endsAt: String, timezone: String):
         }
     } catch (e: Exception) {
         "Festival Dates"
+    }
+}
+
+private fun EncryptedSessionManager.getOnboardingJustCompletedCompat(): Boolean {
+    return try {
+        val method = javaClass.getMethod("isOnboardingJustCompleted")
+        method.invoke(this) as? Boolean ?: false
+    } catch (_: Exception) {
+        false
+    }
+}
+
+private fun EncryptedSessionManager.setOnboardingJustCompletedCompat(completed: Boolean) {
+    try {
+        val method = javaClass.getMethod("setOnboardingJustCompleted", Boolean::class.javaPrimitiveType)
+        method.invoke(this, completed)
+    } catch (_: Exception) {
+        // No-op when a test double doesn't expose this API.
+    }
+}
+
+// ─── Custom Top App Bar ─────────────────────────────────────────────────────────
+
+@Composable
+fun FasterTopAppBar(
+    logoUrl: String? = null,
+    onSearchClick: () -> Unit = {},
+    onWristbandClick: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .background(Color(0xFFF7F7F7))
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        // Left: Logo
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFFE0E0E0)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (!logoUrl.isNullOrEmpty()) {
+                AsyncImage(
+                    model = logoUrl,
+                    contentDescription = "Festival logo",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Text(
+                    text = "F",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = Color(0xFF666666)
+                )
+            }
+        }
+
+        // Center: Wristband chip
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(Color.White)
+                .border(
+                    width = 1.dp,
+                    color = Color(0xFF333333),
+                    shape = RoundedCornerShape(50)
+                )
+                .clickable(onClick = onWristbandClick)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.LocationOn,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = Color(0xFF333333)
+            )
+            Text(
+                text = "WRISTBAND",
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                letterSpacing = 0.5.sp,
+                color = Color(0xFF222222)
+            )
+        }
+
+        // Right: Search button
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(Color(0xFFE8E8E8))
+                .clickable(onClick = onSearchClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = "Search",
+                modifier = Modifier.size(20.dp),
+                tint = Color(0xFF555555)
+            )
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun FasterTopAppBarPreview() {
+    MaterialTheme {
+        FasterTopAppBar()
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun HappeningNowItemPreview() {
+    MaterialTheme {
+        HappeningNowItem(
+            announcement = Announcement(
+                id = "1",
+                title = "Free Popcorn",
+                content = "Head to the main stage area for complimentary popcorn!",
+                imageUrl = null,
+                publishedAt = "2:30 PM",
+                order = 0
+            ),
+            modifier = Modifier.padding(16.dp)
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun HappeningNowSectionPreview() {
+    MaterialTheme {
+        HappeningNowSection(
+            announcements = listOf(
+                Announcement(
+                    id = "1",
+                    title = "Free Popcorn",
+                    content = "Head to the main stage area for complimentary popcorn!",
+                    imageUrl = null,
+                    publishedAt = "2:30 PM",
+                    order = 0
+                ),
+                Announcement(
+                    id = "2",
+                    title = "DJ Set at Sunset Stage",
+                    content = "Don't miss the opening act at 5 PM",
+                    imageUrl = null,
+                    publishedAt = "5:00 PM",
+                    order = 1
+                )
+            )
+        )
     }
 }

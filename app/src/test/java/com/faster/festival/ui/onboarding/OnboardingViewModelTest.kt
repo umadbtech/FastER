@@ -35,8 +35,8 @@ class OnboardingViewModelTest {
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         mockRepository = mockk(relaxed = true)
-        sessionManager = EncryptedSessionManager()
-        sessionManager.setUserEmail("test@example.com")
+        sessionManager = mockk(relaxed = true)
+        io.mockk.every { sessionManager.getUserEmail() } returns "test@example.com"
 
         coEvery { mockRepository.ensureOnboarding() } returns Result.success(
             "297d5837-a7b6-49a4-873b-4e3b17b60657"
