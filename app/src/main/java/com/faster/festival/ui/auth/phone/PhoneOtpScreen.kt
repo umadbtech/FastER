@@ -58,7 +58,7 @@ fun PhoneOtpScreen(
 
     Scaffold(
         modifier = modifier,
-        topBar = { SmallTopAppBar(title = { Text(title) }, navigationIcon = { IconButton(onClick = onBack) { Icon(imageVector = Icons.Default.ArrowBack, contentDescription = backDesc) } }) },
+        topBar = { TopAppBar(title = { Text(title) }, navigationIcon = { IconButton(onClick = onBack) { Icon(imageVector = Icons.Default.ArrowBack, contentDescription = backDesc) } }) },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Surface(modifier = Modifier.fillMaxSize().padding(innerPadding)) {

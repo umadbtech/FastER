@@ -50,7 +50,7 @@ fun FestivalHeroHeader(
                                 .background(
                                         brush =
                                                 Brush.verticalGradient(
-                                                        colors = listOf(NavyBlue, NavyBlueLight)
+                                                        colors = listOf(FasterRed, FasterRedLight)
                                                 )
                                 )
         ) {
@@ -63,10 +63,10 @@ fun FestivalHeroHeader(
                                                         Brush.verticalGradient(
                                                                 colors =
                                                                         listOf(
-                                                                                NavyBlue.copy(
+                                                                                FasterRed.copy(
                                                                                         alpha = 0.7f
                                                                                 ),
-                                                                                NavyBlueLight.copy(
+                                                                                FasterRedLight.copy(
                                                                                         alpha = 0.9f
                                                                                 )
                                                                         )

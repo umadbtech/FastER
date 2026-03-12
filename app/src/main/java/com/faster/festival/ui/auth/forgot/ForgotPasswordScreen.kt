@@ -49,7 +49,7 @@ fun ForgotPasswordScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            SmallTopAppBar(title = { Text(stringResource(id = R.string.forgot_password)) }, navigationIcon = {
+            TopAppBar(title = { Text(stringResource(id = R.string.forgot_password)) }, navigationIcon = {
                 IconButton(onClick = onBack) { Icon(imageVector = Icons.Default.ArrowBack, contentDescription = stringResource(id = R.string.back)) }
             })
         },

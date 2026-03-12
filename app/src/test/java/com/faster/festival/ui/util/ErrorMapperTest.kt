@@ -1,5 +1,7 @@
 package com.faster.festival.ui.util
 
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Test
 import retrofit2.HttpException
 import retrofit2.Response
@@ -134,12 +136,9 @@ class ErrorMapperTest {
         assertFalse(ErrorMapper.isAuthError(exception))
     }
 
-    // Helper function to create mock HttpException
     private fun createHttpException(code: Int, message: String): HttpException {
-        val response = Response.error<Any>(code, "{}".toResponseBody("application/json".toMediaType()))
+        val body = "{}".toResponseBody("application/json".toMediaType())
+        val response = Response.error<Any>(code, body)
         return HttpException(response)
     }
-
-    private fun String.toResponseBody(mediaType: String) =
-        okhttp3.ResponseBody.Companion.create(mediaType.toMediaType(), this)
 }

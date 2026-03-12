@@ -50,7 +50,7 @@ fun ResetPasswordScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            SmallTopAppBar(title = { Text("Reset Password") }, navigationIcon = {
+            TopAppBar(title = { Text("Reset Password") }, navigationIcon = {
                 IconButton(onClick = onBack) { Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back") }
             })
         },

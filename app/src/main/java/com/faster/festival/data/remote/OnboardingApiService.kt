@@ -2,6 +2,7 @@ package com.faster.festival.data.remote
 
 import com.faster.festival.data.model.OnboardingResponse
 import com.faster.festival.data.model.SaveDemographicsRequest
+import com.faster.festival.data.model.SaveProfileNameRequest
 import com.faster.festival.data.model.SaveUsernameRequest
 import com.faster.festival.data.model.EnsureOnboardingResponse
 import com.faster.festival.data.model.SaveEmergencyContactRequest
@@ -37,6 +38,16 @@ interface OnboardingApiService {
     suspend fun saveUsername(
         @Header("Authorization") authorization: String,
         @Body request: SaveUsernameRequest
+    ): Response<OnboardingResponse>
+
+    /**
+     * POST /functions/v1/save-profile-name
+     * Save legal first and last name via Edge Function.
+     */
+    @POST("functions/v1/save-profile-name")
+    suspend fun saveProfileName(
+        @Header("Authorization") authorization: String,
+        @Body request: SaveProfileNameRequest
     ): Response<OnboardingResponse>
 
     /**

@@ -4,6 +4,7 @@ import java.io.File
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
 
@@ -37,12 +38,12 @@ val useRealSupabase: Boolean = project.hasProperty("useRealSupabase") && project
 
 android {
     namespace = "com.faster.festival"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.faster.festival"
         minSdk = 24
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
         vectorDrawables.useSupportLibrary = true
@@ -76,8 +77,8 @@ android {
         buildConfig = true
     }
 
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
+    testOptions {
+        unitTests.isReturnDefaultValues = true
     }
 
     packaging {

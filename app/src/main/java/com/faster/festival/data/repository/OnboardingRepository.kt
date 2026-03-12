@@ -3,6 +3,7 @@ package com.faster.festival.data.repository
 import com.faster.festival.data.local.EncryptedSessionManager
 import com.faster.festival.data.model.OnboardingResponse
 import com.faster.festival.data.model.SaveDemographicsRequest
+import com.faster.festival.data.model.SaveProfileNameRequest
 import com.faster.festival.data.model.SaveUsernameRequest
 import com.faster.festival.data.model.SaveEmergencyContactRequest
 import com.faster.festival.data.remote.OnboardingApiService
@@ -91,6 +92,30 @@ class OnboardingRepository(
                         422 -> "Username must be 3-20 characters, alphanumeric and underscores only."
                         else -> mapErrorMessage(response.code())
                     }
+                    Result.failure(Exception(userMessage))
+                }
+            } catch (e: Exception) {
+                Result.failure(Exception("Network error. Please check your connection and try again."))
+            }
+        }
+    }
+
+    /**
+     * Save profile name (legal first and last name).
+     */
+    suspend fun saveProfileName(request: SaveProfileNameRequest): Result<OnboardingResponse> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val token = sessionManager.getAccessToken() ?: return@withContext Result.failure(Exception("No access token"))
+                val authHeader = "Bearer $token"
+                val response = onboardingApiService.saveProfileName(authHeader, request)
+
+                if (response.isSuccessful) {
+                    val body = response.body()
+                    if (body == null) return@withContext Result.failure(Exception("Empty response"))
+                    Result.success(body)
+                } else {
+                    val userMessage = mapErrorMessage(response.code())
                     Result.failure(Exception(userMessage))
                 }
             } catch (e: Exception) {

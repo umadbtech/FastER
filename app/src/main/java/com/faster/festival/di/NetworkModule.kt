@@ -16,8 +16,10 @@ import com.faster.festival.data.remote.FestivalApiService
 import com.faster.festival.data.remote.FestivalExperienceApi
 import com.faster.festival.data.remote.FestivalHeaderApi
 import com.faster.festival.data.remote.OfflineBundleApi
+import com.faster.festival.data.remote.FriendshipApiService
 import com.faster.festival.data.remote.OnboardingApiService
 import com.faster.festival.data.remote.ProfileApiService
+import com.faster.festival.data.repository.FriendshipRepository
 import com.faster.festival.data.repository.ProfileRepository
 import com.faster.festival.data.local.EncryptedSessionManager
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
@@ -177,6 +179,14 @@ object NetworkModule {
     // ========== Offline Bundle API Service ==========
 
     val offlineBundleApi: OfflineBundleApi by lazy { retrofit.create(OfflineBundleApi::class.java) }
+
+    // ========== Friendship API Services ==========
+
+    val friendshipApiService: FriendshipApiService by lazy { retrofit.create(FriendshipApiService::class.java) }
+
+    val friendshipRepository: FriendshipRepository by lazy {
+        FriendshipRepository(friendshipApiService, sessionManager!!)
+    }
 
     // ========== Note: ContentRepository is created directly in repositories when needed ==========
     // No need to expose it here as it's only used internally

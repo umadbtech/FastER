@@ -72,6 +72,14 @@ class EncryptedSessionManager(context: Context) {
         return sharedPreferences.getBoolean(KEY_IS_EMAIL_CONFIRMED, false)
     }
 
+    fun setOnboardingJustCompleted(completed: Boolean) {
+        sharedPreferences.edit().putBoolean(KEY_ONBOARDING_JUST_COMPLETED, completed).apply()
+    }
+
+    fun isOnboardingJustCompleted(): Boolean {
+        return sharedPreferences.getBoolean(KEY_ONBOARDING_JUST_COMPLETED, false)
+    }
+
     fun clearSession() {
         sharedPreferences.edit().clear().apply()
     }
@@ -86,5 +94,6 @@ class EncryptedSessionManager(context: Context) {
         private const val KEY_IS_2FA_ENABLED = "is_2fa_enabled"
         private const val KEY_IS_EMAIL_VERIFIED = "is_email_verified"
         private const val KEY_IS_EMAIL_CONFIRMED = "is_email_confirmed"
+        private const val KEY_ONBOARDING_JUST_COMPLETED = "onboarding_just_completed"
     }
 }

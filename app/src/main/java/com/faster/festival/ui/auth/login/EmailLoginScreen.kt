@@ -63,7 +63,7 @@ fun EmailLoginScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            SmallTopAppBar(
+            TopAppBar(
                 title = { /* empty title - main title shown in content for visual parity */ Text("") },
                 navigationIcon = {
                     IconButton(onClick = onBackToSignup) {

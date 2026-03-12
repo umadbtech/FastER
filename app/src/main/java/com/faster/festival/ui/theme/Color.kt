@@ -2,100 +2,60 @@ package com.faster.festival.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// ============================================================================
-// COLOR TOKENS - Centralized Color System
-// ============================================================================
+// Primary Palette
+val FasterRed = Color(0xFFD11818)
+val FasterRedDark = Color(0xFFA01212)
+val FasterRedLight = Color(0xFFE84848)
 
-// ============================================================================
-// PRIMARY PALETTE - FastER Navy
-// ============================================================================
-val NavyBlue = Color(0xFF0B1A4A) // Primary
-val NavyBlueDark = Color(0xFF050D25) // Darker variant
-val NavyBlueLight = Color(0xFF1A3A8A) // Lighter variant
+// Secondary Palette
+val FasterBlue = Color(0xFF1A8BDB)
+val FasterBlueDark = Color(0xFF1267A3)
+val FasterBlueLight = Color(0xFF4DA8E8)
 
-// ============================================================================
-// SECONDARY COLORS - Emergency Red
-// ============================================================================
-val EmergencyRed = Color(0xFFFF1E1E) // Secondary / Action
-val EmergencyRedDark = Color(0xFFCC0000) // Darker variant
-val EmergencyRedLight = Color(0xFFFF4C4C) // Lighter variant
+// Tertiary Palette
+val FasterPurple = Color(0xFF7A18C0)
+val FasterPurpleDark = Color(0xFF5A1290)
+val FasterPurpleLight = Color(0xFF9B4DD4)
 
-// ============================================================================
-// NEUTRAL COLORS
-// ============================================================================
+// Neutral Palette
 val Black = Color(0xFF000000)
 val White = Color(0xFFFFFFFF)
-val DarkSurface = Color(0xFF121212)
-val Grey800 = Color(0xFF424242)
-val Grey400 = Color(0xFFBDBDBD)
-val Grey = Color(0xFF808080) // Requested Text Color
+val DarkGray = Color(0xFF5A5A5A)
+val LightGray = Color(0xFFDFDCDC)
+val MediumGray = Color(0xFF9E9E9E)
 
-// ============================================================================
-// SEMANTIC COLORS
-// ============================================================================
-val ErrorRed = Color(0xFFFF1E1E)
+// Semantic Colors
+val ErrorRed = Color(0xFFD32F2F)
 val SuccessGreen = Color(0xFF16A34A)
 val WarningAmber = Color(0xFFFFC107)
 
-// ============================================================================
-// MATERIAL 3 COLOR SCHEME MAPPING
-// ============================================================================
-
-// Light Theme (Day)
-val md_theme_light_primary = NavyBlue
+// Material 3 Light Theme
+val md_theme_light_primary = FasterRed
 val md_theme_light_onPrimary = White
-val md_theme_light_primaryContainer = NavyBlueLight // Lighter for container
+val md_theme_light_primaryContainer = FasterRedLight
 val md_theme_light_onPrimaryContainer = White
 
-val md_theme_light_secondary = EmergencyRed
+val md_theme_light_secondary = FasterBlue
 val md_theme_light_onSecondary = White
-val md_theme_light_secondaryContainer = EmergencyRedLight
+val md_theme_light_secondaryContainer = FasterBlueLight
 val md_theme_light_onSecondaryContainer = White
 
-val md_theme_light_tertiary = NavyBlueLight
+val md_theme_light_tertiary = FasterPurple
 val md_theme_light_onTertiary = White
-val md_theme_light_tertiaryContainer = NavyBlueDark
+val md_theme_light_tertiaryContainer = FasterPurpleLight
 val md_theme_light_onTertiaryContainer = White
 
 val md_theme_light_error = ErrorRed
 val md_theme_light_onError = White
-val md_theme_light_errorContainer = EmergencyRedLight
-val md_theme_light_onErrorContainer = White
+val md_theme_light_errorContainer = Color(0xFFFFDAD6)
+val md_theme_light_onErrorContainer = Color(0xFF410002)
 
-val md_theme_light_background = White // Requested: White
-val md_theme_light_onBackground = Grey // Requested: Grey (#808080)
+val md_theme_light_background = White
+val md_theme_light_onBackground = Black
 val md_theme_light_surface = White
 val md_theme_light_onSurface = Black
-val md_theme_light_surfaceVariant = Color(0xFFE0E0E0) // Light Grey for refinement
-val md_theme_light_onSurfaceVariant = Grey800
-val md_theme_light_outline = Grey800
-
-// Dark Theme (Night) - Proper dark mode with high contrast
-val md_theme_dark_primary = NavyBlue
-val md_theme_dark_onPrimary = White
-val md_theme_dark_primaryContainer = Color(0xFF050D25) // Very dark navy
-val md_theme_dark_onPrimaryContainer = White
-
-val md_theme_dark_secondary = EmergencyRed
-val md_theme_dark_onSecondary = White
-val md_theme_dark_secondaryContainer = Color(0xFF800000) // Very dark red
-val md_theme_dark_onSecondaryContainer = White
-
-val md_theme_dark_tertiary = NavyBlueLight
-val md_theme_dark_onTertiary = White
-val md_theme_dark_tertiaryContainer = Color(0xFF050D25)
-val md_theme_dark_onTertiaryContainer = White
-
-val md_theme_dark_error = EmergencyRedLight
-val md_theme_dark_onError = Color(0xFF600000)
-val md_theme_dark_errorContainer = Color(0xFF8C0000)
-val md_theme_dark_onErrorContainer = White
-
-val md_theme_dark_background = Color(0xFF0A0A0A) // Pure black for dark mode
-val md_theme_dark_onBackground = Color(0xFFFFFFFF) // Pure white text
-val md_theme_dark_surface = Color(0xFF1A1A1A) // Slightly lighter black for surfaces
-val md_theme_dark_onSurface = Color(0xFFFFFFFF) // Pure white
-val md_theme_dark_surfaceVariant = Color(0xFF2A2A2A) // Dark gray
-val md_theme_dark_onSurfaceVariant = Color(0xFFE0E0E0) // Light gray text
-val md_theme_dark_outline = Color(0xFF808080)
-val md_theme_dark_scrim = Color(0xFF000000)
+val md_theme_light_surfaceVariant = LightGray
+val md_theme_light_onSurfaceVariant = DarkGray
+val md_theme_light_outline = MediumGray
+val md_theme_light_inverseSurface = Black
+val md_theme_light_inverseOnSurface = White

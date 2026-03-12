@@ -39,6 +39,10 @@ class EnhancedProfileViewModel(
     private val _termsAccepted = MutableStateFlow(false)
     val termsAccepted: StateFlow<Boolean> = _termsAccepted.asStateFlow()
 
+    // ✅ Avatar URL StateFlow - ALWAYS FRESH (expires every 60s)
+    private val _avatarUrl = MutableStateFlow<String?>(null)
+    val avatarUrl: StateFlow<String?> = _avatarUrl.asStateFlow()
+
     /**
      * Load profile data from API
      */
@@ -52,6 +56,8 @@ class EnhancedProfileViewModel(
                     _fullName.value = profileRepository.getFullName(profile)
                     _emergencyContactsCount.value = profile.emergencyContactsCount
                     _termsAccepted.value = profile.termsComplete
+                    // ✅ Extract and expose avatar URL from profile summary
+                    _avatarUrl.value = profile.avatarUrl
                 }.onFailure { error ->
                     val message = when {
                         error.message?.contains("401") == true -> "Unauthorized. Please login again."
@@ -84,6 +90,7 @@ class EnhancedProfileViewModel(
         _fullName.value = "User"
         _emergencyContactsCount.value = 0
         _termsAccepted.value = false
+        _avatarUrl.value = null  // ✅ Clear avatar URL
 
         // Call logout callback
         onLogout()

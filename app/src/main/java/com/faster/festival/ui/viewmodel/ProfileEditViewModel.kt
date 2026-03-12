@@ -1,9 +1,11 @@
 package com.faster.festival.ui.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.faster.festival.data.local.EncryptedSessionManager
+import com.faster.festival.data.model.GenderIdentity
 import com.faster.festival.data.models.ProfileSummary
 import com.faster.festival.data.repository.ProfileRepository
 import java.io.File
@@ -54,6 +56,10 @@ class ProfileEditViewModel(
 
     private val _formState = MutableStateFlow(ProfileEditFormState())
     val formState: StateFlow<ProfileEditFormState> = _formState.asStateFlow()
+
+    // ✅ Avatar URL StateFlow - ALWAYS FRESH (expires every 60s)
+    private val _avatarUrl = MutableStateFlow<String?>(null)
+    val avatarUrl: StateFlow<String?> = _avatarUrl.asStateFlow()
 
     private var lastRetryAction: (() -> Unit)? = null
 
@@ -164,7 +170,12 @@ class ProfileEditViewModel(
             profileRepository.uploadAvatar(imageFile, token).collect { result ->
                 _editState.value =
                         result.fold(
-                                onSuccess = { _url ->
+                                onSuccess = { signedAvatarUrl ->
+                                    // ✅ Use the signed URL from upload response immediately (fresh right now)
+                                    _avatarUrl.value = signedAvatarUrl
+                                    Log.d("ProfileEditViewModel", "✅ Avatar uploaded, set fresh URL from response")
+
+
                                     ProfileEditUiState.Success("Avatar uploaded successfully")
                                 },
                                 onFailure = { error ->
@@ -213,6 +224,34 @@ class ProfileEditViewModel(
             else -> errorMessage
         }
     }
+    /**
+     * ✅ Load fresh signed avatar URL
+     * Signed URLs expire in 60s, so always fetch fresh before display
+     */
+    fun loadFreshAvatarUrl() {
+        viewModelScope.launch {
+            val token = sessionManager.getAccessToken()
+            if (token.isNullOrBlank()) {
+                _avatarUrl.value = null
+                Log.w("ProfileEditViewModel", "No token to fetch avatar URL")
+                return@launch
+            }
+
+            profileRepository.getAvatarUrl(token).collect { result ->
+                result.onSuccess { url ->
+                    _avatarUrl.value = url
+                    if (!url.isNullOrEmpty()) {
+                        Log.d("ProfileEditViewModel", "✅ Fresh avatar URL loaded (expires in 60s)")
+                    }
+                }
+                result.onFailure { error ->
+                    _avatarUrl.value = null
+                    Log.e("ProfileEditViewModel", "Failed to get avatar URL: ${error.message}")
+                }
+            }
+        }
+    }
+
     /** Get signed avatar URL */
     fun getAvatarUrl(): String? {
         var result: String? = null
@@ -261,9 +300,11 @@ class ProfileEditViewModel(
             val raceList =
                     if (state.raceEthnicity.isNotBlank()) listOf(state.raceEthnicity) else null
 
+            val genderApiValue = state.genderIdentity.ifBlank { null }
+                    ?.let { GenderIdentity.toApiValue(it) ?: it.lowercase().replace(" ", "_") }
             profileRepository.saveDemographics(
                             dateOfBirth = state.dateOfBirth.ifBlank { null },
-                            genderIdentity = state.genderIdentity.ifBlank { null },
+                            genderIdentity = genderApiValue,
                             raceEthnicity = raceList,
                             accessToken = token
                     )

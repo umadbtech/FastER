@@ -1,5 +1,6 @@
 package com.faster.festival.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,12 +17,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.request.CachePolicy
+import coil.request.ImageRequest
 import com.faster.festival.ui.theme.FastERTheme
+import kotlinx.coroutines.delay
 
 // ============================================================================
 // SECTION 1: PROFILE CARD (Red Border)
@@ -148,17 +154,32 @@ fun AvatarSection(
             contentAlignment = Alignment.Center
         ) {
             if (!avatarUrl.isNullOrEmpty()) {
-                // Display avatar with Coil AsyncImage
+                val context = LocalContext.current
+
+                // ✅ Display avatar with cache DISABLED (signed URLs expire in 60s)
                 AsyncImage(
-                    model = avatarUrl,
+                    model = ImageRequest.Builder(context)
+                        .data(avatarUrl)
+                        .crossfade(true)
+                        .diskCachePolicy(CachePolicy.DISABLED)    // ✅ Don't cache to disk
+                        .memoryCachePolicy(CachePolicy.DISABLED)  // ✅ Don't cache in memory
+                        .build(),
                     contentDescription = "User Avatar",
                     modifier = Modifier
                         .fillMaxSize()
                         .clip(CircleShape),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Crop,
+                    placeholder = painterResource(android.R.drawable.ic_menu_gallery),
+                    error = painterResource(android.R.drawable.ic_menu_report_image),
+                    onError = { error ->
+                        Log.e("AvatarSection", "Failed to load avatar: ${error.result.throwable}")
+                    },
+                    onSuccess = {
+                        Log.d("AvatarSection", "✅ Avatar loaded from: $avatarUrl")
+                    }
                 )
             } else {
-                // Fallback: Show initials or icon
+                // Fallback: Show icon
                 Icon(
                     imageVector = Icons.Default.Person,
                     contentDescription = "Avatar Placeholder",
@@ -1039,9 +1060,19 @@ fun EnhancedProfileScreenWithNavigation(
     onNavigateToFAQ: () -> Unit,
     onNavigateToManageAccount: () -> Unit,
     onNavigateToLogin: () -> Unit,
+    onRefreshProfile: () -> Unit = {},  // ✅ Called to refresh profile on screen appear
     modifier: Modifier = Modifier
 ) {
     var showLogoutConfirm by remember { mutableStateOf(false) }
+
+    // ✅ Refresh profile when screen appears (signed URL expires in 60s)
+    // ✅ Also auto-refresh every 50s to keep URL fresh before expiry
+    LaunchedEffect(Unit) {
+        while (true) {
+            onRefreshProfile()
+            delay(50_000L)  // Refresh every 50 seconds (before 60s expiry)
+        }
+    }
 
     // Logout Confirmation Dialog
     if (showLogoutConfirm) {

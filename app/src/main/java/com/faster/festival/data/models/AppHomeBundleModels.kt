@@ -136,7 +136,106 @@ data class AppHomeBundleResponse(
                 emptyList()
             }
         }
+
+    /**
+     * Extract FAQ items from modules
+     */
+    val faqItems: List<FaqItem>
+        get() {
+            val moduleData = modules.find { it.key == "faq" }?.data
+            return if (moduleData is JsonObject) {
+                val itemsArray = moduleData["items"] as? JsonArray
+                itemsArray?.mapNotNull { item ->
+                    if (item is JsonObject) {
+                        try {
+                            FaqItem(
+                                id = (item["id"] as? JsonPrimitive)?.content ?: return@mapNotNull null,
+                                question = (item["question"] as? JsonPrimitive)?.content ?: return@mapNotNull null,
+                                answer = (item["answer"] as? JsonPrimitive)?.content ?: return@mapNotNull null,
+                                sortOrder = (item["sort_order"] as? JsonPrimitive)?.intOrNull ?: 0
+                            )
+                        } catch (e: Exception) {
+                            null
+                        }
+                    } else {
+                        null
+                    }
+                }?.sortedBy { it.sortOrder } ?: emptyList()
+            } else {
+                emptyList()
+            }
+        }
+
+    /**
+     * Extract promotions from modules
+     */
+    val promotions: List<PromotionItem>
+        get() {
+            val moduleData = modules.find { it.key == "promotions" }?.data
+            return if (moduleData is JsonArray) {
+                moduleData.mapNotNull { item ->
+                    if (item is JsonObject) {
+                        try {
+                            PromotionItem(
+                                id = (item["id"] as? JsonPrimitive)?.content ?: return@mapNotNull null,
+                                title = (item["title"] as? JsonPrimitive)?.content ?: return@mapNotNull null,
+                                subtitle = (item["subtitle"] as? JsonPrimitive)?.content,
+                                offerText = (item["offer_text"] as? JsonPrimitive)?.content,
+                                description = (item["description"] as? JsonPrimitive)?.content,
+                                thumbnailUrl = (item["thumbnail_url"] as? JsonPrimitive)?.content,
+                                isExclusive = (item["is_exclusive"] as? JsonPrimitive)?.content?.toBooleanStrictOrNull() ?: false,
+                                sortOrder = (item["sort_order"] as? JsonPrimitive)?.intOrNull ?: 0
+                            )
+                        } catch (e: Exception) {
+                            null
+                        }
+                    } else {
+                        null
+                    }
+                }.sortedBy { it.sortOrder }
+            } else {
+                emptyList()
+            }
+        }
 }
+
+/**
+ * Promotion item from modules[key="promotions"].data[n]
+ */
+@Serializable
+data class PromotionItem(
+    @SerialName("id")
+    val id: String,
+    @SerialName("title")
+    val title: String,
+    @SerialName("subtitle")
+    val subtitle: String? = null,
+    @SerialName("offer_text")
+    val offerText: String? = null,
+    @SerialName("description")
+    val description: String? = null,
+    @SerialName("thumbnail_url")
+    val thumbnailUrl: String? = null,
+    @SerialName("is_exclusive")
+    val isExclusive: Boolean = false,
+    @SerialName("sort_order")
+    val sortOrder: Int = 0
+)
+
+/**
+ * FAQ item from modules[key="faq"].data.items[n]
+ */
+@Serializable
+data class FaqItem(
+    @SerialName("id")
+    val id: String,
+    @SerialName("question")
+    val question: String,
+    @SerialName("answer")
+    val answer: String,
+    @SerialName("sort_order")
+    val sortOrder: Int = 0
+)
 
 /**
  * Festival header from App Home Bundle

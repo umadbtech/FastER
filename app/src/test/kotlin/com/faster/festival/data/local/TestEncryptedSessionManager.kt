@@ -4,6 +4,7 @@ package com.faster.festival.data.local
 class EncryptedSessionManager {
     private var userId: String? = null
     private var emailConfirmed: Boolean = false
+    private var userEmail: String? = null
 
     fun saveUserID(id: String) {
         userId = id
@@ -16,4 +17,10 @@ class EncryptedSessionManager {
     }
 
     fun isEmailConfirmed(): Boolean = emailConfirmed
+
+    fun getUserEmail(): String? = userEmail
+
+    fun setUserEmail(email: String?) {
+        userEmail = email
+    }
 }

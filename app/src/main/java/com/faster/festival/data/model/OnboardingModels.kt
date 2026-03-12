@@ -1,7 +1,35 @@
 package com.faster.festival.data.model
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+
+/**
+ * Gender identity enum matching PostgreSQL gender_identity_enum values exactly.
+ * [apiValue] is sent to the backend; [displayLabel] is shown in the UI.
+ */
+enum class GenderIdentity(val apiValue: String, val displayLabel: String) {
+    MALE("male", "Male"),
+    FEMALE("female", "Female"),
+    NON_BINARY("non_binary", "Non-binary"),
+    TRANSGENDER("transgender", "Transgender"),
+    GENDER_FLUID("gender_fluid", "Gender Fluid"),
+    PREFER_NOT_TO_SAY("prefer_not_to_say", "Prefer Not to Say"),
+    OTHER("other", "Other");
+
+    companion object {
+        /** Map a display label (e.g. "Female") to the DB-safe API value (e.g. "female"). */
+        fun toApiValue(displayLabel: String): String? =
+            entries.find { it.displayLabel.equals(displayLabel, ignoreCase = true) }?.apiValue
+
+        /** Map an API value (e.g. "female") back to the display label (e.g. "Female"). */
+        fun toDisplayLabel(apiValue: String): String? =
+            entries.find { it.apiValue.equals(apiValue, ignoreCase = true) }?.displayLabel
+
+        /** All display labels for use in UI dropdowns. */
+        val displayLabels: List<String> get() = entries.map { it.displayLabel }
+    }
+}
 
 /**
  * Request for saving username via Supabase Edge Function.
@@ -85,5 +113,14 @@ data class EmergencyContact(
     val external_phone_e164: String,
     val relationship: String? = null,
     val is_primary: Boolean = false
+)
+
+/**
+ * Request for saving profile name via Supabase Edge Function.
+ */
+@Serializable
+data class SaveProfileNameRequest(
+    @SerialName("legal_first_name") val legalFirstName: String,
+    @SerialName("legal_last_name") val legalLastName: String
 )
 

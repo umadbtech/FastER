@@ -18,7 +18,7 @@ sealed class UiState<out T> {
 }
 
 // Home ViewModel
-class HomeViewModel(private val repository: FestivalRepository) : ViewModel() {
+class LegacyHomeViewModel(private val repository: FestivalRepository) : ViewModel() {
 
     private val _festivalState = MutableStateFlow<UiState<Festival>>(UiState.Loading)
     val festivalState: StateFlow<UiState<Festival>> = _festivalState.asStateFlow()
@@ -57,7 +57,7 @@ class HomeViewModel(private val repository: FestivalRepository) : ViewModel() {
 }
 
 // Map ViewModel
-class MapViewModel(private val repository: FestivalRepository) : ViewModel() {
+class LegacyMapViewModel(private val repository: FestivalRepository) : ViewModel() {
 
     private val _poisState = MutableStateFlow<UiState<List<Poi>>>(UiState.Loading)
     val poisState: StateFlow<UiState<List<Poi>>> = _poisState.asStateFlow()
@@ -302,7 +302,7 @@ class MapViewModelFactory(
             override fun updateProfile(profile: AccountProfile): kotlinx.coroutines.flow.Flow<AccountProfile> =
                 kotlinx.coroutines.flow.flow { emit(profile) }
         }
-        return MapViewModel(festivalRepo) as T
+        return LegacyMapViewModel(festivalRepo) as T
     }
 }
 

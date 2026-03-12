@@ -2,6 +2,7 @@ package com.faster.festival.ui.viewmodel
 
 import com.faster.festival.data.models.AppHomeBundleResponse
 import com.faster.festival.data.models.AppFestivalHeader
+import com.faster.festival.data.models.UiConfig
 import com.faster.festival.data.repository.AppHomeRepository
 import io.mockk.MockKAnnotations
 import io.mockk.coEvery
@@ -85,7 +86,7 @@ class AppHomeViewModelTest {
         // Assert
         val state = viewModel.bundleState.value
         assertIs<UiState.Error>(state)
-        assertEquals("No internet connection. Check your network.", (state as UiState.Error).message)
+        assertEquals("Network error", (state as UiState.Error).message)
     }
 
     @Test
@@ -127,6 +128,6 @@ class AppHomeViewModelTest {
             contextState = "PRE"
         ),
         modules = emptyList(),
-        uiConfig = null
+        uiConfig = UiConfig()
     )
 }
