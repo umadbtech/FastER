@@ -1,6 +1,7 @@
 package com.faster.festival.ui.screens
 
 import android.util.Log
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -30,7 +31,7 @@ import com.faster.festival.ui.theme.FastERTheme
 import kotlinx.coroutines.delay
 
 // ============================================================================
-// SECTION 1: PROFILE CARD (Red Border)
+// SECTION 1: PROFILE CARD
 // ============================================================================
 
 @Composable
@@ -45,12 +46,11 @@ fun ProfileCardSection(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(12.dp),
-        border = CardDefaults.outlinedCardBorder().copy(
-            brush = androidx.compose.foundation.BorderStroke(
-                2.dp,
-                MaterialTheme.colorScheme.error
-            ).brush
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.outlinedCardElevation(defaultElevation = 1.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = Color(0xFFD6D6D6)
         )
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -217,148 +217,6 @@ fun AvatarSection(
                 Text("Update Avatar", style = MaterialTheme.typography.labelMedium)
             }
         }
-    }
-}
-
-// ============================================================================
-// SECTION 1.7: DEMOGRAPHICS DISPLAY
-// ============================================================================
-
-data class DemographicsData(
-    val dateOfBirth: String? = null,
-    val genderIdentity: String? = null,
-    val raceEthnicity: List<String> = emptyList(),
-    val isMinor: Boolean = false
-)
-
-@Composable
-fun DemographicsSection(
-    demographics: DemographicsData,
-    onEditDemographicsClick: () -> Unit = {},
-    modifier: Modifier = Modifier
-) {
-    OutlinedCard(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // Header row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Demographics",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                IconButton(
-                    onClick = onEditDemographicsClick,
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit Demographics",
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-
-            HorizontalDivider()
-
-            // Date of Birth
-            if (!demographics.dateOfBirth.isNullOrEmpty()) {
-                DemographicsRow(
-                    label = "Date of Birth",
-                    value = demographics.dateOfBirth
-                )
-            }
-
-            // Gender Identity
-            if (!demographics.genderIdentity.isNullOrEmpty()) {
-                DemographicsRow(
-                    label = "Gender Identity",
-                    value = demographics.genderIdentity
-                        .replace("_", " ")
-                        .replaceFirstChar { it.uppercase() }
-                )
-            }
-
-            // Race/Ethnicity
-            if (demographics.raceEthnicity.isNotEmpty()) {
-                DemographicsRow(
-                    label = "Race/Ethnicity",
-                    value = demographics.raceEthnicity.joinToString(", ") { race ->
-                        race.replace("_", " ").replaceFirstChar { it.uppercase() }
-                    }
-                )
-            }
-
-            // Minor Status
-            if (demographics.isMinor) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "You are registered as a minor",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // Empty state
-            if (demographics.dateOfBirth.isNullOrEmpty() &&
-                demographics.genderIdentity.isNullOrEmpty() &&
-                demographics.raceEthnicity.isEmpty()
-            ) {
-                Text(
-                    text = "No demographics information yet. Tap Edit to add.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun DemographicsRow(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier
-) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(top = 4.dp)
-        )
     }
 }
 
@@ -918,7 +776,6 @@ fun ProfileScreenNew(
     name: String = "First Last",
     username: String? = null,
     avatarUrl: String? = null,
-    demographics: DemographicsData = DemographicsData(),
     emergencyContacts: List<EmergencyContactInfo> = emptyList(),
     wristbandName: String = "FASTER Wristband",
     batteryPercentage: Int = 82,
@@ -926,7 +783,6 @@ fun ProfileScreenNew(
     onPersonalInfoClick: () -> Unit = {},
     onEmergencyContactsClick: () -> Unit = {},
     onUploadAvatarClick: () -> Unit = {},
-    onEditDemographicsClick: () -> Unit = {},
     onAddEmergencyContactClick: () -> Unit = {},
     onEditEmergencyContact: (EmergencyContactInfo) -> Unit = {},
     onDeleteEmergencyContact: (EmergencyContactInfo) -> Unit = {},
@@ -969,15 +825,6 @@ fun ProfileScreenNew(
             )
         }
 
-        // Section 1.5: Demographics
-        item {
-            DemographicsSection(
-                demographics = demographics,
-                onEditDemographicsClick = onEditDemographicsClick
-            )
-        }
-
-        // Section 1.7: Emergency Contacts
         item {
             EmergencyContactsSection(
                 contacts = emergencyContacts,
@@ -1041,12 +888,10 @@ fun EnhancedProfileScreenWithNavigation(
     fullName: String = "First Last",
     username: String? = null,
     avatarUrl: String? = null,
-    demographics: DemographicsData = DemographicsData(),
     emergencyContacts: List<EmergencyContactInfo> = emptyList(),
     onNavigateToPersonalInfo: () -> Unit,
     onNavigateToEmergencyContacts: () -> Unit,
     onNavigateToUploadAvatar: () -> Unit = {},
-    onNavigateToEditDemographics: () -> Unit = {},
     onNavigateToAddContact: () -> Unit = {},
     onNavigateToEditContact: (EmergencyContactInfo) -> Unit = {},
     onNavigateToDeleteContact: (EmergencyContactInfo) -> Unit = {},
@@ -1106,7 +951,6 @@ fun EnhancedProfileScreenWithNavigation(
         name = fullName,
         username = username,
         avatarUrl = avatarUrl,
-        demographics = demographics,
         emergencyContacts = emergencyContacts,
         wristbandName = "FASTER Wristband",
         batteryPercentage = 82,
@@ -1114,7 +958,6 @@ fun EnhancedProfileScreenWithNavigation(
         onPersonalInfoClick = onNavigateToPersonalInfo,
         onEmergencyContactsClick = onNavigateToEmergencyContacts,
         onUploadAvatarClick = onNavigateToUploadAvatar,
-        onEditDemographicsClick = onNavigateToEditDemographics,
         onAddEmergencyContactClick = onNavigateToAddContact,
         onEditEmergencyContact = onNavigateToEditContact,
         onDeleteEmergencyContact = onNavigateToDeleteContact,

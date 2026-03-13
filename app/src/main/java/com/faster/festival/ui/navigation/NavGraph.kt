@@ -369,7 +369,6 @@ fun NavGraph(
                 username = username,
                 avatarUrl = avatarUrl.value,
                 onNavigateToPersonalInfo = { navController.navigate(Routes.PERSONAL_INFO) },
-                onNavigateToEditDemographics = { navController.navigate(Routes.EDIT_DEMOGRAPHICS) },
                 onNavigateToEmergencyContacts = { navController.navigate(Routes.EMERGENCY_CONTACTS) },
                 onNavigateToUploadAvatar = { navController.navigate(Routes.AVATAR_UPLOAD) },
                 onNavigateToHealth = { navController.navigate(Routes.HEALTH_SETTINGS) },

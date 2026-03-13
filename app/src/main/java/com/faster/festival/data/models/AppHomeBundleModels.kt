@@ -76,9 +76,13 @@ data class AppHomeBundleResponse(
                             Announcement(
                                 id = (item["id"] as? JsonPrimitive)?.content ?: return@mapNotNull null,
                                 title = (item["title"] as? JsonPrimitive)?.content ?: return@mapNotNull null,
-                                content = (item["content"] as? JsonPrimitive)?.content,
+                                content = (item["body"] as? JsonPrimitive)?.content
+                                    ?: (item["content"] as? JsonPrimitive)?.content,
                                 imageUrl = (item["image_url"] as? JsonPrimitive)?.content,
                                 publishedAt = (item["published_at"] as? JsonPrimitive)?.content,
+                                startsAt = (item["starts_at"] as? JsonPrimitive)?.content,
+                                endsAt = (item["ends_at"] as? JsonPrimitive)?.content,
+                                priority = (item["priority"] as? JsonPrimitive)?.intOrNull ?: 0,
                                 order = (item["order"] as? JsonPrimitive)?.intOrNull ?: 0
                             )
                         } catch (e: Exception) {
@@ -197,6 +201,64 @@ data class AppHomeBundleResponse(
                 emptyList()
             }
         }
+
+    /**
+     * Extract sponsor offers from modules
+     * API nests sponsor info under a "sponsors" object within each offer
+     */
+    val sponsorOffers: List<SponsorOffer>
+        get() {
+            val moduleData = modules.find { it.key == "sponsors" }?.data
+            return if (moduleData is JsonArray) {
+                moduleData.mapNotNull { item ->
+                    if (item is JsonObject) {
+                        try {
+                            val sponsorObj = item["sponsors"] as? JsonObject
+                            SponsorOffer(
+                                id = (item["id"] as? JsonPrimitive)?.content ?: return@mapNotNull null,
+                                sponsorName = (sponsorObj?.get("name") as? JsonPrimitive)?.content
+                                    ?: (item["sponsor_name"] as? JsonPrimitive)?.content
+                                    ?: return@mapNotNull null,
+                                sponsorLogoUrl = (sponsorObj?.get("logo_url") as? JsonPrimitive)?.content
+                                    ?: (item["sponsor_logo_url"] as? JsonPrimitive)?.content,
+                                title = (item["title"] as? JsonPrimitive)?.content,
+                                subtitle = (item["subtitle"] as? JsonPrimitive)?.content,
+                                offerText = (item["offer_text"] as? JsonPrimitive)?.content,
+                                ctaLabel = (item["cta_label"] as? JsonPrimitive)?.content,
+                                ctaUrl = (item["cta_url"] as? JsonPrimitive)?.content,
+                                isExclusive = (item["is_exclusive"] as? JsonPrimitive)?.content?.toBooleanStrictOrNull() ?: false,
+                                primaryMediaUrl = (item["primary_media_url"] as? JsonPrimitive)?.content,
+                                sortOrder = (item["sort_order"] as? JsonPrimitive)?.intOrNull ?: 0
+                            )
+                        } catch (e: Exception) {
+                            null
+                        }
+                    } else {
+                        null
+                    }
+                }.sortedBy { it.sortOrder }
+            } else {
+                emptyList()
+            }
+        }
+
+    /**
+     * Get a module by key
+     */
+    fun moduleByKey(key: String): HomeModule? = modules.find { it.key == key }
+
+    /**
+     * Get enabled modules in the order specified by ui_config.module_order
+     */
+    val orderedModules: List<HomeModule>
+        get() {
+            val enabledMap = modules.filter { it.enabled }.associateBy { it.key }
+            return if (uiConfig.moduleOrder.isNotEmpty()) {
+                uiConfig.moduleOrder.mapNotNull { key -> enabledMap[key] }
+            } else {
+                enabledMap.values.toList()
+            }
+        }
 }
 
 /**
@@ -218,6 +280,37 @@ data class PromotionItem(
     val thumbnailUrl: String? = null,
     @SerialName("is_exclusive")
     val isExclusive: Boolean = false,
+    @SerialName("sort_order")
+    val sortOrder: Int = 0,
+    @SerialName("vendor_name")
+    val vendorName: String? = null,
+    @SerialName("location_text")
+    val locationText: String? = null
+)
+
+/**
+ * Sponsor offer from modules[key="sponsors"].data[n]
+ * Sponsor name/logo come from the nested "sponsors" object in the API response
+ */
+@Serializable
+data class SponsorOffer(
+    @SerialName("id")
+    val id: String,
+    val sponsorName: String,
+    val sponsorLogoUrl: String? = null,
+    @SerialName("title")
+    val title: String? = null,
+    @SerialName("subtitle")
+    val subtitle: String? = null,
+    @SerialName("offer_text")
+    val offerText: String? = null,
+    @SerialName("cta_label")
+    val ctaLabel: String? = null,
+    @SerialName("cta_url")
+    val ctaUrl: String? = null,
+    @SerialName("is_exclusive")
+    val isExclusive: Boolean = false,
+    val primaryMediaUrl: String? = null,
     @SerialName("sort_order")
     val sortOrder: Int = 0
 )
@@ -313,6 +406,12 @@ data class Announcement(
     val imageUrl: String? = null,
     @SerialName("published_at")
     val publishedAt: String? = null,
+    @SerialName("starts_at")
+    val startsAt: String? = null,
+    @SerialName("ends_at")
+    val endsAt: String? = null,
+    @SerialName("priority")
+    val priority: Int = 0,
     @SerialName("order")
     val order: Int = 0
 )
@@ -368,6 +467,10 @@ data class HomeModule(
     val key: String,
     @SerialName("enabled")
     val enabled: Boolean = true,
+    @SerialName("title")
+    val title: String? = null,
+    @SerialName("display_title")
+    val displayTitle: String? = null,
     @SerialName("ttl_seconds")
     val ttlSeconds: Int? = null,
     @SerialName("updated_at")
@@ -399,5 +502,11 @@ data class TileConfig(
     @SerialName("enabled")
     val enabled: Boolean = true,
     @SerialName("order")
-    val order: Int = 0
+    val order: Int = 0,
+    @SerialName("label")
+    val label: String? = null,
+    @SerialName("description")
+    val description: String? = null,
+    @SerialName("icon")
+    val icon: String? = null
 )

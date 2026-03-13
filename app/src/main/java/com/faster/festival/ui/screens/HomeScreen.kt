@@ -3,6 +3,9 @@ package com.faster.festival.ui.screens
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseInOut
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -11,17 +14,22 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,56 +40,53 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.SignalCellularAlt
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.WarningAmber
-import androidx.compose.material.icons.filled.Watch
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.faster.festival.AppConfig
@@ -91,14 +96,77 @@ import com.faster.festival.data.models.AppFestivalHeader
 import com.faster.festival.data.models.AppHomeBundleResponse
 import com.faster.festival.data.models.FaqItem
 import com.faster.festival.data.models.HeroCarouselItem
+import com.faster.festival.data.models.HomeModule
 import com.faster.festival.data.models.PromotionItem
+import com.faster.festival.data.models.SponsorOffer
+import com.faster.festival.data.models.TileConfig
 import com.faster.festival.data.models.UpcomingEvent
 import com.faster.festival.di.NetworkModule
 import com.faster.festival.ui.viewmodel.HomeUiState
 import com.faster.festival.ui.viewmodel.HomeViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
+
+// ─── Colors ──────────────────────────────────────────────────────────────────
+private val CoralRed = Color(0xFFE53935)
+private val DarkNavy = Color(0xFF0D1B2A)
+private val LightBlue = Color(0xFFB0D4F1)
+private val PromoGradientStart = Color(0xFF0D2B4E)
+private val PromoGradientEnd = Color(0xFF1A4A7A)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MODULE KEY → DISPLAY TITLE RESOLVER
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Resolves a display title for a module.
+ * Priority: module.displayTitle > module.title > humanized key
+ */
+private fun resolveModuleTitle(module: HomeModule): String {
+    return module.displayTitle
+        ?: module.title
+        ?: humanizeModuleKey(module.key)
+}
+
+/**
+ * Resolves a section title from module key by looking up the module in the bundle.
+ * Falls back to humanized key if module not found or has no title.
+ */
+private fun resolveSectionTitle(bundle: AppHomeBundleResponse, moduleKey: String): String {
+    val module = bundle.moduleByKey(moduleKey)
+    return if (module != null) resolveModuleTitle(module) else humanizeModuleKey(moduleKey)
+}
+
+/**
+ * Humanizes a snake_case module key into a Title Case display string.
+ * e.g. "hero_carousel" → "Hero Carousel", "upcoming_events" → "Upcoming Events"
+ */
+private fun humanizeModuleKey(key: String): String {
+    return key.split("_").joinToString(" ") { word ->
+        word.replaceFirstChar { it.uppercase() }
+    }
+}
+
+/**
+ * Resolves a tile label from API-provided label or humanized key fallback.
+ */
+private fun resolveTileLabel(tile: TileConfig): String {
+    return tile.label ?: humanizeModuleKey(tile.key)
+}
+
+/**
+ * Resolves a tile description from API-provided description or empty fallback.
+ */
+private fun resolveTileDescription(tile: TileConfig): String {
+    return tile.description ?: ""
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// HOME SCREEN — Entry point
+// ═══════════════════════════════════════════════════════════════════════════════
 
 @OptIn(ExperimentalMaterial3Api::class)
 @RequiresApi(Build.VERSION_CODES.O)
@@ -120,18 +188,12 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
     val isRefreshing = uiState is HomeUiState.Loading
 
-    // Check if onboarding was just completed
-    var showWelcomeCard by remember {
-        mutableStateOf(sessionManager?.isOnboardingJustCompleted() == true)
-    }
-
     PullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = { viewModel.refresh() },
         modifier = Modifier.fillMaxSize()
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // Main content
             when (val state = uiState) {
                 is HomeUiState.Loading -> {
                     Column(modifier = Modifier.fillMaxSize()) {
@@ -153,18 +215,12 @@ fun HomeScreen(
                         bundle = state.data,
                         onArtistClick = onArtistClick,
                         onNavigateToSchedule = onNavigateToSchedule,
-                        onNavigateToMap = onNavigateToMap,
-                        festivalSlug = festivalSlug,
-                        showWelcomeCard = showWelcomeCard,
-                        onDismissWelcome = {
-                            showWelcomeCard = false
-                            sessionManager?.setOnboardingJustCompleted(false)
-                        }
+                        onNavigateToMap = onNavigateToMap
                     )
                 }
             }
 
-            // Floating top bar overlapping the banner
+            // Floating top bar — preserved exactly
             FasterTopAppBar(
                 logoUrl = (uiState as? HomeUiState.Success)?.data?.festival?.logoUrl,
                 onSearchClick = {},
@@ -176,6 +232,10 @@ fun HomeScreen(
         }
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SHIMMER & ERROR
+// ═══════════════════════════════════════════════════════════════════════════════
 
 @Composable
 private fun HomeShimmerLoading() {
@@ -199,7 +259,7 @@ private fun HomeShimmerLoading() {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(220.dp)
+                    .height(120.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(Color.Gray.copy(alpha = alpha))
             )
@@ -209,38 +269,16 @@ private fun HomeShimmerLoading() {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                repeat(4) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(56.dp)
-                                .clip(CircleShape)
-                                .background(Color.Gray.copy(alpha = alpha))
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Box(
-                            modifier = Modifier
-                                .width(48.dp)
-                                .height(12.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color.Gray.copy(alpha = alpha))
-                        )
-                    }
+                repeat(2) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(140.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.Gray.copy(alpha = alpha))
+                    )
                 }
             }
-        }
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(20.dp)
-                    .width(160.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color.Gray.copy(alpha = alpha))
-            )
         }
         items(3) {
             Box(
@@ -265,182 +303,134 @@ private fun HomeErrorState(message: String, onRetry: () -> Unit) {
     ) {
         Icon(
             imageVector = Icons.Default.WarningAmber,
-            contentDescription = "Error",
+            contentDescription = null,
             modifier = Modifier.size(64.dp),
             tint = MaterialTheme.colorScheme.error
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "Something went wrong",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
             text = message,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(24.dp))
-        Button(
-            onClick = onRetry,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary
-            )
-        ) {
-            Icon(
-                imageVector = Icons.Default.Refresh,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp)
-            )
+        Button(onClick = onRetry) {
+            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Retry")
+            Text(humanizeModuleKey("retry"))
         }
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+// ═══════════════════════════════════════════════════════════════════════════════
+// HOME SUCCESS CONTENT — fixed presentation order layout
+//
+// Section order enforced in UI layer:
+//   1. Announcements
+//   2. Hero Carousel (as 2×2 grid)
+//   3. Explore (from ui_config tiles)
+//   4. Promotions
+//   5. Sponsors
+//   6. FAQ
+//   7. Footer
+// ═══════════════════════════════════════════════════════════════════════════════
+
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 private fun HomeSuccessContent(
     bundle: AppHomeBundleResponse,
     onArtistClick: (String) -> Unit,
     onNavigateToSchedule: () -> Unit,
-    onNavigateToMap: () -> Unit,
-    festivalSlug: String,
-    showWelcomeCard: Boolean = false,
-    onDismissWelcome: () -> Unit = {}
+    onNavigateToMap: () -> Unit
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        // --- 0. Festival Banner Header with Circle Logo ---
-        item {
-            FestivalBannerHeader(festival = bundle.festival)
-        }
+    val festival = bundle.festival
+    val announcements = bundle.announcements
+    val heroItems = bundle.heroCarouselItems
+    val tiles = bundle.uiConfig.tiles.filter { it.enabled }.sortedBy { it.order }
+    val promotions = bundle.promotions
+    val sponsors = bundle.sponsorOffers
+    val faqItems = bundle.faqItems
 
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        // ── 0. Festival Banner Header (PRESERVED) ──
+        item { FestivalBannerHeader(festival = festival) }
         item { Spacer(modifier = Modifier.height(16.dp)) }
 
-        // --- Welcome Card (after onboarding) ---
-        if (showWelcomeCard) {
+        // ── 1. Announcements ──
+        if (announcements.isNotEmpty()) {
             item {
-                WelcomeChecklist(
-                    festivalName = bundle.festival.name,
-                    onDismiss = onDismissWelcome,
+                AnnouncementsSection(
+                    title = resolveSectionTitle(bundle, "announcements"),
+                    announcements = announcements,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+            item { Spacer(modifier = Modifier.height(20.dp)) }
+        }
+
+        // ── 2. Hero Carousel as 2×2 Grid ──
+        if (heroItems.isNotEmpty()) {
+            item {
+                SectionTitle(
+                    title = resolveSectionTitle(bundle, "hero_carousel"),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+            item {
+                HeroGridSection(
+                    items = heroItems,
+                    onItemClick = { item -> item.refId?.let { onArtistClick(it) } },
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }
-            item { Spacer(modifier = Modifier.height(16.dp)) }
+            item { Spacer(modifier = Modifier.height(24.dp)) }
         }
 
-        // --- 1. Happening Now (Announcements) ---
-        val announcements = bundle.announcements
-        if (announcements.isNotEmpty()) {
+        // ── 3. Explore (from ui_config tiles) ──
+        if (tiles.isNotEmpty()) {
             item {
-                HappeningNowSection(announcements = announcements)
-            }
-            item { Spacer(modifier = Modifier.height(16.dp)) }
-        }
-
-        // --- 2. FASTER Wristband Card ---
-        item {
-            WristbandConnectCard(
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-
-        item { Spacer(modifier = Modifier.height(16.dp)) }
-
-        // --- 3. Explore Category Grid ---
-        item {
-            Text(
-                text = "Explore ${bundle.festival.name}",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-        }
-        item {
-            ExploreCategoryGrid(
-                onNavigateToSchedule = onNavigateToSchedule,
-                onNavigateToMap = onNavigateToMap
-            )
-        }
-
-        item { Spacer(modifier = Modifier.height(16.dp)) }
-
-        // --- 4. Hero Carousel as 2x2 Grid ---
-        val heroItems = bundle.heroCarouselItems
-        if (heroItems.isNotEmpty()) {
-            item {
-                HeroCarouselGrid(
-                    items = heroItems,
-                    onItemClick = { item ->
-                        val refId = item.refId
-                        if (refId != null) {
-                            onArtistClick(refId)
-                        }
-                    }
+                SectionTitle(
+                    title = "${humanizeModuleKey("explore")} ${festival.name}",
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
+            item {
+                ExploreCategoryGrid(
+                    tiles = tiles,
+                    onNavigateToSchedule = onNavigateToSchedule,
+                    onNavigateToMap = onNavigateToMap
+                )
+            }
+            item { Spacer(modifier = Modifier.height(24.dp)) }
         }
 
-        item { Spacer(modifier = Modifier.height(16.dp)) }
-
-        // --- 5. Promotions Horizontal Slider ---
-        val promotions = bundle.promotions
+        // ── 4. Promotions ──
         if (promotions.isNotEmpty()) {
             item {
-                Text(
-                    text = "Promotions",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                PromotionSection(
+                    title = resolveSectionTitle(bundle, "promotions"),
+                    promotions = promotions
                 )
             }
-            item {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(promotions) { promo ->
-                        PromotionCard(promotion = promo)
-                    }
-                }
-            }
-            item { Spacer(modifier = Modifier.height(16.dp)) }
+            item { Spacer(modifier = Modifier.height(24.dp)) }
         }
 
-        // --- 6. Upcoming Events ---
-        val upcomingEvents = bundle.upcomingEvents
-        if (upcomingEvents.isNotEmpty()) {
+        // ── 5. Sponsors ──
+        if (sponsors.isNotEmpty()) {
             item {
-                Text(
-                    text = "Upcoming Events",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                SponsorOfferSection(
+                    title = resolveSectionTitle(bundle, "sponsors"),
+                    sponsors = sponsors
                 )
             }
-            items(upcomingEvents.size) { index ->
-                UpcomingEventCard(
-                    event = upcomingEvents[index],
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                )
-            }
+            item { Spacer(modifier = Modifier.height(24.dp)) }
         }
 
-        item { Spacer(modifier = Modifier.height(16.dp)) }
-
-        // --- 6. FAQ Expandable List ---
-        val faqItems = bundle.faqItems
+        // ── 6. FAQ ──
         if (faqItems.isNotEmpty()) {
             item {
-                Text(
-                    text = "FAQ",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
+                SectionTitle(
+                    title = resolveSectionTitle(bundle, "faq"),
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
@@ -450,21 +440,153 @@ private fun HomeSuccessContent(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
             }
+            item { Spacer(modifier = Modifier.height(16.dp)) }
         }
 
-        item { Spacer(modifier = Modifier.height(100.dp)) }
+        // ── 7. Footer ──
+        item { FooterSection() }
+        item { Spacer(modifier = Modifier.height(80.dp)) }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SHARED — Section title composable
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun SectionTitle(
+    title: String,
+    modifier: Modifier = Modifier
+) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.Bold,
+        modifier = modifier
+    )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 1. ANNOUNCEMENTS — alert-style items + CTA
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun AnnouncementsSection(
+    title: String,
+    announcements: List<Announcement>,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            announcements.forEach { announcement ->
+                AnnouncementAlertItem(announcement = announcement)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Button(
+                onClick = { /* navigate to all announcements */ },
+                modifier = Modifier.fillMaxWidth().height(44.dp),
+                shape = RoundedCornerShape(22.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = CoralRed,
+                    contentColor = Color.White
+                )
+            ) {
+                Text(
+                    text = title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun HeroCarouselGrid(
+private fun AnnouncementAlertItem(
+    announcement: Announcement,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.White)
+            .clickable { /* open announcement detail */ }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.WarningAmber,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = Color(0xFFFF8F00)
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = announcement.title,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            announcement.content?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        announcement.publishedAt?.let { time ->
+            Text(
+                text = time,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 8.dp)
+            )
+        }
+
+        Icon(
+            imageVector = Icons.Default.ChevronRight,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = Color(0xFFBDBDBD)
+        )
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 2. HERO GRID — 2×2 grid view of hero_carousel items (replaces banner slider)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun HeroGridSection(
     items: List<HeroCarouselItem>,
-    onItemClick: (HeroCarouselItem) -> Unit
+    onItemClick: (HeroCarouselItem) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
+        modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         items.chunked(2).forEach { rowItems ->
@@ -479,7 +601,6 @@ private fun HeroCarouselGrid(
                         modifier = Modifier.weight(1f)
                     )
                 }
-                // Fill remaining space if odd number of items
                 if (rowItems.size == 1) {
                     Spacer(modifier = Modifier.weight(1f))
                 }
@@ -496,12 +617,13 @@ private fun HeroGridCard(
 ) {
     Card(
         modifier = modifier
-            .height(160.dp)
+            .aspectRatio(0.85f)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
+            // Image
             if (item.imageUrl != null) {
                 AsyncImage(
                     model = item.imageUrl,
@@ -514,58 +636,421 @@ private fun HeroGridCard(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(
-                            brush = Brush.linearGradient(
+                            Brush.linearGradient(
                                 colors = listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    MaterialTheme.colorScheme.tertiary
+                                    Color(0xFF1A0033),
+                                    Color(0xFF0D1B2A)
                                 )
                             )
                         )
                 )
             }
 
-            // Gradient overlay
+            // Bottom gradient overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to Color.Transparent,
+                                0.45f to Color.Transparent,
+                                0.7f to Color.Black.copy(alpha = 0.4f),
+                                1.0f to Color.Black.copy(alpha = 0.85f)
+                            )
+                        )
+                    )
+            )
+
+            // Text content — bottom-aligned
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(14.dp)
+            ) {
+                Text(
+                    text = item.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 20.sp
+                )
+                item.subtitle?.let { sub ->
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = sub,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.8f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 16.sp
+                    )
+                }
+                item.ctaLabel?.let { cta ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = cta,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = CoralRed,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color.White.copy(alpha = 0.9f))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            // Kind badge — top-right
+            item.kind?.let { kind ->
+                Text(
+                    text = kind.replaceFirstChar { it.uppercase() },
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(10.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                )
+            }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 3. EXPLORE CATEGORY GRID — 2×2 image cards from ui_config tiles
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun ExploreCategoryGrid(
+    tiles: List<TileConfig>,
+    onNavigateToSchedule: () -> Unit,
+    onNavigateToMap: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        tiles.chunked(2).forEach { rowTiles ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                rowTiles.forEach { tile ->
+                    val onClick = when (tile.key) {
+                        "festival_experience" -> onNavigateToMap
+                        "lineup_schedule" -> onNavigateToSchedule
+                        else -> { {} }
+                    }
+                    ExploreTileCard(
+                        label = resolveTileLabel(tile),
+                        description = resolveTileDescription(tile),
+                        onClick = onClick,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                if (rowTiles.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExploreTileCard(
+    label: String,
+    description: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .height(140.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         brush = Brush.verticalGradient(
                             colors = listOf(
-                                Color.Transparent,
-                                Color.Black.copy(alpha = 0.75f)
+                                Color(0xFF2C3E50),
+                                Color(0xFF1A252F)
                             )
                         )
                     )
             )
 
-            // Title + subtitle
             Column(
                 modifier = Modifier
-                    .align(Alignment.BottomStart)
+                    .align(Alignment.TopStart)
                     .padding(12.dp)
             ) {
                 Text(
-                    text = item.title,
+                    text = label,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (item.subtitle != null) {
+                if (description.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.7f),
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 16.sp
+                    )
+                }
+            }
+
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.4f),
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(10.dp)
+                    .size(20.dp)
+            )
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 4. PROMOTIONS — premium horizontal carousel with blue gradient cards
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun PromotionSection(
+    title: String,
+    promotions: List<PromotionItem>,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        SectionTitle(
+            title = title,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            items(promotions, key = { it.id }) { promo ->
+                PromotionCard(
+                    promotion = promo,
+                    modifier = Modifier.width(300.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PromotionCard(
+    promotion: PromotionItem,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(PromoGradientStart, PromoGradientEnd)
+                    )
+                )
+        ) {
+            Column(modifier = Modifier.padding(22.dp)) {
+                // Thumbnail image if available
+                promotion.thumbnailUrl?.let { url ->
+                    AsyncImage(
+                        model = url,
+                        contentDescription = promotion.title,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp)
+                            .clip(RoundedCornerShape(12.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
+
+                Text(
+                    text = promotion.offerText ?: promotion.title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                val desc = promotion.description ?: promotion.subtitle
+                if (!desc.isNullOrBlank()) {
+                    Text(
+                        text = desc,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.78f),
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 20.sp
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                val vendor = promotion.vendorName
+                val location = promotion.locationText
+                val locationLine = listOfNotNull(vendor, location).joinToString(", ")
+                if (locationLine.isNotBlank()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint = LightBlue,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = locationLine,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White.copy(alpha = 0.7f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 5. SPONSORS — horizontal scroll of sponsor offer cards
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun SponsorOfferSection(
+    title: String,
+    sponsors: List<SponsorOffer>,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        SectionTitle(
+            title = title,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            items(sponsors, key = { it.id }) { sponsor ->
+                SponsorOfferCard(
+                    sponsor = sponsor,
+                    modifier = Modifier.width(280.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SponsorOfferCard(
+    sponsor: SponsorOffer,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            if (sponsor.primaryMediaUrl != null || sponsor.sponsorLogoUrl != null) {
+                AsyncImage(
+                    model = sponsor.primaryMediaUrl ?: sponsor.sponsorLogoUrl,
+                    contentDescription = sponsor.sponsorName,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    contentScale = ContentScale.Crop
+                )
+            }
+
+            Column(modifier = Modifier.padding(14.dp)) {
+                Text(
+                    text = sponsor.sponsorName,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                val offerLine = sponsor.offerText ?: sponsor.title
+                if (!offerLine.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = offerLine,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = CoralRed,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                sponsor.subtitle?.let { sub ->
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = item.subtitle,
+                        text = sub,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.85f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                sponsor.ctaLabel?.let { cta ->
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = cta,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = CoralRed,
+                        modifier = Modifier.clickable { /* navigate to sponsor.ctaUrl */ }
                     )
                 }
             }
         }
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 6. FAQ — expandable accordion items
+// ═══════════════════════════════════════════════════════════════════════════════
 
 @Composable
 private fun FaqExpandableItem(
@@ -587,7 +1072,6 @@ private fun FaqExpandableItem(
         )
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Question row (always visible)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -599,13 +1083,12 @@ private fun FaqExpandableItem(
                     text = faqItem.question,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Icon(
                     imageVector = Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (expanded) "Collapse" else "Expand",
+                    contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .size(24.dp)
@@ -613,7 +1096,6 @@ private fun FaqExpandableItem(
                 )
             }
 
-            // Answer (expandable)
             AnimatedVisibility(
                 visible = expanded,
                 enter = expandVertically(),
@@ -632,758 +1114,26 @@ private fun FaqExpandableItem(
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 7. FOOTER
+// ═══════════════════════════════════════════════════════════════════════════════
+
 @Composable
-private fun PromotionCard(
-    promotion: PromotionItem,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier
-            .width(260.dp)
-            .height(180.dp),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            // Thumbnail image
-            if (promotion.thumbnailUrl != null) {
-                AsyncImage(
-                    model = promotion.thumbnailUrl,
-                    contentDescription = promotion.title,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-                // Gradient overlay
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Transparent,
-                                    Color.Black.copy(alpha = 0.75f)
-                                )
-                            )
-                        )
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                )
-            }
-
-            // Content overlay
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .padding(12.dp)
-            ) {
-                // Exclusive badge
-                if (promotion.isExclusive) {
-                    Text(
-                        text = "EXCLUSIVE",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .background(
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                shape = RoundedCornerShape(4.dp)
-                            )
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                }
-
-                Text(
-                    text = promotion.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = if (promotion.thumbnailUrl != null) Color.White
-                    else MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                if (promotion.offerText != null) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = promotion.offerText,
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (promotion.thumbnailUrl != null) Color.White.copy(alpha = 0.9f)
-                        else MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                if (promotion.subtitle != null) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = promotion.subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (promotion.thumbnailUrl != null) Color.White.copy(alpha = 0.75f)
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-        }
-    }
-}
-
-@RequiresApi(Build.VERSION_CODES.O)
-@Composable
-private fun FestivalBannerFallback(bundle: AppHomeBundleResponse) {
-    Box(
+private fun FooterSection() {
+    Text(
+        text = "\u00A9 ${humanizeModuleKey("faster_events")}.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
         modifier = Modifier
             .fillMaxWidth()
-            .height(200.dp)
-            .padding(horizontal = 16.dp)
-            .clip(RoundedCornerShape(12.dp))
-    ) {
-        if (!bundle.festival.bannerUrl.isNullOrEmpty()) {
-            AsyncImage(
-                model = bundle.festival.bannerUrl,
-                contentDescription = bundle.festival.name,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.linearGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.primary,
-                                MaterialTheme.colorScheme.secondary
-                            )
-                        )
-                    )
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.6f)
-                        )
-                    )
-                )
-        )
-
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(16.dp)
-        ) {
-            Text(
-                text = bundle.festival.name,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = formatDateRange(
-                    bundle.festival.startsAt,
-                    bundle.festival.endsAt,
-                    bundle.festival.timezone
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.85f)
-            )
-        }
-    }
+            .padding(vertical = 16.dp)
+    )
 }
 
-@OptIn(ExperimentalFoundationApi::class)
-@RequiresApi(Build.VERSION_CODES.O)
-@Composable
-private fun FestivalBannerHeader(
-    festival: AppFestivalHeader,
-    modifier: Modifier = Modifier
-) {
-    val bannerImages = festival.bannerUrls.ifEmpty {
-        listOfNotNull(festival.bannerUrl)
-    }
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(280.dp)
-    ) {
-        if (bannerImages.isNotEmpty()) {
-            val pagerState = rememberPagerState(pageCount = { bannerImages.size })
-
-            // Auto-scroll every 4 seconds
-            if (bannerImages.size > 1) {
-                LaunchedEffect(pagerState) {
-                    while (true) {
-                        delay(4000L)
-                        val nextPage = (pagerState.currentPage + 1) % bannerImages.size
-                        pagerState.animateScrollToPage(nextPage)
-                    }
-                }
-            }
-
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize()
-            ) { page ->
-                AsyncImage(
-                    model = bannerImages[page],
-                    contentDescription = "Festival banner ${page + 1} - ${festival.name}",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            }
-
-            // Pagination dots — top-right, below the top bar area
-            if (bannerImages.size > 1) {
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 68.dp, end = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    repeat(bannerImages.size) { index ->
-                        val isSelected = pagerState.currentPage == index
-                        Box(
-                            modifier = Modifier
-                                .size(if (isSelected) 8.dp else 6.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (isSelected) Color.White
-                                    else Color.White.copy(alpha = 0.5f)
-                                )
-                        )
-                    }
-                }
-            }
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.linearGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.primary,
-                                MaterialTheme.colorScheme.tertiary
-                            )
-                        )
-                    )
-            )
-        }
-
-        // Dark gradient overlay for text readability
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Black.copy(alpha = 0.05f),
-                            Color.Black.copy(alpha = 0.65f)
-                        )
-                    )
-                )
-        )
-
-        // Bottom-left: festival title + dates (no circle logo)
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 20.dp, bottom = 20.dp, end = 20.dp)
-        ) {
-            Text(
-                text = festival.name,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = Color.White,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = formatDateRange(
-                    festival.startsAt,
-                    festival.endsAt,
-                    festival.timezone
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.9f)
-            )
-        }
-    }
-}
-
-@Composable
-private fun WelcomeChecklist(
-    festivalName: String,
-    onDismiss: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        // Welcome heading
-        Text(
-            text = "Welcome to $festivalName",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
-
-        // Pre Event Checklist card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            border = androidx.compose.foundation.BorderStroke(
-                width = 2.dp,
-                color = MaterialTheme.colorScheme.primary
-            )
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp)
-            ) {
-                Text(
-                    text = "Pre Event Checklist",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-
-                ChecklistItem(text = "Create a FASTER Account")
-                Spacer(modifier = Modifier.height(12.dp))
-                ChecklistItem(text = "Review Festival Safety Information")
-                Spacer(modifier = Modifier.height(12.dp))
-                ChecklistItem(text = "Connect Your FASTER Wristband")
-            }
-        }
-    }
-}
-
-@Composable
-private fun ChecklistItem(
-    text: String,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Icon(
-            imageVector = Icons.Default.CheckCircle,
-            contentDescription = "Completed",
-            tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(24.dp)
-        )
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-    }
-}
-
-@Composable
-private fun WristbandConnectCard(
-    modifier: Modifier = Modifier
-) {
-    val darkNavy = Color(0xFF0D1B2A)
-    val lightBlue = Color(0xFFB0D4F1)
-
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = darkNavy)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Wristband image placeholder
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF2A3A4A)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Watch,
-                    contentDescription = "Wristband",
-                    tint = Color(0xFF5A6A7A),
-                    modifier = Modifier.size(40.dp)
-                )
-            }
-
-            // Info column
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "FASTER Wristband",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = lightBlue
-                )
-
-                // Battery row
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.BatteryFull,
-                        contentDescription = "Battery",
-                        tint = lightBlue,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Text(
-                        text = "82%",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = lightBlue
-                    )
-                }
-
-                // Signal row
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.SignalCellularAlt,
-                        contentDescription = "Signal",
-                        tint = lightBlue,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Text(
-                        text = "Strong Connection",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = lightBlue
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ExploreCategoryGrid(
-    onNavigateToSchedule: () -> Unit,
-    onNavigateToMap: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            ExploreCategoryItem(
-                label = "Festival Map",
-                description = "Find dining, restrooms, parking, and medical facilities",
-                onClick = onNavigateToMap,
-                modifier = Modifier.weight(1f)
-            )
-            ExploreCategoryItem(
-                label = "Schedule",
-                description = "View and download the event schedule",
-                onClick = onNavigateToSchedule,
-                modifier = Modifier.weight(1f)
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            ExploreCategoryItem(
-                label = "Event Safety",
-                description = "Festival safety & emergency response information",
-                onClick = {},
-                modifier = Modifier.weight(1f)
-            )
-            ExploreCategoryItem(
-                label = "FAQ",
-                description = "Answers to your questions about FloydFest",
-                onClick = {},
-                modifier = Modifier.weight(1f)
-            )
-        }
-    }
-}
-
-@Composable
-private fun ExploreCategoryItem(
-    label: String,
-    description: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp)
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@Composable
-fun HappeningNowSection(
-    announcements: List<Announcement>,
-    modifier: Modifier = Modifier
-) {
-    Column(modifier = modifier.padding(horizontal = 16.dp)) {
-        Text(
-            text = "Happening Now",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(top = 16.dp, bottom = 12.dp)
-        )
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            announcements.forEach { announcement ->
-                HappeningNowItem(announcement = announcement)
-            }
-        }
-    }
-}
-
-@Composable
-fun HappeningNowItem(
-    announcement: Announcement,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(88.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Left: thumbnail
-            Box(
-                modifier = Modifier
-                    .width(88.dp)
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
-                if (announcement.imageUrl != null) {
-                    AsyncImage(
-                        model = announcement.imageUrl,
-                        contentDescription = announcement.title,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.CalendarMonth,
-                        contentDescription = null,
-                        modifier = Modifier.size(28.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // Right: text content
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = announcement.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                announcement.content?.let {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                announcement.publishedAt?.let {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun UpcomingEventCard(
-    event: UpcomingEvent,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.CalendarMonth,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = event.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                if (event.venue != null) {
-                    Text(
-                        text = event.venue.name,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Text(
-                    text = event.startsAt,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-@RequiresApi(Build.VERSION_CODES.O)
-private fun formatDateRange(startsAt: String, endsAt: String, timezone: String): String {
-    return try {
-        val zoneId = ZoneId.of(timezone)
-        val startZoned = Instant.parse(startsAt).atZone(zoneId)
-        val endZoned = Instant.parse(endsAt).atZone(zoneId)
-        val startMonth = startZoned.month.toString().take(3)
-        val startDay = startZoned.dayOfMonth
-        val endMonth = endZoned.month.toString().take(3)
-        val endDay = endZoned.dayOfMonth
-        val year = endZoned.year
-        if (startZoned.month == endZoned.month) {
-            "${startZoned.month} $startDay - $endDay, $year"
-        } else {
-            "$startMonth $startDay - $endMonth $endDay, $year"
-        }
-    } catch (e: Exception) {
-        "Festival Dates"
-    }
-}
-
-private fun EncryptedSessionManager.getOnboardingJustCompletedCompat(): Boolean {
-    return try {
-        val method = javaClass.getMethod("isOnboardingJustCompleted")
-        method.invoke(this) as? Boolean ?: false
-    } catch (_: Exception) {
-        false
-    }
-}
-
-private fun EncryptedSessionManager.setOnboardingJustCompletedCompat(completed: Boolean) {
-    try {
-        val method = javaClass.getMethod("setOnboardingJustCompleted", Boolean::class.javaPrimitiveType)
-        method.invoke(this, completed)
-    } catch (_: Exception) {
-        // No-op when a test double doesn't expose this API.
-    }
-}
-
-// ─── Custom Top App Bar ─────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// TOP APP BAR (PRESERVED — do not change)
+// ═══════════════════════════════════════════════════════════════════════════════
 
 @Composable
 fun FasterTopAppBar(
@@ -1401,7 +1151,6 @@ fun FasterTopAppBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // Left: Logo
         Box(
             modifier = Modifier
                 .size(36.dp)
@@ -1412,7 +1161,7 @@ fun FasterTopAppBar(
             if (!logoUrl.isNullOrEmpty()) {
                 AsyncImage(
                     model = logoUrl,
-                    contentDescription = "Festival logo",
+                    contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
@@ -1426,16 +1175,11 @@ fun FasterTopAppBar(
             }
         }
 
-        // Center: Wristband chip
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(50))
                 .background(Color.White)
-                .border(
-                    width = 1.dp,
-                    color = Color(0xFF333333),
-                    shape = RoundedCornerShape(50)
-                )
+                .border(1.dp, Color(0xFF333333), RoundedCornerShape(50))
                 .clickable(onClick = onWristbandClick)
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -1456,7 +1200,6 @@ fun FasterTopAppBar(
             )
         }
 
-        // Right: Search button
         Box(
             modifier = Modifier
                 .size(36.dp)
@@ -1467,7 +1210,7 @@ fun FasterTopAppBar(
         ) {
             Icon(
                 imageVector = Icons.Default.Search,
-                contentDescription = "Search",
+                contentDescription = null,
                 modifier = Modifier.size(20.dp),
                 tint = Color(0xFF555555)
             )
@@ -1475,55 +1218,438 @@ fun FasterTopAppBar(
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// CINEMATIC KEN BURNS BANNER SLIDER (PRESERVED — do not change)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+private const val BANNER_AUTO_SCROLL_MS = 4500L
+private const val KEN_BURNS_DURATION_MS = 8000
+private const val BANNER_HEIGHT_DP = 320
+
+private data class KenBurnsParams(
+    val startScale: Float,
+    val endScale: Float,
+    val startTranslateX: Float,
+    val endTranslateX: Float,
+    val startTranslateY: Float,
+    val endTranslateY: Float
+)
+
+private val kenBurnsVariants = listOf(
+    KenBurnsParams(1.0f, 1.18f, 0f, -30f, 0f, -15f),
+    KenBurnsParams(1.15f, 1.0f, -20f, 20f, -10f, 10f),
+    KenBurnsParams(1.0f, 1.2f, 15f, -15f, 10f, -10f),
+    KenBurnsParams(1.12f, 1.0f, 20f, 0f, -5f, 5f),
+)
+
+@OptIn(ExperimentalFoundationApi::class)
+@RequiresApi(Build.VERSION_CODES.O)
+@Composable
+private fun FestivalBannerHeader(
+    festival: AppFestivalHeader,
+    modifier: Modifier = Modifier
+) {
+    val bannerImages = festival.bannerUrls.ifEmpty {
+        listOfNotNull(festival.bannerUrl)
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(BANNER_HEIGHT_DP.dp)
+    ) {
+        if (bannerImages.isNotEmpty()) {
+            val pagerState = rememberPagerState(pageCount = { bannerImages.size })
+            val isDragged by pagerState.interactionSource.collectIsDraggedAsState()
+
+            if (bannerImages.size > 1) {
+                LaunchedEffect(pagerState, isDragged) {
+                    if (!isDragged) {
+                        while (true) {
+                            delay(BANNER_AUTO_SCROLL_MS)
+                            val next = (pagerState.currentPage + 1) % bannerImages.size
+                            pagerState.animateScrollToPage(
+                                page = next,
+                                animationSpec = tween(
+                                    durationMillis = 800,
+                                    easing = FastOutSlowInEasing
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            var settledPage by remember { mutableIntStateOf(0) }
+            LaunchedEffect(pagerState) {
+                snapshotFlow { pagerState.settledPage }
+                    .distinctUntilChanged()
+                    .collect { settledPage = it }
+            }
+
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                CinematicBannerSlide(
+                    imageUrl = bannerImages[page],
+                    contentDescription = "${festival.name} ${page + 1}",
+                    kenBurnsParams = kenBurnsVariants[page % kenBurnsVariants.size],
+                    isCurrentPage = pagerState.settledPage == page
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to Color.Black.copy(alpha = 0.25f),
+                                0.35f to Color.Transparent,
+                                0.55f to Color.Black.copy(alpha = 0.15f),
+                                1.0f to Color.Black.copy(alpha = 0.78f)
+                            )
+                        )
+                    )
+            )
+
+            BannerTextOverlay(
+                festivalName = festival.name,
+                dateRange = formatDateRange(festival.startsAt, festival.endsAt, festival.timezone),
+                settledPage = settledPage,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 20.dp, bottom = 24.dp, end = 80.dp)
+            )
+
+            if (bannerImages.size > 1) {
+                BannerProgressIndicators(
+                    pagerState = pagerState,
+                    pageCount = bannerImages.size,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 68.dp, end = 16.dp)
+                )
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                Color(0xFF1A0033),
+                                Color(0xFF0D1B2A),
+                                Color(0xFF1B2838)
+                            )
+                        )
+                    )
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.1f),
+                                Color.Black.copy(alpha = 0.6f)
+                            )
+                        )
+                    )
+            )
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 20.dp, bottom = 24.dp, end = 20.dp)
+            ) {
+                Text(
+                    text = festival.name,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = formatDateRange(festival.startsAt, festival.endsAt, festival.timezone),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.9f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CinematicBannerSlide(
+    imageUrl: String,
+    contentDescription: String,
+    kenBurnsParams: KenBurnsParams,
+    isCurrentPage: Boolean
+) {
+    val scale = remember { Animatable(kenBurnsParams.startScale) }
+    val translateX = remember { Animatable(kenBurnsParams.startTranslateX) }
+    val translateY = remember { Animatable(kenBurnsParams.startTranslateY) }
+
+    LaunchedEffect(isCurrentPage) {
+        if (isCurrentPage) {
+            scale.snapTo(kenBurnsParams.startScale)
+            translateX.snapTo(kenBurnsParams.startTranslateX)
+            translateY.snapTo(kenBurnsParams.startTranslateY)
+
+            val spec = tween<Float>(
+                durationMillis = KEN_BURNS_DURATION_MS,
+                easing = EaseInOut
+            )
+            kotlinx.coroutines.coroutineScope {
+                launch { scale.animateTo(kenBurnsParams.endScale, spec) }
+                launch { translateX.animateTo(kenBurnsParams.endTranslateX, spec) }
+                launch { translateY.animateTo(kenBurnsParams.endTranslateY, spec) }
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clip(RoundedCornerShape(0.dp))
+    ) {
+        AsyncImage(
+            model = imageUrl,
+            contentDescription = contentDescription,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = scale.value
+                    scaleY = scale.value
+                    translationX = translateX.value
+                    translationY = translateY.value
+                },
+            contentScale = ContentScale.Crop
+        )
+    }
+}
+
+@Composable
+private fun BannerTextOverlay(
+    festivalName: String,
+    dateRange: String,
+    settledPage: Int,
+    modifier: Modifier = Modifier
+) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(settledPage) {
+        visible = false
+        delay(100)
+        visible = true
+    }
+
+    Column(modifier = modifier) {
+        AnimatedVisibility(
+            visible = visible,
+            enter = fadeIn(tween(600)) + slideInVertically(
+                initialOffsetY = { it / 3 },
+                animationSpec = tween(600, easing = FastOutSlowInEasing)
+            ),
+            exit = fadeOut(tween(200))
+        ) {
+            Column {
+                Text(
+                    text = festivalName,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 36.sp
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = dateRange,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White.copy(alpha = 0.92f),
+                    letterSpacing = 0.3.sp
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun BannerProgressIndicators(
+    pagerState: PagerState,
+    pageCount: Int,
+    modifier: Modifier = Modifier
+) {
+    val currentPage by remember { derivedStateOf { pagerState.settledPage } }
+
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        repeat(pageCount) { index ->
+            val isActive = currentPage == index
+
+            if (isActive) {
+                val progress = remember { Animatable(0f) }
+                LaunchedEffect(currentPage) {
+                    progress.snapTo(0f)
+                    progress.animateTo(
+                        targetValue = 1f,
+                        animationSpec = tween(
+                            durationMillis = BANNER_AUTO_SCROLL_MS.toInt(),
+                            easing = LinearEasing
+                        )
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .width(28.dp)
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color.White.copy(alpha = 0.3f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(progress.value)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Color.White)
+                    )
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .width(14.dp)
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color.White.copy(alpha = 0.35f))
+                )
+            }
+        }
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.O)
+private fun formatDateRange(startsAt: String, endsAt: String, timezone: String): String {
+    return try {
+        val zoneId = ZoneId.of(timezone)
+        val startZoned = Instant.parse(startsAt).atZone(zoneId)
+        val endZoned = Instant.parse(endsAt).atZone(zoneId)
+        val startDay = startZoned.dayOfMonth
+        val endDay = endZoned.dayOfMonth
+        val year = endZoned.year
+        if (startZoned.month == endZoned.month) {
+            "${startZoned.month} $startDay - $endDay, $year"
+        } else {
+            "${startZoned.month.toString().take(3)} $startDay - ${endZoned.month.toString().take(3)} $endDay, $year"
+        }
+    } catch (e: Exception) {
+        ""
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@RequiresApi(Build.VERSION_CODES.O)
+private fun formatEventTime(startsAt: String): String {
+    return try {
+        val instant = Instant.parse(startsAt)
+        val zoned = instant.atZone(ZoneId.systemDefault())
+        val hour = zoned.hour
+        val minute = zoned.minute
+        val amPm = if (hour < 12) "AM" else "PM"
+        val displayHour = if (hour == 0) 12 else if (hour > 12) hour - 12 else hour
+        if (minute == 0) "$displayHour $amPm" else "$displayHour:${minute.toString().padStart(2, '0')} $amPm"
+    } catch (e: Exception) {
+        ""
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PREVIEWS
+// ═══════════════════════════════════════════════════════════════════════════════
+
 @Preview(showBackground = true)
 @Composable
 private fun FasterTopAppBarPreview() {
-    MaterialTheme {
-        FasterTopAppBar()
-    }
+    MaterialTheme { FasterTopAppBar() }
 }
 
 @Preview(showBackground = true)
 @Composable
-private fun HappeningNowItemPreview() {
+private fun AnnouncementsSectionPreview() {
     MaterialTheme {
-        HappeningNowItem(
-            announcement = Announcement(
-                id = "1",
-                title = "Free Popcorn",
-                content = "Head to the main stage area for complimentary popcorn!",
-                imageUrl = null,
-                publishedAt = "2:30 PM",
-                order = 0
-            ),
-            modifier = Modifier.padding(16.dp)
+        AnnouncementsSection(
+            title = "Announcements",
+            announcements = listOf(
+                Announcement(
+                    id = "1",
+                    title = "Free Popcorn",
+                    content = "Come and grab the Popcorn",
+                    publishedAt = null,
+                    order = 0
+                )
+            )
         )
     }
 }
 
 @Preview(showBackground = true)
 @Composable
-private fun HappeningNowSectionPreview() {
+private fun HeroGridCardPreview() {
     MaterialTheme {
-        HappeningNowSection(
-            announcements = listOf(
-                Announcement(
-                    id = "1",
-                    title = "Free Popcorn",
-                    content = "Head to the main stage area for complimentary popcorn!",
-                    imageUrl = null,
-                    publishedAt = "2:30 PM",
-                    order = 0
-                ),
-                Announcement(
-                    id = "2",
-                    title = "DJ Set at Sunset Stage",
-                    content = "Don't miss the opening act at 5 PM",
-                    imageUrl = null,
-                    publishedAt = "5:00 PM",
-                    order = 1
-                )
-            )
+        HeroGridCard(
+            item = HeroCarouselItem(
+                id = "1",
+                kind = "artist",
+                title = "Larkin Poe",
+                subtitle = "Saturday headliner at Main Stage",
+                ctaLabel = "View artist"
+            ),
+            onClick = {},
+            modifier = Modifier
+                .width(180.dp)
+                .height(220.dp)
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun PromotionCardPreview() {
+    MaterialTheme {
+        PromotionCard(
+            promotion = PromotionItem(
+                id = "1",
+                title = "Exclusive Promotion",
+                offerText = "25% Off Draft Beer",
+                description = "Details about the deal",
+                subtitle = "Restaurant"
+            ),
+            modifier = Modifier.width(300.dp)
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun SponsorOfferCardPreview() {
+    MaterialTheme {
+        SponsorOfferCard(
+            sponsor = SponsorOffer(
+                id = "1",
+                sponsorName = "Culinary Commons",
+                offerText = "15% Draft Beer",
+                subtitle = "15% Draft Beer 2:30 pm",
+                ctaLabel = "Directions"
+            ),
+            modifier = Modifier.width(280.dp)
         )
     }
 }
