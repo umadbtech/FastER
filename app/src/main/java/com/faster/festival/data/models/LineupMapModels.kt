@@ -50,7 +50,23 @@ data class ContentArtistDetailResponse(
     @SerialName("artist")
     val artist: ContentArtistDetail,
     @SerialName("events")
-    val events: List<ContentArtistEvent> = emptyList()
+    val events: List<ContentArtistEvent> = emptyList(),
+    @SerialName("media")
+    val media: ContentArtistMedia? = null
+)
+
+@Serializable
+data class ContentArtistMedia(
+    @SerialName("website")
+    val website: String? = null,
+    @SerialName("spotify")
+    val spotify: String? = null,
+    @SerialName("instagram")
+    val instagram: String? = null,
+    @SerialName("twitter")
+    val twitter: String? = null,
+    @SerialName("youtube")
+    val youtube: String? = null
 )
 
 @Serializable

@@ -38,18 +38,26 @@ data class AppHomeBundleResponse(
                 moduleData.mapNotNull { item ->
                     if (item is JsonObject) {
                         try {
+                            val heroMediaArray = item["media_urls"] as? JsonArray
+                            val heroMediaList = heroMediaArray?.mapNotNull { el ->
+                                (el as? JsonPrimitive)?.content
+                            } ?: emptyList()
                             HeroCarouselItem(
                                 id = (item["id"] as? JsonPrimitive)?.content ?: return@mapNotNull null,
                                 kind = (item["kind"] as? JsonPrimitive)?.content,
                                 refId = (item["ref_id"] as? JsonPrimitive)?.content,
                                 title = (item["title"] as? JsonPrimitive)?.content ?: return@mapNotNull null,
                                 subtitle = (item["subtitle"] as? JsonPrimitive)?.content,
+                                description = (item["description"] as? JsonPrimitive)?.content,
                                 imageUrl = (item["image_url"] as? JsonPrimitive)?.content,
                                 ctaLabel = (item["cta_label"] as? JsonPrimitive)?.content,
                                 ctaUrl = (item["cta_url"] as? JsonPrimitive)?.content,
                                 sortOrder = (item["sort_order"] as? JsonPrimitive)?.intOrNull ?: 0,
                                 startsAt = (item["starts_at"] as? JsonPrimitive)?.content,
-                                endsAt = (item["ends_at"] as? JsonPrimitive)?.content
+                                endsAt = (item["ends_at"] as? JsonPrimitive)?.content,
+                                locationText = (item["location_text"] as? JsonPrimitive)?.content,
+                                venueName = (item["venue_name"] as? JsonPrimitive)?.content,
+                                mediaUrls = heroMediaList
                             )
                         } catch (e: Exception) {
                             null
@@ -180,15 +188,29 @@ data class AppHomeBundleResponse(
                 moduleData.mapNotNull { item ->
                     if (item is JsonObject) {
                         try {
+                            val mediaArray = item["media_urls"] as? JsonArray
+                            val mediaList = mediaArray?.mapNotNull { el ->
+                                (el as? JsonPrimitive)?.content
+                            } ?: emptyList()
                             PromotionItem(
                                 id = (item["id"] as? JsonPrimitive)?.content ?: return@mapNotNull null,
                                 title = (item["title"] as? JsonPrimitive)?.content ?: return@mapNotNull null,
                                 subtitle = (item["subtitle"] as? JsonPrimitive)?.content,
+                                slug = (item["slug"] as? JsonPrimitive)?.content,
                                 offerText = (item["offer_text"] as? JsonPrimitive)?.content,
                                 description = (item["description"] as? JsonPrimitive)?.content,
                                 thumbnailUrl = (item["thumbnail_url"] as? JsonPrimitive)?.content,
                                 isExclusive = (item["is_exclusive"] as? JsonPrimitive)?.content?.toBooleanStrictOrNull() ?: false,
-                                sortOrder = (item["sort_order"] as? JsonPrimitive)?.intOrNull ?: 0
+                                isActive = (item["is_active"] as? JsonPrimitive)?.content?.toBooleanStrictOrNull() ?: true,
+                                sortOrder = (item["sort_order"] as? JsonPrimitive)?.intOrNull ?: 0,
+                                vendorName = (item["vendor_name"] as? JsonPrimitive)?.content,
+                                locationText = (item["location_text"] as? JsonPrimitive)?.content,
+                                phone = (item["phone"] as? JsonPrimitive)?.content,
+                                website = (item["website"] as? JsonPrimitive)?.content,
+                                address = (item["address"] as? JsonPrimitive)?.content,
+                                hoursText = (item["hours_text"] as? JsonPrimitive)?.content,
+                                menuUrl = (item["menu_url"] as? JsonPrimitive)?.content,
+                                mediaUrls = mediaList
                             )
                         } catch (e: Exception) {
                             null
@@ -214,6 +236,10 @@ data class AppHomeBundleResponse(
                     if (item is JsonObject) {
                         try {
                             val sponsorObj = item["sponsors"] as? JsonObject
+                            val mediaArray = item["media_urls"] as? JsonArray
+                            val mediaList = mediaArray?.mapNotNull { el ->
+                                (el as? JsonPrimitive)?.content
+                            } ?: emptyList()
                             SponsorOffer(
                                 id = (item["id"] as? JsonPrimitive)?.content ?: return@mapNotNull null,
                                 sponsorName = (sponsorObj?.get("name") as? JsonPrimitive)?.content
@@ -223,12 +249,20 @@ data class AppHomeBundleResponse(
                                     ?: (item["sponsor_logo_url"] as? JsonPrimitive)?.content,
                                 title = (item["title"] as? JsonPrimitive)?.content,
                                 subtitle = (item["subtitle"] as? JsonPrimitive)?.content,
+                                description = (item["description"] as? JsonPrimitive)?.content,
                                 offerText = (item["offer_text"] as? JsonPrimitive)?.content,
                                 ctaLabel = (item["cta_label"] as? JsonPrimitive)?.content,
                                 ctaUrl = (item["cta_url"] as? JsonPrimitive)?.content,
                                 isExclusive = (item["is_exclusive"] as? JsonPrimitive)?.content?.toBooleanStrictOrNull() ?: false,
                                 primaryMediaUrl = (item["primary_media_url"] as? JsonPrimitive)?.content,
-                                sortOrder = (item["sort_order"] as? JsonPrimitive)?.intOrNull ?: 0
+                                sortOrder = (item["sort_order"] as? JsonPrimitive)?.intOrNull ?: 0,
+                                vendorName = (item["vendor_name"] as? JsonPrimitive)?.content,
+                                locationText = (item["location_text"] as? JsonPrimitive)?.content,
+                                phone = (item["phone"] as? JsonPrimitive)?.content,
+                                website = (item["website"] as? JsonPrimitive)?.content,
+                                address = (item["address"] as? JsonPrimitive)?.content,
+                                hoursText = (item["hours_text"] as? JsonPrimitive)?.content,
+                                mediaUrls = mediaList
                             )
                         } catch (e: Exception) {
                             null
@@ -272,6 +306,8 @@ data class PromotionItem(
     val title: String,
     @SerialName("subtitle")
     val subtitle: String? = null,
+    @SerialName("slug")
+    val slug: String? = null,
     @SerialName("offer_text")
     val offerText: String? = null,
     @SerialName("description")
@@ -280,12 +316,26 @@ data class PromotionItem(
     val thumbnailUrl: String? = null,
     @SerialName("is_exclusive")
     val isExclusive: Boolean = false,
+    @SerialName("is_active")
+    val isActive: Boolean = true,
     @SerialName("sort_order")
     val sortOrder: Int = 0,
     @SerialName("vendor_name")
     val vendorName: String? = null,
     @SerialName("location_text")
-    val locationText: String? = null
+    val locationText: String? = null,
+    @SerialName("phone")
+    val phone: String? = null,
+    @SerialName("website")
+    val website: String? = null,
+    @SerialName("address")
+    val address: String? = null,
+    @SerialName("hours_text")
+    val hoursText: String? = null,
+    @SerialName("menu_url")
+    val menuUrl: String? = null,
+    @SerialName("media_urls")
+    val mediaUrls: List<String> = emptyList()
 )
 
 /**
@@ -302,6 +352,8 @@ data class SponsorOffer(
     val title: String? = null,
     @SerialName("subtitle")
     val subtitle: String? = null,
+    @SerialName("description")
+    val description: String? = null,
     @SerialName("offer_text")
     val offerText: String? = null,
     @SerialName("cta_label")
@@ -312,7 +364,21 @@ data class SponsorOffer(
     val isExclusive: Boolean = false,
     val primaryMediaUrl: String? = null,
     @SerialName("sort_order")
-    val sortOrder: Int = 0
+    val sortOrder: Int = 0,
+    @SerialName("vendor_name")
+    val vendorName: String? = null,
+    @SerialName("location_text")
+    val locationText: String? = null,
+    @SerialName("phone")
+    val phone: String? = null,
+    @SerialName("website")
+    val website: String? = null,
+    @SerialName("address")
+    val address: String? = null,
+    @SerialName("hours_text")
+    val hoursText: String? = null,
+    @SerialName("media_urls")
+    val mediaUrls: List<String> = emptyList()
 )
 
 /**
@@ -355,6 +421,8 @@ data class AppFestivalHeader(
     val bannerUrls: List<String> = emptyList(),  // Array of banner images for carousel
     @SerialName("accent_color_hex")
     val accentColorHex: String? = null,
+    @SerialName("location")
+    val location: String? = null,
     @SerialName("context_state")
     val contextState: String = "PRE",
     @SerialName("status")
@@ -377,6 +445,8 @@ data class HeroCarouselItem(
     val title: String,
     @SerialName("subtitle")
     val subtitle: String? = null,
+    @SerialName("description")
+    val description: String? = null,
     @SerialName("image_url")
     val imageUrl: String? = null,
     @SerialName("cta_label")
@@ -388,7 +458,13 @@ data class HeroCarouselItem(
     @SerialName("starts_at")
     val startsAt: String? = null,
     @SerialName("ends_at")
-    val endsAt: String? = null
+    val endsAt: String? = null,
+    @SerialName("location_text")
+    val locationText: String? = null,
+    @SerialName("venue_name")
+    val venueName: String? = null,
+    @SerialName("media_urls")
+    val mediaUrls: List<String> = emptyList()
 )
 
 /**

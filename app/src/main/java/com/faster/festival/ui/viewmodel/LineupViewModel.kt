@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 
 data class LineupArtist(
     val id: String,
+    val slug: String?,
     val name: String,
     val bio: String?,
     val imageUrl: String?,
@@ -62,27 +63,39 @@ class LineupViewModel(
                 val scheduleBody = scheduleResponse.body()
 
                 if (lineupResponse.isSuccessful && lineupBody != null) {
-                    val scheduleMap = mutableMapOf<String, ContentStageScheduleApi.ScheduleSlot>()
+                    // Build a map of artist_id -> schedule event for quick lookup
+                    data class ScheduleInfo(
+                        val startTime: String,
+                        val endTime: String,
+                        val day: Int,
+                        val stageName: String
+                    )
+                    val scheduleMap = mutableMapOf<String, ScheduleInfo>()
                     if (scheduleResponse.isSuccessful && scheduleBody != null) {
-                        scheduleBody.stages.forEach { stage ->
-                            stage.schedule.forEach { slot ->
-                                scheduleMap[slot.artist_id] = slot
-                            }
+                        // Build stage id -> name lookup
+                        val stageNames = scheduleBody.stages.associate { it.id to it.name }
+                        // Map events to artists
+                        scheduleBody.events.forEach { event ->
+                            scheduleMap[event.artistId] = ScheduleInfo(
+                                startTime = event.startTime,
+                                endTime = event.endTime,
+                                day = event.day,
+                                stageName = event.stageName
+                            )
                         }
                     }
 
-                    allArtists = lineupBody.featured_artists.map { artist ->
+                    allArtists = lineupBody.artists.map { artist ->
                         val schedule = scheduleMap[artist.id]
                         LineupArtist(
                             id = artist.id,
+                            slug = artist.slug,
                             name = artist.name,
                             bio = artist.bio,
-                            imageUrl = artist.image_url,
+                            imageUrl = artist.imageUrl,
                             genres = artist.genres ?: emptyList(),
-                            setTime = schedule?.let { "${it.start_time} - ${it.end_time}" },
-                            stageName = schedule?.let {
-                                scheduleBody?.stages?.find { s -> s.id == it.id }?.name
-                            } ?: schedule?.artist_name?.let { null },
+                            setTime = schedule?.let { "${it.startTime} - ${it.endTime}" },
+                            stageName = schedule?.stageName,
                             day = schedule?.day,
                             order = artist.order
                         )

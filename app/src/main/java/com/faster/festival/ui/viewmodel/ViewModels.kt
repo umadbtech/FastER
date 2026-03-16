@@ -246,13 +246,13 @@ class MapViewModelFactory(
                 kotlinx.coroutines.flow.flow {
                     try {
                         val response = com.faster.festival.di.NetworkModule.contentLineupApi.getContentLineup(festivalSlug)
-                        if (response.isSuccessful && response.body()?.featured_artists != null) {
-                            emit(response.body()!!.featured_artists.map {
+                        if (response.isSuccessful && response.body()?.artists != null) {
+                            emit(response.body()!!.artists.map { a ->
                                 Artist(
-                                    id = it.id,
-                                    name = it.name,
-                                    imageUrl = it.image_url ?: "",
-                                    bio = it.bio ?: ""
+                                    id = a.id,
+                                    name = a.name,
+                                    imageUrl = a.imageUrl ?: "",
+                                    bio = a.bio ?: ""
                                 )
                             })
                         }
@@ -430,13 +430,13 @@ class ArtistDetailViewModelFactory(
                 kotlinx.coroutines.flow.flow {
                     try {
                         val response = com.faster.festival.di.NetworkModule.contentLineupApi.getContentLineup(festivalSlug)
-                        if (response.isSuccessful && response.body()?.featured_artists != null) {
-                            val artist = response.body()!!.featured_artists.find { it.id == id }
+                        if (response.isSuccessful && response.body()?.artists != null) {
+                            val artist = response.body()!!.artists.find { it.id == id }
                             emit(artist?.let {
                                 Artist(
                                     id = it.id,
                                     name = it.name,
-                                    imageUrl = it.image_url ?: "",
+                                    imageUrl = it.imageUrl ?: "",
                                     bio = it.bio ?: ""
                                 )
                             })

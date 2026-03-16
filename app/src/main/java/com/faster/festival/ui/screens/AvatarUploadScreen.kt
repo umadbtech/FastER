@@ -8,27 +8,42 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.faster.festival.ui.components.AvatarDisplay
 import com.faster.festival.ui.viewmodel.ProfileEditUiState
 import com.faster.festival.ui.viewmodel.ProfileEditViewModel
 import java.io.File
+
+// Light theme palette (consistent with HomeScreen)
+private val AvatarBg = Color(0xFFF7F7F7)
+private val AvatarCardBg = Color(0xFFF5F5F5)
+private val AvatarWhite = Color.White
+private val AvatarCoralRed = Color(0xFFE53935)
+private val AvatarDarkNavy = Color(0xFF0D1B2A)
+private val AvatarTextDark = Color(0xFF222222)
+private val AvatarTextMedium = Color(0xFF333333)
+private val AvatarTextLight = Color(0xFF666666)
+private val AvatarBorderLight = Color(0xFFE0E0E0)
 
 /**
  * Avatar Upload Screen
@@ -45,7 +60,6 @@ fun AvatarUploadScreen(
     onUploadSuccess: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    // ✅ Safely instantiate ViewModel with factory if not provided
     val actualViewModel = viewModel ?: run {
         val factory = ProfileEditViewModel.Factory(
             profileRepository = com.faster.festival.di.NetworkModule.profileRepository,
@@ -59,27 +73,22 @@ fun AvatarUploadScreen(
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var showPermissionDialog by remember { mutableStateOf(false) }
 
-    // ✅ Permission launcher
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            // Permission granted - launch camera
             launchCameraCapture(context, selectedImageUri) { uri ->
                 selectedImageUri = uri
             }
         } else {
-            // Permission denied - show settings dialog
             showPermissionDialog = true
         }
     }
 
-    // Camera launcher with EXTRA_OUTPUT for direct file write
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
         if (success && selectedImageUri != null) {
-            // ✅ Photo captured successfully - compress before upload
             try {
                 val compressedFile = compressImageToMaxSize(context, selectedImageUri!!)
                 if (compressedFile != null) {
@@ -95,12 +104,10 @@ fun AvatarUploadScreen(
         }
     }
 
-    // Gallery launcher
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
-            // ✅ Image selected from gallery - compress before upload
             try {
                 val compressedFile = compressImageToMaxSize(context, uri)
                 if (compressedFile != null) {
@@ -121,53 +128,71 @@ fun AvatarUploadScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AvatarBg)
     ) {
-        // Top App Bar
+        // ── Top Bar ─────────────────────────────────────────────────
         TopAppBar(
             title = {
-                Text(
-                    "Change Avatar",
-                    fontWeight = FontWeight.Bold
-                )
+                Column {
+                    Text(
+                        text = "Change Avatar",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = AvatarTextDark
+                    )
+                    Text(
+                        text = "Update your profile photo",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AvatarTextLight,
+                        letterSpacing = 0.5.sp
+                    )
+                }
             },
             navigationIcon = {
                 IconButton(onClick = onBackClick) {
-                    Icon(Icons.Filled.Close, contentDescription = "Back")
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = AvatarTextDark
+                    )
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                titleContentColor = MaterialTheme.colorScheme.onPrimary
+                containerColor = AvatarBg
             )
         )
 
-        // Content
+        // ── Content ─────────────────────────────────────────────────
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Current Avatar Preview
+            // ── Avatar Preview ──────────────────────────────────────
             if (selectedImageUri != null) {
                 Text(
-                    "Preview",
+                    text = "Preview",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
+                    color = AvatarTextDark,
                     modifier = Modifier.align(Alignment.Start)
                 )
 
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(300.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                        .size(180.dp)
+                        .clip(CircleShape)
+                        .background(AvatarBorderLight)
+                        .border(
+                            width = 3.dp,
+                            color = AvatarCoralRed,
+                            shape = CircleShape
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     AsyncImage(
@@ -175,55 +200,87 @@ fun AvatarUploadScreen(
                         contentDescription = "Selected image",
                         modifier = Modifier
                             .fillMaxSize()
-                            .clip(RoundedCornerShape(16.dp)),
+                            .clip(CircleShape),
                         contentScale = ContentScale.Crop
                     )
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
             } else if (!currentAvatarUrl.isNullOrBlank()) {
                 Text(
-                    "Current Avatar",
+                    text = "Current Avatar",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
+                    color = AvatarTextDark,
                     modifier = Modifier.align(Alignment.Start)
                 )
 
-                AvatarDisplay(
-                    avatarUrl = currentAvatarUrl,
-                    userName = userName,
-                    size = 150.dp,
-                    onEditClick = {},
-                    showEditButton = false,
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(180.dp)
+                        .clip(CircleShape)
+                        .background(AvatarBorderLight)
+                        .border(
+                            width = 3.dp,
+                            color = AvatarBorderLight,
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AsyncImage(
+                        model = currentAvatarUrl,
+                        contentDescription = "Current avatar",
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            } else {
+                // No avatar placeholder
+                Box(
+                    modifier = Modifier
+                        .size(180.dp)
+                        .clip(CircleShape)
+                        .background(AvatarBorderLight)
+                        .border(
+                            width = 3.dp,
+                            color = AvatarBorderLight,
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = AvatarTextLight,
+                        modifier = Modifier.size(72.dp)
+                    )
+                }
             }
 
-            // Upload Options
+            // ── Upload Options ──────────────────────────────────────
             Text(
-                "Choose Image Source",
+                text = "Choose Source",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
+                color = AvatarTextDark,
                 modifier = Modifier.align(Alignment.Start)
             )
 
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // Camera Button
-                UploadOptionButton(
+                AvatarSourceCard(
                     icon = Icons.Filled.CameraAlt,
                     label = "Camera",
+                    cardBg = AvatarWhite,
+                    iconTint = AvatarCoralRed,
                     onClick = {
-                        // ✅ Check CAMERA permission at runtime
                         val cameraPermission = android.Manifest.permission.CAMERA
                         val permissionStatus = ContextCompat.checkSelfPermission(context, cameraPermission)
 
                         if (permissionStatus == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                            // Permission already granted - launch camera
                             try {
                                 launchCameraCapture(context, selectedImageUri) { uri ->
                                     selectedImageUri = uri
@@ -234,7 +291,6 @@ fun AvatarUploadScreen(
                                 actualViewModel.setError("Camera not available: ${e.message}")
                             }
                         } else {
-                            // Request permission
                             permissionLauncher.launch(cameraPermission)
                         }
                     },
@@ -242,20 +298,60 @@ fun AvatarUploadScreen(
                 )
 
                 // Gallery Button
-                UploadOptionButton(
+                AvatarSourceCard(
                     icon = Icons.Filled.Collections,
                     label = "Gallery",
+                    cardBg = AvatarWhite,
+                    iconTint = AvatarDarkNavy,
                     onClick = { galleryLauncher.launch("image/*") },
                     modifier = Modifier.weight(1f)
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            // ── Info Card ───────────────────────────────────────────
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                colors = CardDefaults.cardColors(containerColor = AvatarWhite)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Info",
+                        modifier = Modifier.size(18.dp),
+                        tint = AvatarTextLight
+                    )
+                    Column {
+                        Text(
+                            "Recommended",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = AvatarTextDark
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            "Square image, at least 400x400px",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = AvatarTextLight
+                        )
+                    }
+                }
+            }
 
-            // ✅ Permission Denied Dialog
+            // ── Permission Denied Dialog ────────────────────────────
             if (showPermissionDialog) {
                 AlertDialog(
                     onDismissRequest = { showPermissionDialog = false },
+                    containerColor = AvatarWhite,
+                    titleContentColor = AvatarTextDark,
+                    textContentColor = AvatarTextMedium,
                     title = { Text("Camera Permission Required") },
                     text = {
                         Text(
@@ -264,70 +360,31 @@ fun AvatarUploadScreen(
                         )
                     },
                     confirmButton = {
-                        Button(onClick = {
-                            showPermissionDialog = false
-                            // Open app settings
-                            val intent = android.content.Intent(
-                                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                android.net.Uri.fromParts("package", context.packageName, null)
-                            )
-                            context.startActivity(intent)
-                        }) {
+                        Button(
+                            onClick = {
+                                showPermissionDialog = false
+                                val intent = android.content.Intent(
+                                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    android.net.Uri.fromParts("package", context.packageName, null)
+                                )
+                                context.startActivity(intent)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = AvatarCoralRed)
+                        ) {
                             Text("Open Settings")
                         }
                     },
                     dismissButton = {
                         TextButton(onClick = { showPermissionDialog = false }) {
-                            Text("Cancel")
+                            Text("Cancel", color = AvatarTextLight)
                         }
                     }
                 )
-            }
-
-            // ...existing code...
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                )
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = "Info",
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.onTertiaryContainer
-                        )
-                        Column {
-                            Text(
-                                "Recommended:",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer
-                            )
-                            Text(
-                                "Square image, at least 400x400px",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer
-                            )
-                        }
-                    }
-                }
             }
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // State Messages
+            // ── State Messages ──────────────────────────────────────
             when (editState) {
                 is ProfileEditUiState.Loading -> {
                     Box(
@@ -336,7 +393,10 @@ fun AvatarUploadScreen(
                             .padding(16.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = AvatarCoralRed
+                        )
                     }
                 }
                 is ProfileEditUiState.Success -> {
@@ -344,33 +404,30 @@ fun AvatarUploadScreen(
                     if (successState != null) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = Color.Green.copy(alpha = 0.1f)
-                            ),
-                            border = CardDefaults.outlinedCardBorder().copy(
-                                brush = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    Color.Green
-                                ).brush
+                                containerColor = Color(0xFFE8F5E9)
                             )
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(12.dp),
+                                    .padding(14.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 Icon(
                                     Icons.Default.Check,
                                     contentDescription = "Success",
-                                    tint = Color.Green,
+                                    tint = Color(0xFF2E7D32),
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Text(
                                     successState.message,
-                                    color = Color.Green.copy(alpha = 0.8f),
-                                    style = MaterialTheme.typography.bodySmall
+                                    color = Color(0xFF2E7D32),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
                         }
@@ -386,30 +443,31 @@ fun AvatarUploadScreen(
                     if (errorState != null) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer
+                                containerColor = Color(0xFFFFEBEE)
                             )
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(12.dp),
+                                    .padding(14.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 Icon(
                                     Icons.Default.Error,
                                     contentDescription = "Error",
-                                    tint = MaterialTheme.colorScheme.error,
+                                    tint = AvatarCoralRed,
                                     modifier = Modifier.size(20.dp)
                                 )
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        errorState.message,
-                                        color = MaterialTheme.colorScheme.onErrorContainer,
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                }
+                                Text(
+                                    errorState.message,
+                                    color = AvatarCoralRed,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
                         }
                     }
@@ -417,16 +475,14 @@ fun AvatarUploadScreen(
                 ProfileEditUiState.Idle -> {}
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-            // Upload Button
+            // ── Upload Button ───────────────────────────────────────
             Button(
                 onClick = {
                     selectedImageUri?.let { uri ->
-                        // ✅ Image already compressed by gallery/camera launchers
                         val file = uriToFile(context, uri)
                         if (file != null && file.exists()) {
-                            // ✅ Call ViewModel to upload compressed file
                             actualViewModel.uploadAvatar(file)
                         } else {
                             actualViewModel.setError("Image file not found")
@@ -436,35 +492,119 @@ fun AvatarUploadScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
-                enabled = selectedImageUri != null && editState !is ProfileEditUiState.Loading
+                enabled = selectedImageUri != null && editState !is ProfileEditUiState.Loading,
+                shape = RoundedCornerShape(24.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AvatarCoralRed,
+                    contentColor = Color.White,
+                    disabledContainerColor = AvatarCoralRed.copy(alpha = 0.3f),
+                    disabledContentColor = Color.White.copy(alpha = 0.5f)
+                )
             ) {
                 if (editState is ProfileEditUiState.Loading) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
+                        color = Color.White,
+                        strokeWidth = 2.dp
                     )
                 } else {
-                    Text("Upload Avatar")
+                    Icon(
+                        Icons.Default.CloudUpload,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "Upload Avatar",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
                 }
             }
 
-            // Cancel Button
+            // ── Cancel Button ───────────────────────────────────────
             OutlinedButton(
                 onClick = onBackClick,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
-                enabled = editState !is ProfileEditUiState.Loading
+                enabled = editState !is ProfileEditUiState.Loading,
+                shape = RoundedCornerShape(24.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = AvatarTextMedium,
+                    disabledContentColor = AvatarTextLight
+                ),
+                border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(
+                    brush = Brush.linearGradient(
+                        colors = listOf(AvatarBorderLight, AvatarBorderLight)
+                    )
+                )
             ) {
-                Text("Cancel")
+                Text(
+                    "Cancel",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp
+                )
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
 
 /**
- * ✅ Helper function: Convert URI to File
- * Reads the URI content and creates a temporary file for upload
+ * Source Card for Camera / Gallery option
+ */
+@Composable
+private fun AvatarSourceCard(
+    icon: ImageVector,
+    label: String,
+    cardBg: Color,
+    iconTint: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = cardBg)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 24.dp, horizontal = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(iconTint.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    modifier = Modifier.size(28.dp),
+                    tint = iconTint
+                )
+            }
+            Text(
+                label,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                color = AvatarTextDark
+            )
+        }
+    }
+}
+
+/**
+ * Helper function: Convert URI to File
  */
 private fun uriToFile(context: android.content.Context, uri: Uri): File? {
     return try {
@@ -484,7 +624,7 @@ private fun uriToFile(context: android.content.Context, uri: Uri): File? {
 }
 
 /**
- * ✅ Helper function: Launch camera capture with proper FileProvider URI
+ * Helper function: Launch camera capture with proper FileProvider URI
  */
 private fun launchCameraCapture(
     context: android.content.Context,
@@ -512,9 +652,7 @@ private fun launchCameraCapture(
 }
 
 /**
- * ✅ Compress image to max 5MB for API constraints
- * Uses android.graphics.Bitmap for compression
- * Returns compressed file or null if compression fails
+ * Compress image to max 5MB for API constraints
  */
 private fun compressImageToMaxSize(
     context: android.content.Context,
@@ -522,18 +660,14 @@ private fun compressImageToMaxSize(
     maxSizeBytes: Long = 5 * 1024 * 1024 // 5MB
 ): File? {
     return try {
-        // Read image file
         val inputStream = context.contentResolver.openInputStream(imageUri)
             ?: return null
 
-        // Decode bitmap
         val originalBitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
             ?: return null
         inputStream.close()
 
-        // Check if compression needed
         if (originalBitmap.byteCount <= maxSizeBytes) {
-            // Image already small enough, just save to cache
             val cachedFile = File(context.cacheDir, "avatar_${System.currentTimeMillis()}_compressed.jpg")
             cachedFile.outputStream().use { out ->
                 originalBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, out)
@@ -542,7 +676,6 @@ private fun compressImageToMaxSize(
             return cachedFile
         }
 
-        // Compress iteratively
         var quality = 90
         var outputFile = File(context.cacheDir, "avatar_${System.currentTimeMillis()}_compressed.jpg")
         var fileSize: Long
@@ -554,7 +687,6 @@ private fun compressImageToMaxSize(
             }
             fileSize = outputFile.length()
 
-            // Reduce quality if still too large
             if (fileSize > maxSizeBytes && quality > 20) {
                 quality -= 10
             } else {
@@ -562,7 +694,6 @@ private fun compressImageToMaxSize(
             }
         } while (fileSize > maxSizeBytes && quality > 20)
 
-        // Scale down if still too large
         if (fileSize > maxSizeBytes) {
             val scaleFactor = 0.8
             val newWidth = (originalBitmap.width * scaleFactor).toInt()
@@ -600,43 +731,5 @@ private fun compressImageToMaxSize(
     } catch (e: Exception) {
         android.util.Log.e("AvatarUploadScreen", "Image compression failed", e)
         null
-    }
-}
-
-/**
- * Upload Option Button Component
- */
-@Composable
-fun UploadOptionButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .border(
-                width = 2.dp,
-                color = MaterialTheme.colorScheme.outlineVariant,
-                shape = RoundedCornerShape(12.dp)
-            )
-            .clickable(onClick = onClick)
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            modifier = Modifier.size(32.dp),
-            tint = MaterialTheme.colorScheme.primary
-        )
-        Text(
-            label,
-            style = MaterialTheme.typography.labelMedium,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurface
-        )
     }
 }

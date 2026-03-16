@@ -429,7 +429,7 @@ fun EmergencyContactsSection(
 }
 
 // ============================================================================
-// SECTION 2: DEVICE CARD (Dark Navy)
+// SECTION 2: DEVICE CARD (Dark Navy) — delegates to reusable DeviceCard component
 // ============================================================================
 
 @Composable
@@ -439,82 +439,12 @@ fun DeviceCardSection(
     connectionStatus: String = "Strong Connection",
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1A2340) // Dark Navy
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Left: Gray image placeholder (60x60)
-            Box(
-                modifier = Modifier
-                    .size(60.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFFAAAAAA))
-            )
-
-            // Right: Device info column
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Device name
-                Text(
-                    text = wristbandName,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-
-                // Battery row
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.BatteryChargingFull,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = Color.White
-                    )
-                    Text(
-                        text = "$batteryPercentage%",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
-                // Signal/Connection row
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.SignalCellularAlt,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = Color.White
-                    )
-                    Text(
-                        text = connectionStatus,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White
-                    )
-                }
-            }
-        }
-    }
+    com.faster.festival.ui.components.DeviceCard(
+        wristbandName = wristbandName,
+        batteryPercentage = batteryPercentage,
+        connectionStatus = connectionStatus,
+        modifier = modifier.padding(horizontal = 16.dp)
+    )
 }
 
 // ============================================================================
@@ -825,14 +755,6 @@ fun ProfileScreenNew(
             )
         }
 
-        item {
-            EmergencyContactsSection(
-                contacts = emergencyContacts,
-                onAddContactClick = onAddEmergencyContactClick,
-                onEditContact = onEditEmergencyContact,
-                onDeleteContact = onDeleteEmergencyContact
-            )
-        }
 
         // Section 2: Device Card
         item {

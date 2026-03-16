@@ -33,10 +33,26 @@ class TokenRefreshInterceptor(
         // Attempt 1: Make request with current token
         val response = chain.proceed(originalRequest)
 
-        // Check if token is expired (401 status code indicates authentication issue)
-        if (response.code == 401) {
+        // Check if token refresh is needed:
+        // 1. HTTP 401 (standard auth failure)
+        // 2. Non-success response with "JWT expired" / "Invalid JWT" in body
+        //    (Supabase Edge Functions may return 500/400 with JWT errors)
+        val needsRefresh = when {
+            response.code == 401 -> true
+            !response.isSuccessful -> {
+                val bodyString = peekResponseBody(response)
+                bodyString != null && (
+                    bodyString.contains("JWT expired", ignoreCase = true) ||
+                    bodyString.contains("Invalid JWT", ignoreCase = true) ||
+                    bodyString.contains("token is expired", ignoreCase = true)
+                )
+            }
+            else -> false
+        }
+
+        if (needsRefresh) {
+            Log.d("TokenRefresh", "Token refresh needed (HTTP ${response.code})")
             synchronized(lock) {
-                // Try to refresh token
                 if (!isRefreshing) {
                     isRefreshing = true
                     try {
@@ -48,10 +64,8 @@ class TokenRefreshInterceptor(
 
                             if (refreshSuccess) {
                                 isRefreshing = false
-                                // Token refreshed successfully, retry original request
                                 val newToken = sessionManager.getAccessToken()
                                 if (!newToken.isNullOrBlank()) {
-                                    // Close the failed response
                                     response.close()
 
                                     val retryRequest = originalRequest.newBuilder()
@@ -71,6 +85,21 @@ class TokenRefreshInterceptor(
         }
 
         return response
+    }
+
+    /**
+     * Peek at the response body without consuming it.
+     * Returns the body string (up to 4KB) or null if body can't be read.
+     */
+    private fun peekResponseBody(response: Response): String? {
+        return try {
+            val source = response.body?.source() ?: return null
+            source.request(4096)
+            source.buffer.clone().readUtf8(minOf(4096, source.buffer.size))
+        } catch (e: Exception) {
+            Log.w("TokenRefresh", "Failed to peek response body: ${e.message}")
+            null
+        }
     }
 
     private suspend fun refreshAccessToken(refreshToken: String): Boolean {

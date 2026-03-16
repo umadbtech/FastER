@@ -12,6 +12,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import com.faster.festival.AppConfig
 import com.faster.festival.data.local.EncryptedSessionManager
 import com.faster.festival.data.repository.AuthRepository
@@ -42,10 +48,12 @@ import com.faster.festival.ui.screens.EmergencyContactsScreen
 import com.faster.festival.ui.screens.EnhancedProfileScreenWithNavigation
 import com.faster.festival.ui.screens.FAQScreen
 import com.faster.festival.ui.screens.FasterScreen
+import com.faster.festival.ui.screens.HeroDetailScreen
 import com.faster.festival.ui.screens.FriendsScreen
 import com.faster.festival.ui.screens.HealthSettingsScreen
 import com.faster.festival.ui.screens.HomeScreen
 import com.faster.festival.ui.screens.LineupScreen
+import com.faster.festival.ui.screens.ScheduleScreen
 import com.faster.festival.ui.screens.LocationSettingsScreen
 import com.faster.festival.ui.screens.LoginScreen
 import com.faster.festival.ui.screens.MapScreen
@@ -53,6 +61,8 @@ import com.faster.festival.ui.screens.NotificationSettingsScreen
 import com.faster.festival.ui.screens.PaymentSettingsScreen
 import com.faster.festival.ui.screens.PersonalInfoEditScreen
 import com.faster.festival.ui.screens.PrivacyPolicyScreen
+import com.faster.festival.ui.screens.PromotionDetailScreen
+import com.faster.festival.ui.screens.SponsorDetailScreen
 import com.faster.festival.ui.screens.SupportTicketScreen
 import com.faster.festival.ui.screens.TermsScreen
 import com.faster.festival.ui.screens.TicketsScreen
@@ -96,6 +106,10 @@ object Routes {
     const val FAQ = "faq"
     const val ACCOUNT_MANAGEMENT = "account_management"
     const val ABOUT_FASTER = "about_faster"
+    const val PROMOTION_DETAIL = "promotion/{promotionId}"
+    const val SPONSOR_DETAIL = "sponsor/{sponsorId}"
+    const val HERO_DETAIL = "hero/{heroItemId}"
+    const val STAGE_SCHEDULE = "stage_schedule"
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -316,16 +330,30 @@ fun NavGraph(
                 onArtistClick = { artistId ->
                     navController.navigate("artist/$artistId")
                 },
-                onNavigateToSchedule = { navController.navigate(Routes.LINEUP) },
+                onHeroItemClick = { heroItemId ->
+                    val encoded = android.net.Uri.encode(heroItemId)
+                    navController.navigate("hero/$encoded")
+                },
+                onPromotionClick = { promotionId ->
+                    val encoded = android.net.Uri.encode(promotionId)
+                    navController.navigate("promotion/$encoded")
+                },
+                onSponsorClick = { sponsorId ->
+                    val encoded = android.net.Uri.encode(sponsorId)
+                    navController.navigate("sponsor/$encoded")
+                },
+                onNavigateToSchedule = { navController.navigate(Routes.STAGE_SCHEDULE) },
                 onNavigateToMap = { navController.navigate(Routes.MAP) },
+                onNavigateToFAQ = { navController.navigate(Routes.FAQ) },
                 sessionManager = sessionManager
             )
         }
 
         composable(Routes.LINEUP) {
             LineupScreen(
-                onArtistClick = { artistId ->
-                    navController.navigate("artist/$artistId")
+                onArtistClick = { artistSlug ->
+                    val encoded = android.net.Uri.encode(artistSlug)
+                    navController.navigate("artist/$encoded")
                 }
             )
         }
@@ -470,6 +498,16 @@ fun NavGraph(
             FAQScreen(onBackClick = { navController.popBackStack() })
         }
 
+        composable(Routes.STAGE_SCHEDULE) {
+            ScheduleScreen(
+                onBackClick = { navController.popBackStack() },
+                onArtistClick = { artistId ->
+                    val encoded = android.net.Uri.encode(artistId)
+                    navController.navigate("artist/$encoded")
+                }
+            )
+        }
+
         composable(Routes.ACCOUNT_MANAGEMENT) {
             AccountManagementScreen(onBackClick = { navController.popBackStack() })
         }
@@ -493,6 +531,142 @@ fun NavGraph(
                 artistId = android.net.Uri.decode(artistId),
                 onBackClick = { navController.popBackStack() }
             )
+        }
+
+        composable(
+            route = Routes.PROMOTION_DETAIL,
+            arguments = listOf(
+                navArgument("promotionId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val promotionId = backStackEntry.arguments?.getString("promotionId") ?: return@composable
+            val decodedId = android.net.Uri.decode(promotionId)
+
+            val promoViewModel: com.faster.festival.ui.viewmodel.PromotionDetailViewModel = viewModel(
+                factory = com.faster.festival.ui.viewmodel.PromotionDetailViewModel.Factory(
+                    appHomeApi = NetworkModule.appHomeApi,
+                    festivalSlug = AppConfig.DEFAULT_FESTIVAL_SLUG,
+                    promotionId = decodedId
+                )
+            )
+            val state = promoViewModel.promotionState.collectAsState()
+
+            when (val s = state.value) {
+                is com.faster.festival.ui.viewmodel.PromotionDetailState.Loading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+                is com.faster.festival.ui.viewmodel.PromotionDetailState.Success -> {
+                    PromotionDetailScreen(
+                        promotion = s.promotion,
+                        onBackClick = { navController.popBackStack() }
+                    )
+                }
+                is com.faster.festival.ui.viewmodel.PromotionDetailState.Error -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(s.message)
+                    }
+                }
+            }
+        }
+
+        composable(
+            route = Routes.SPONSOR_DETAIL,
+            arguments = listOf(
+                navArgument("sponsorId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val sponsorId = backStackEntry.arguments?.getString("sponsorId") ?: return@composable
+            val decodedId = android.net.Uri.decode(sponsorId)
+
+            val sponsorViewModel: com.faster.festival.ui.viewmodel.SponsorDetailViewModel = viewModel(
+                factory = com.faster.festival.ui.viewmodel.SponsorDetailViewModel.Factory(
+                    appHomeApi = NetworkModule.appHomeApi,
+                    festivalSlug = AppConfig.DEFAULT_FESTIVAL_SLUG,
+                    sponsorId = decodedId
+                )
+            )
+            val state = sponsorViewModel.sponsorState.collectAsState()
+
+            when (val s = state.value) {
+                is com.faster.festival.ui.viewmodel.SponsorDetailState.Loading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+                is com.faster.festival.ui.viewmodel.SponsorDetailState.Success -> {
+                    SponsorDetailScreen(
+                        sponsor = s.sponsor,
+                        onBackClick = { navController.popBackStack() }
+                    )
+                }
+                is com.faster.festival.ui.viewmodel.SponsorDetailState.Error -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(s.message)
+                    }
+                }
+            }
+        }
+
+        composable(
+            route = Routes.HERO_DETAIL,
+            arguments = listOf(
+                navArgument("heroItemId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val heroItemId = backStackEntry.arguments?.getString("heroItemId") ?: return@composable
+            val decodedId = android.net.Uri.decode(heroItemId)
+
+            val heroViewModel: com.faster.festival.ui.viewmodel.HeroDetailViewModel = viewModel(
+                factory = com.faster.festival.ui.viewmodel.HeroDetailViewModel.Factory(
+                    appHomeApi = NetworkModule.appHomeApi,
+                    festivalSlug = AppConfig.DEFAULT_FESTIVAL_SLUG,
+                    heroItemId = decodedId
+                )
+            )
+            val state = heroViewModel.heroState.collectAsState()
+
+            when (val s = state.value) {
+                is com.faster.festival.ui.viewmodel.HeroDetailState.Loading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+                is com.faster.festival.ui.viewmodel.HeroDetailState.Success -> {
+                    HeroDetailScreen(
+                        heroItem = s.heroItem,
+                        onBackClick = { navController.popBackStack() },
+                        onArtistClick = { artistSlug ->
+                            val encoded = android.net.Uri.encode(artistSlug)
+                            navController.navigate("artist/$encoded")
+                        }
+                    )
+                }
+                is com.faster.festival.ui.viewmodel.HeroDetailState.Error -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(s.message)
+                    }
+                }
+            }
         }
 
         composable(Routes.TICKETS) {

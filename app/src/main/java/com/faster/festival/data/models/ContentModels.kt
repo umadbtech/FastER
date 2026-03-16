@@ -30,11 +30,11 @@ data class ContentFestivalInfo(
     @SerialName("name")
     val name: String,
     @SerialName("timezone")
-    val timezone: String,
+    val timezone: String = "",
     @SerialName("starts_at")
-    val startsAt: String,
+    val startsAt: String = "",
     @SerialName("ends_at")
-    val endsAt: String
+    val endsAt: String = ""
 )
 
 @Serializable

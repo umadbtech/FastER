@@ -8,6 +8,7 @@ import com.faster.festival.data.remote.AuthApiService
 import com.faster.festival.data.remote.AuthorizationInterceptor
 import com.faster.festival.data.remote.TokenRefreshInterceptor
 import com.faster.festival.data.remote.ContentArtistDetailApi
+import com.faster.festival.data.remote.ContentFaqApi
 import com.faster.festival.data.remote.ContentHomeApi
 import com.faster.festival.data.remote.ContentLineupApi
 import com.faster.festival.data.remote.ContentMapApi
@@ -169,6 +170,8 @@ object NetworkModule {
     val contentStageScheduleApi: ContentStageScheduleApi by lazy { retrofit.create(ContentStageScheduleApi::class.java) }
 
     val contentMapApi: ContentMapApi by lazy { retrofit.create(ContentMapApi::class.java) }
+
+    val contentFaqApi: ContentFaqApi by lazy { retrofit.create(ContentFaqApi::class.java) }
 
     // ========== Experience API Services ==========
 

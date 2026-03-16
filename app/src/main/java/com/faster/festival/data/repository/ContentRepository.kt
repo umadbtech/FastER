@@ -1,6 +1,9 @@
 package com.faster.festival.data.repository
 
 import com.faster.festival.data.models.AppHomeBundleResponse
+import com.faster.festival.data.models.ContentArtistDetailResponse
+import com.faster.festival.data.models.ContentLineupResponse
+import com.faster.festival.data.models.ContentStageScheduleResponse
 import com.faster.festival.data.models.OfflineBundleResponse
 import com.faster.festival.data.remote.AppExperienceBundleApi
 import com.faster.festival.data.remote.AppHomeApi
@@ -68,7 +71,7 @@ class ContentRepository(
     }
 
     // ========== Content Lineup ==========
-    fun getContentLineup(festivalSlug: String): Flow<ContentLineupApi.ContentLineupResponse> = flow {
+    fun getContentLineup(festivalSlug: String): Flow<ContentLineupResponse> = flow {
         if (festivalSlug.isBlank()) throw IOException("Missing festival slug")
         val response = contentLineupApi.getContentLineup(festivalSlug)
         when {
@@ -88,7 +91,7 @@ class ContentRepository(
     fun getArtistDetail(
         festivalSlug: String,
         artistSlug: String
-    ): Flow<ContentArtistDetailApi.ContentArtistDetailResponse> = flow {
+    ): Flow<ContentArtistDetailResponse> = flow {
         if (festivalSlug.isBlank() || artistSlug.isBlank()) throw IOException("Missing required parameters")
         val response = contentArtistDetailApi.getArtistDetail(festivalSlug, artistSlug)
         when {
@@ -105,7 +108,7 @@ class ContentRepository(
     }
 
     // ========== Content Stage Schedule ==========
-    fun getStageSchedule(festivalSlug: String): Flow<ContentStageScheduleApi.ContentStageScheduleResponse> = flow {
+    fun getStageSchedule(festivalSlug: String): Flow<ContentStageScheduleResponse> = flow {
         if (festivalSlug.isBlank()) throw IOException("Missing festival slug")
         val response = contentStageScheduleApi.getStageSchedule(festivalSlug)
         when {

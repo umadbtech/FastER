@@ -1,11 +1,15 @@
 package com.faster.festival.ui.screens
 
+import android.content.Intent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,10 +25,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
@@ -34,11 +42,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -51,11 +59,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -71,7 +82,21 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-// Artist detail data
+// Light theme palette (consistent with HomeScreen)
+private val DetailBg = Color(0xFFF7F7F7)
+private val DetailWhite = Color.White
+private val DetailCoralRed = Color(0xFFE53935)
+private val DetailDarkNavy = Color(0xFF0D1B2A)
+private val DetailTextDark = Color(0xFF222222)
+private val DetailTextMedium = Color(0xFF333333)
+private val DetailTextLight = Color(0xFF666666)
+private val DetailBorderLight = Color(0xFFE0E0E0)
+private val DetailCardBg = Color(0xFFF5F5F5)
+
+// ─────────────────────────────────────────────────────────────────────
+// Data & ViewModel
+// ─────────────────────────────────────────────────────────────────────
+
 data class ArtistDetailData(
     val id: String,
     val name: String,
@@ -80,7 +105,10 @@ data class ArtistDetailData(
     val coverImageUrl: String?,
     val genres: List<String>,
     val origin: String?,
-    val performances: List<ArtistPerformance>
+    val foundedYear: Int?,
+    val memberCount: Int?,
+    val performances: List<ArtistPerformance>,
+    val media: ArtistMediaData?
 )
 
 data class ArtistPerformance(
@@ -90,6 +118,14 @@ data class ArtistPerformance(
     val endTime: String,
     val day: Int,
     val description: String?
+)
+
+data class ArtistMediaData(
+    val website: String?,
+    val spotify: String?,
+    val instagram: String?,
+    val twitter: String?,
+    val youtube: String?
 )
 
 sealed class ArtistDetailUiState {
@@ -120,14 +156,23 @@ class ArtistDetailScreenViewModel(
                 if (detailResponse.isSuccessful && detailResponse.body() != null) {
                     val body = detailResponse.body()!!
                     val artist = body.artist
-                    val performances = body.performances.map { perf ->
+                    val performances = body.events.map { event ->
                         ArtistPerformance(
-                            id = perf.id,
-                            stageName = perf.stage_name,
-                            startTime = perf.start_time,
-                            endTime = perf.end_time,
-                            day = perf.day,
-                            description = perf.description
+                            id = event.id,
+                            stageName = event.stageName,
+                            startTime = event.startTime,
+                            endTime = event.endTime,
+                            day = event.day,
+                            description = event.description
+                        )
+                    }
+                    val mediaData = body.media?.let { m ->
+                        ArtistMediaData(
+                            website = m.website,
+                            spotify = m.spotify,
+                            instagram = m.instagram,
+                            twitter = m.twitter,
+                            youtube = m.youtube
                         )
                     }
                     _uiState.value = ArtistDetailUiState.Success(
@@ -135,11 +180,14 @@ class ArtistDetailScreenViewModel(
                             id = artist.id,
                             name = artist.name,
                             bio = artist.bio,
-                            imageUrl = artist.image_url,
-                            coverImageUrl = artist.cover_image_url,
+                            imageUrl = artist.imageUrl,
+                            coverImageUrl = artist.coverImageUrl,
                             genres = artist.genres ?: emptyList(),
                             origin = artist.origin,
-                            performances = performances
+                            foundedYear = artist.foundedYear,
+                            memberCount = artist.memberCount,
+                            performances = performances,
+                            media = mediaData
                         )
                     )
                     return@launch
@@ -149,30 +197,28 @@ class ArtistDetailScreenViewModel(
                 val lineupResponse = contentLineupApi.getContentLineup(festivalSlug)
                 if (lineupResponse.isSuccessful && lineupResponse.body() != null) {
                     val lineupBody = lineupResponse.body()!!
-                    val foundArtist = lineupBody.featured_artists.find {
-                        it.id == artistId || it.name.equals(artistId, ignoreCase = true)
+                    val foundArtist = lineupBody.artists.find {
+                        it.id == artistId || it.slug == artistId ||
+                                it.name.equals(artistId, ignoreCase = true)
                     }
                     if (foundArtist != null) {
-                        // Get schedule info
                         val schedulePerformances = mutableListOf<ArtistPerformance>()
                         val scheduleResponse = contentStageScheduleApi.getStageSchedule(festivalSlug)
                         if (scheduleResponse.isSuccessful && scheduleResponse.body() != null) {
-                            scheduleResponse.body()!!.stages.forEach { stage ->
-                                stage.schedule
-                                    .filter { it.artist_id == foundArtist.id }
-                                    .forEach { slot ->
-                                        schedulePerformances.add(
-                                            ArtistPerformance(
-                                                id = slot.id,
-                                                stageName = stage.name,
-                                                startTime = slot.start_time,
-                                                endTime = slot.end_time,
-                                                day = slot.day,
-                                                description = null
-                                            )
+                            scheduleResponse.body()!!.events
+                                .filter { it.artistId == foundArtist.id }
+                                .forEach { event ->
+                                    schedulePerformances.add(
+                                        ArtistPerformance(
+                                            id = event.id,
+                                            stageName = event.stageName,
+                                            startTime = event.startTime,
+                                            endTime = event.endTime,
+                                            day = event.day,
+                                            description = null
                                         )
-                                    }
-                            }
+                                    )
+                                }
                         }
 
                         _uiState.value = ArtistDetailUiState.Success(
@@ -180,11 +226,14 @@ class ArtistDetailScreenViewModel(
                                 id = foundArtist.id,
                                 name = foundArtist.name,
                                 bio = foundArtist.bio,
-                                imageUrl = foundArtist.image_url,
+                                imageUrl = foundArtist.imageUrl,
                                 coverImageUrl = null,
                                 genres = foundArtist.genres ?: emptyList(),
                                 origin = null,
-                                performances = schedulePerformances
+                                foundedYear = null,
+                                memberCount = null,
+                                performances = schedulePerformances,
+                                media = null
                             )
                         )
                         return@launch
@@ -218,6 +267,10 @@ class ArtistDetailScreenViewModel(
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// Screen Composable
+// ─────────────────────────────────────────────────────────────────────
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ArtistDetailScreen(
@@ -241,7 +294,12 @@ fun ArtistDetailScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DetailBg)
+    ) {
+        // Top bar
         TopAppBar(
             title = {
                 val title = when (val state = uiState) {
@@ -253,41 +311,44 @@ fun ArtistDetailScreen(
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    color = DetailTextDark
                 )
             },
             navigationIcon = {
                 IconButton(onClick = onBackClick) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back"
+                        contentDescription = "Back",
+                        tint = DetailTextDark
                     )
                 }
             },
             actions = {
                 IconButton(onClick = {
-                    val sendIntent = android.content.Intent().apply {
-                        action = android.content.Intent.ACTION_SEND
+                    val sendIntent = Intent().apply {
+                        action = Intent.ACTION_SEND
                         val artistName = when (val state = uiState) {
                             is ArtistDetailUiState.Success -> state.artist.name
                             else -> "this artist"
                         }
                         putExtra(
-                            android.content.Intent.EXTRA_TEXT,
+                            Intent.EXTRA_TEXT,
                             "Check out $artistName at the festival!"
                         )
                         type = "text/plain"
                     }
-                    context.startActivity(android.content.Intent.createChooser(sendIntent, "Share artist"))
+                    context.startActivity(Intent.createChooser(sendIntent, "Share artist"))
                 }) {
                     Icon(
                         imageVector = Icons.Default.Share,
-                        contentDescription = "Share"
+                        contentDescription = "Share",
+                        tint = DetailTextDark
                     )
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface
+                containerColor = DetailBg
             )
         )
 
@@ -308,55 +369,83 @@ fun ArtistDetailScreen(
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// Loading Shimmer
+// ─────────────────────────────────────────────────────────────────────
+
 @Composable
 private fun ArtistDetailShimmer() {
     val transition = rememberInfiniteTransition(label = "artist_shimmer")
     val alpha by transition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 0.7f,
+        initialValue = 0.15f,
+        targetValue = 0.4f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 800, easing = LinearEasing),
+            animation = tween(durationMillis = 900, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "artist_shimmer_alpha"
     )
 
+    val shimmerColor = Color.Gray.copy(alpha = alpha)
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(0.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(250.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color.Gray.copy(alpha = alpha))
+                .height(300.dp)
+                .background(shimmerColor)
         )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(0.6f)
-                .height(24.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(Color.Gray.copy(alpha = alpha))
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(0.4f)
-                .height(16.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(Color.Gray.copy(alpha = alpha))
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(100.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color.Gray.copy(alpha = alpha))
-        )
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.5f)
+                    .height(20.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(shimmerColor)
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.35f)
+                    .height(14.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(shimmerColor)
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(shimmerColor)
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                repeat(3) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(shimmerColor)
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(80.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(shimmerColor)
+            )
+        }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Error State
+// ─────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun ArtistDetailError(message: String, onRetry: () -> Unit) {
@@ -367,31 +456,39 @@ private fun ArtistDetailError(message: String, onRetry: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            imageVector = Icons.Default.WarningAmber,
-            contentDescription = "Error",
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.error
-        )
-        Spacer(modifier = Modifier.height(16.dp))
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .clip(CircleShape)
+                .background(Color(0xFFFFEBEE)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.WarningAmber,
+                contentDescription = "Error",
+                modifier = Modifier.size(40.dp),
+                tint = DetailCoralRed
+            )
+        }
+        Spacer(modifier = Modifier.height(20.dp))
         Text(
             text = "Failed to load artist",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
+            color = DetailTextDark
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = message,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = DetailTextLight,
+            textAlign = TextAlign.Center
         )
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(28.dp))
         Button(
             onClick = onRetry,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary
-            )
+            colors = ButtonDefaults.buttonColors(containerColor = DetailCoralRed),
+            shape = RoundedCornerShape(24.dp)
         ) {
             Icon(
                 imageVector = Icons.Default.Refresh,
@@ -399,133 +496,54 @@ private fun ArtistDetailError(message: String, onRetry: () -> Unit) {
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Retry")
+            Text("Retry", fontWeight = FontWeight.SemiBold)
         }
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// Success Content
+// ─────────────────────────────────────────────────────────────────────
+
 @Composable
 private fun ArtistDetailContent(artist: ArtistDetailData) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 100.dp)
     ) {
-        // Hero image
+        // ── Hero Image ──────────────────────────────────────────────
         item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(280.dp)
-            ) {
-                val heroUrl = artist.coverImageUrl ?: artist.imageUrl
-                if (heroUrl != null) {
-                    AsyncImage(
-                        model = heroUrl,
-                        contentDescription = artist.name,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                brush = Brush.linearGradient(
-                                    colors = listOf(
-                                        MaterialTheme.colorScheme.primary,
-                                        MaterialTheme.colorScheme.tertiary
-                                    )
-                                )
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(80.dp)
-                        )
-                    }
-                }
-
-                // Gradient overlay
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Transparent,
-                                    Color.Black.copy(alpha = 0.6f)
-                                )
-                            )
-                        )
-                )
-
-                // Artist name overlay
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(16.dp)
-                ) {
-                    Text(
-                        text = artist.name,
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    if (artist.genres.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = artist.genres.joinToString(" / "),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.White.copy(alpha = 0.9f)
-                        )
-                    }
-                    if (artist.origin != null) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = artist.origin,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.8f)
-                        )
-                    }
-                }
-            }
+            ArtistHeroHeader(artist = artist)
         }
 
-        // Bio section
-        if (artist.bio != null) {
+        // ── Quick Info Pills ────────────────────────────────────────
+        item {
+            ArtistQuickInfo(artist = artist)
+        }
+
+        // ── Bio Section ─────────────────────────────────────────────
+        if (!artist.bio.isNullOrBlank()) {
             item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    Text(
-                        text = "About",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = artist.bio,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                ArtistBioSection(bio = artist.bio)
             }
         }
 
-        // Performances section
+        // ── Social / Media Links ────────────────────────────────────
+        if (artist.media != null) {
+            item {
+                ArtistSocialLinks(media = artist.media)
+            }
+        }
+
+        // ── Performances Section ────────────────────────────────────
         if (artist.performances.isNotEmpty()) {
             item {
                 Text(
                     text = "Performances",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = DetailTextDark,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                 )
             }
 
@@ -539,10 +557,281 @@ private fun ArtistDetailContent(artist: ArtistDetailData) {
                 )
             }
         }
-
-        item { Spacer(modifier = Modifier.height(100.dp)) }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Hero Header
+// ─────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun ArtistHeroHeader(artist: ArtistDetailData) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(320.dp)
+    ) {
+        val heroUrl = artist.coverImageUrl ?: artist.imageUrl
+        if (heroUrl != null) {
+            AsyncImage(
+                model = heroUrl,
+                contentDescription = artist.name,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                Color(0xFF1A0033),
+                                DetailDarkNavy
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    tint = DetailTextLight,
+                    modifier = Modifier.size(96.dp)
+                )
+            }
+        }
+
+        // Dark gradient overlay (15% -> 92% black top-to-bottom)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.Black.copy(alpha = 0.15f),
+                            0.3f to Color.Black.copy(alpha = 0.25f),
+                            0.55f to Color.Black.copy(alpha = 0.45f),
+                            0.75f to Color.Black.copy(alpha = 0.7f),
+                            1.0f to Color.Black.copy(alpha = 0.92f)
+                        )
+                    )
+                )
+        )
+
+        // Artist name + genres overlay
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(16.dp)
+        ) {
+            Text(
+                text = artist.name,
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color.White,
+                lineHeight = 36.sp
+            )
+            if (artist.genres.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    artist.genres.take(3).forEach { genre ->
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color.Black.copy(alpha = 0.4f)
+                        ) {
+                            Text(
+                                text = genre,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White.copy(alpha = 0.9f),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+            if (artist.origin != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.LocationOn,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = Color.White.copy(alpha = 0.8f)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = artist.origin,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.8f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Quick Info (founded year, member count)
+// ─────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun ArtistQuickInfo(artist: ArtistDetailData) {
+    val infoItems = mutableListOf<Pair<ImageVector, String>>()
+
+    if (artist.foundedYear != null) {
+        infoItems.add(Icons.Default.CalendarMonth to "Est. ${artist.foundedYear}")
+    }
+    if (artist.memberCount != null && artist.memberCount > 0) {
+        val memberText = if (artist.memberCount == 1) "Solo artist" else "${artist.memberCount} members"
+        infoItems.add(Icons.Default.Groups to memberText)
+    }
+    if (artist.performances.isNotEmpty()) {
+        val stageCount = artist.performances.map { it.stageName }.distinct().size
+        val perfText = "${artist.performances.size} show${if (artist.performances.size > 1) "s" else ""}" +
+                if (stageCount > 1) " / $stageCount stages" else ""
+        infoItems.add(Icons.Default.MusicNote to perfText)
+    }
+
+    if (infoItems.isEmpty()) return
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        infoItems.forEach { (icon, label) ->
+            Surface(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp),
+                color = DetailWhite
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = DetailCoralRed
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = DetailTextMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Bio Section
+// ─────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun ArtistBioSection(bio: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Text(
+            text = "About",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = DetailTextDark
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        Card(
+            shape = RoundedCornerShape(14.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            colors = CardDefaults.cardColors(containerColor = DetailWhite)
+        ) {
+            Text(
+                text = bio,
+                style = MaterialTheme.typography.bodyMedium,
+                color = DetailTextMedium,
+                modifier = Modifier.padding(16.dp),
+                lineHeight = 22.sp
+            )
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Social Links
+// ─────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun ArtistSocialLinks(media: ArtistMediaData) {
+    val links = mutableListOf<Pair<String, String>>()
+    media.website?.let { links.add("Website" to it) }
+    media.spotify?.let { links.add("Spotify" to it) }
+    media.instagram?.let { links.add("Instagram" to it) }
+    media.twitter?.let { links.add("Twitter" to it) }
+    media.youtube?.let { links.add("YouTube" to it) }
+
+    if (links.isEmpty()) return
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Text(
+            text = "Links",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = DetailTextDark
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            links.forEach { (name, _) ->
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = DetailWhite
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Language,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = DetailCoralRed
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = name,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = DetailTextDark,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Performance Card
+// ─────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun PerformanceCard(
@@ -551,58 +840,70 @@ private fun PerformanceCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        shape = RoundedCornerShape(14.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = DetailWhite)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Day badge
             Box(
                 modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                    .size(52.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                DetailCoralRed.copy(alpha = 0.15f),
+                                DetailCoralRed.copy(alpha = 0.05f)
+                            )
+                        )
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "Day",
+                        text = "DAY",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
+                        color = DetailCoralRed,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
                     )
                     Text(
                         text = "${performance.day}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = DetailCoralRed
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(14.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.MusicNote,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.primary
+                        modifier = Modifier.size(15.dp),
+                        tint = DetailCoralRed
                     )
                     Text(
                         text = performance.stageName,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = DetailTextDark
                     )
                 }
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(5.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -610,21 +911,21 @@ private fun PerformanceCard(
                     Icon(
                         imageVector = Icons.Default.CalendarMonth,
                         contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        modifier = Modifier.size(13.dp),
+                        tint = DetailTextLight
                     )
                     Text(
                         text = "${performance.startTime} - ${performance.endTime}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = DetailTextMedium
                     )
                 }
                 if (performance.description != null) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(5.dp))
                     Text(
                         text = performance.description,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = DetailTextLight,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )

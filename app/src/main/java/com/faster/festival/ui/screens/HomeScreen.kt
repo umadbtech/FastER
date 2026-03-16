@@ -45,13 +45,16 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -173,8 +176,12 @@ private fun resolveTileDescription(tile: TileConfig): String {
 @Composable
 fun HomeScreen(
     onArtistClick: (String) -> Unit = {},
+    onHeroItemClick: (String) -> Unit = {},
+    onPromotionClick: (String) -> Unit = {},
+    onSponsorClick: (String) -> Unit = {},
     onNavigateToSchedule: () -> Unit = {},
     onNavigateToMap: () -> Unit = {},
+    onNavigateToFAQ: () -> Unit = {},
     festivalSlug: String = AppConfig.DEFAULT_FESTIVAL_SLUG,
     sessionManager: EncryptedSessionManager? = null
 ) {
@@ -214,8 +221,12 @@ fun HomeScreen(
                     HomeSuccessContent(
                         bundle = state.data,
                         onArtistClick = onArtistClick,
+                        onHeroItemClick = onHeroItemClick,
+                        onPromotionClick = onPromotionClick,
+                        onSponsorClick = onSponsorClick,
                         onNavigateToSchedule = onNavigateToSchedule,
-                        onNavigateToMap = onNavigateToMap
+                        onNavigateToMap = onNavigateToMap,
+                        onNavigateToFAQ = onNavigateToFAQ
                     )
                 }
             }
@@ -340,8 +351,12 @@ private fun HomeErrorState(message: String, onRetry: () -> Unit) {
 private fun HomeSuccessContent(
     bundle: AppHomeBundleResponse,
     onArtistClick: (String) -> Unit,
+    onHeroItemClick: (String) -> Unit,
+    onPromotionClick: (String) -> Unit,
+    onSponsorClick: (String) -> Unit,
     onNavigateToSchedule: () -> Unit,
-    onNavigateToMap: () -> Unit
+    onNavigateToMap: () -> Unit,
+    onNavigateToFAQ: () -> Unit
 ) {
     val festival = bundle.festival
     val announcements = bundle.announcements
@@ -379,7 +394,7 @@ private fun HomeSuccessContent(
             item {
                 HeroGridSection(
                     items = heroItems,
-                    onItemClick = { item -> item.refId?.let { onArtistClick(it) } },
+                    onItemClick = { item -> onHeroItemClick(item.id) },
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }
@@ -409,7 +424,8 @@ private fun HomeSuccessContent(
             item {
                 PromotionSection(
                     title = resolveSectionTitle(bundle, "promotions"),
-                    promotions = promotions
+                    promotions = promotions,
+                    onPromotionClick = onPromotionClick
                 )
             }
             item { Spacer(modifier = Modifier.height(24.dp)) }
@@ -420,7 +436,8 @@ private fun HomeSuccessContent(
             item {
                 SponsorOfferSection(
                     title = resolveSectionTitle(bundle, "sponsors"),
-                    sponsors = sponsors
+                    sponsors = sponsors,
+                    onSponsorClick = onSponsorClick
                 )
             }
             item { Spacer(modifier = Modifier.height(24.dp)) }
@@ -439,6 +456,31 @@ private fun HomeSuccessContent(
                     faqItem = faqItems[index],
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
+            }
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onNavigateToFAQ)
+                        .padding(vertical = 12.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "See all FAQ",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF222222),
+                        textDecoration = TextDecoration.Underline
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = Color(0xFF222222)
+                    )
+                }
             }
             item { Spacer(modifier = Modifier.height(16.dp)) }
         }
@@ -575,6 +617,7 @@ private fun AnnouncementAlertItem(
     }
 }
 
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 2. HERO GRID — 2×2 grid view of hero_carousel items (replaces banner slider)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -646,18 +689,31 @@ private fun HeroGridCard(
                 )
             }
 
-            // Bottom gradient overlay
+            // Full-card dark gradient overlay with blur effect
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         brush = Brush.verticalGradient(
                             colorStops = arrayOf(
-                                0.0f to Color.Transparent,
-                                0.45f to Color.Transparent,
-                                0.7f to Color.Black.copy(alpha = 0.4f),
-                                1.0f to Color.Black.copy(alpha = 0.85f)
+                                0.55f to Color.Black.copy(alpha = 0.45f),
+                                0.75f to Color.Black.copy(alpha = 0.7f),
+                                1.0f to Color.Black.copy(alpha = 0.92f)
                             )
+                        )
+                    )
+            )
+            // Radial vignette for depth
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.3f)
+                            ),
+                            radius = 500f
                         )
                     )
             )
@@ -688,20 +744,13 @@ private fun HeroGridCard(
                         lineHeight = 16.sp
                     )
                 }
-                item.ctaLabel?.let { cta ->
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = cta,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = CoralRed,
-                        maxLines = 1,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color.White.copy(alpha = 0.9f))
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    )
-                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = "Ticket",
+                    modifier = Modifier.size(22.dp),
+                    tint = CoralRed
+                )
             }
 
             // Kind badge — top-right
@@ -840,6 +889,7 @@ private fun ExploreTileCard(
 private fun PromotionSection(
     title: String,
     promotions: List<PromotionItem>,
+    onPromotionClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -855,6 +905,7 @@ private fun PromotionSection(
             items(promotions, key = { it.id }) { promo ->
                 PromotionCard(
                     promotion = promo,
+                    onClick = { onPromotionClick(promo.id) },
                     modifier = Modifier.width(300.dp)
                 )
             }
@@ -865,9 +916,11 @@ private fun PromotionSection(
 @Composable
 private fun PromotionCard(
     promotion: PromotionItem,
+    onClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Card(
+        onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(20.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
@@ -877,7 +930,7 @@ private fun PromotionCard(
                 .fillMaxWidth()
                 .background(
                     Brush.linearGradient(
-                        colors = listOf(PromoGradientStart, PromoGradientEnd)
+                        colors = listOf(Color(0xFF0088FF), Color(0xFF0055CC))
                     )
                 )
         ) {
@@ -955,6 +1008,7 @@ private fun PromotionCard(
 private fun SponsorOfferSection(
     title: String,
     sponsors: List<SponsorOffer>,
+    onSponsorClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -970,6 +1024,7 @@ private fun SponsorOfferSection(
             items(sponsors, key = { it.id }) { sponsor ->
                 SponsorOfferCard(
                     sponsor = sponsor,
+                    onClick = { onSponsorClick(sponsor.id) },
                     modifier = Modifier.width(280.dp)
                 )
             }
@@ -980,9 +1035,11 @@ private fun SponsorOfferSection(
 @Composable
 private fun SponsorOfferCard(
     sponsor: SponsorOffer,
+    onClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Card(
+        onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
@@ -1107,7 +1164,7 @@ private fun FaqExpandableItem(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                        .padding(start = 16.dp, end = 16.dp, bottom = 22.dp)
                 )
             }
         }
@@ -1299,16 +1356,18 @@ private fun FestivalBannerHeader(
                 )
             }
 
+            // Dark gradient overlay (15% -> 92% black top-to-bottom)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         brush = Brush.verticalGradient(
                             colorStops = arrayOf(
-                                0.0f to Color.Black.copy(alpha = 0.25f),
-                                0.35f to Color.Transparent,
-                                0.55f to Color.Black.copy(alpha = 0.15f),
-                                1.0f to Color.Black.copy(alpha = 0.78f)
+                                0.0f to Color.Black.copy(alpha = 0.15f),
+                                0.3f to Color.Black.copy(alpha = 0.25f),
+                                0.55f to Color.Black.copy(alpha = 0.45f),
+                                0.75f to Color.Black.copy(alpha = 0.7f),
+                                1.0f to Color.Black.copy(alpha = 0.92f)
                             )
                         )
                     )
@@ -1317,6 +1376,7 @@ private fun FestivalBannerHeader(
             BannerTextOverlay(
                 festivalName = festival.name,
                 dateRange = formatDateRange(festival.startsAt, festival.endsAt, festival.timezone),
+                location = festival.location,
                 settledPage = settledPage,
                 modifier = Modifier
                     .align(Alignment.BottomStart)
@@ -1346,14 +1406,18 @@ private fun FestivalBannerHeader(
                         )
                     )
             )
+            // Dark gradient overlay (15% -> 92%)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Black.copy(alpha = 0.1f),
-                                Color.Black.copy(alpha = 0.6f)
+                            colorStops = arrayOf(
+                                0.0f to Color.Black.copy(alpha = 0.15f),
+                                0.3f to Color.Black.copy(alpha = 0.25f),
+                                0.55f to Color.Black.copy(alpha = 0.45f),
+                                0.75f to Color.Black.copy(alpha = 0.7f),
+                                1.0f to Color.Black.copy(alpha = 0.92f)
                             )
                         )
                     )
@@ -1375,6 +1439,23 @@ private fun FestivalBannerHeader(
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.White.copy(alpha = 0.9f)
                 )
+                festival.location?.let { loc ->
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = Color.White.copy(alpha = 0.8f)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = loc,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                    }
+                }
             }
         }
     }
@@ -1434,6 +1515,7 @@ private fun CinematicBannerSlide(
 private fun BannerTextOverlay(
     festivalName: String,
     dateRange: String,
+    location: String? = null,
     settledPage: Int,
     modifier: Modifier = Modifier
 ) {
@@ -1471,6 +1553,24 @@ private fun BannerTextOverlay(
                     color = Color.White.copy(alpha = 0.92f),
                     letterSpacing = 0.3.sp
                 )
+                location?.let { loc ->
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = Color.White.copy(alpha = 0.8f)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = loc,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                    }
+                }
             }
         }
     }
