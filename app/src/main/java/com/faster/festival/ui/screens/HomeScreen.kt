@@ -103,7 +103,10 @@ import com.faster.festival.data.models.HomeModule
 import com.faster.festival.data.models.PromotionItem
 import com.faster.festival.data.models.SponsorOffer
 import com.faster.festival.data.models.TileConfig
+import com.faster.festival.data.models.AlertItem
+import com.faster.festival.data.models.PerkItem
 import com.faster.festival.data.models.UpcomingEvent
+import com.faster.festival.data.models.Venue
 import com.faster.festival.di.NetworkModule
 import com.faster.festival.ui.viewmodel.HomeUiState
 import com.faster.festival.ui.viewmodel.HomeViewModel
@@ -334,16 +337,16 @@ private fun HomeErrorState(message: String, onRetry: () -> Unit) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// HOME SUCCESS CONTENT — fixed presentation order layout
+// HOME SUCCESS CONTENT — Priority Hierarchy (Safety First)
 //
-// Section order enforced in UI layer:
-//   1. Announcements
-//   2. Hero Carousel (as 2×2 grid)
-//   3. Explore (from ui_config tiles)
-//   4. Promotions
-//   5. Sponsors
-//   6. FAQ
-//   7. Footer
+// Rendering order:
+//   1. Emergency Access (future persistent CTA)
+//   2. Wristband Status (DeviceCard)
+//   3. Happening Now (announcements + upcoming_events)
+//   4. Safety Messaging (alerts)
+//   5. Festival Exploration (hero_carousel + explore tiles)
+//   6. Sponsors, Promotions, Last set FAQ
+//   Plus: Perks, Footer
 // ═══════════════════════════════════════════════════════════════════════════════
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -359,49 +362,127 @@ private fun HomeSuccessContent(
     onNavigateToFAQ: () -> Unit
 ) {
     val festival = bundle.festival
-    val announcements = bundle.announcements
-    val heroItems = bundle.heroCarouselItems
     val tiles = bundle.uiConfig.tiles.filter { it.enabled }.sortedBy { it.order }
-    val promotions = bundle.promotions
-    val sponsors = bundle.sponsorOffers
-    val faqItems = bundle.faqItems
 
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        // ── 0. Festival Banner Header (PRESERVED) ──
+        // ── 0. Festival Banner Header ──
         item { FestivalBannerHeader(festival = festival) }
         item { Spacer(modifier = Modifier.height(16.dp)) }
 
-        // ── 1. Announcements ──
-        if (announcements.isNotEmpty()) {
-            item {
-                AnnouncementsSection(
-                    title = resolveSectionTitle(bundle, "announcements"),
-                    announcements = announcements,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
+        // ══════════════════════════════════════════════════════════════════
+        // PRIORITY 1: Emergency Access (future persistent CTA)
+        // ══════════════════════════════════════════════════════════════════
+        item { EmergencyAccessPlaceholder() }
+        item { Spacer(modifier = Modifier.height(12.dp)) }
+
+        // ══════════════════════════════════════════════════════════════════
+        // PRIORITY 2: Wristband Status
+        // ══════════════════════════════════════════════════════════════════
+        item {
+            com.faster.festival.ui.components.DeviceCard(
+                wristbandName = "FASTER Wristband",
+                batteryPercentage = 82,
+                connectionStatus = "Strong Connection",
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+        item { Spacer(modifier = Modifier.height(16.dp)) }
+
+        // ══════════════════════════════════════════════════════════════════
+        // PRIORITY 3: Happening Now (announcements + upcoming_events)
+        // ══════════════════════════════════════════════════════════════════
+        if (bundle.isModuleEnabled("announcements")) {
+            val announcements = bundle.announcements
+            if (announcements.isNotEmpty()) {
+                item {
+                    AnnouncementsSection(
+                        title = resolveSectionTitle(bundle, "announcements"),
+                        announcements = announcements,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+            } else {
+                item {
+                    SectionTitle(
+                        title = resolveSectionTitle(bundle, "announcements"),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+                item { ModuleEmptyState(label = "announcements") }
             }
             item { Spacer(modifier = Modifier.height(20.dp)) }
         }
 
-        // ── 2. Hero Carousel as 2×2 Grid ──
-        if (heroItems.isNotEmpty()) {
+        if (bundle.isModuleEnabled("upcoming_events")) {
+            val upcomingEvents = bundle.upcomingEvents
+            item {
+                SectionTitle(
+                    title = resolveSectionTitle(bundle, "upcoming_events"),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+            if (upcomingEvents.isNotEmpty()) {
+                items(upcomingEvents.size) { index ->
+                    UpcomingEventCard(
+                        event = upcomingEvents[index],
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                }
+            } else {
+                item { ModuleEmptyState(label = "upcoming events") }
+            }
+            item { Spacer(modifier = Modifier.height(24.dp)) }
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        // PRIORITY 4: Safety Messaging (alerts)
+        // ══════════════════════════════════════════════════════════════════
+        if (bundle.isModuleEnabled("alerts")) {
+            val alerts = bundle.alerts
+            item {
+                SectionTitle(
+                    title = resolveSectionTitle(bundle, "alerts"),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+            if (alerts.isNotEmpty()) {
+                items(alerts.size) { index ->
+                    AlertCard(
+                        alert = alerts[index],
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                }
+            } else {
+                item { ModuleEmptyState(label = "alerts") }
+            }
+            item { Spacer(modifier = Modifier.height(24.dp)) }
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        // PRIORITY 5: Festival Exploration (hero_carousel + explore tiles)
+        // ══════════════════════════════════════════════════════════════════
+        if (bundle.isModuleEnabled("hero_carousel")) {
+            val heroItems = bundle.heroCarouselItems
             item {
                 SectionTitle(
                     title = resolveSectionTitle(bundle, "hero_carousel"),
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
-            item {
-                HeroGridSection(
-                    items = heroItems,
-                    onItemClick = { item -> onHeroItemClick(item.id) },
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
+            if (heroItems.isNotEmpty()) {
+                item {
+                    HeroGridSection(
+                        items = heroItems,
+                        onItemClick = { item -> onHeroItemClick(item.id) },
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+            } else {
+                item { ModuleEmptyState(label = "hero items") }
             }
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }
 
-        // ── 3. Explore (from ui_config tiles) ──
         if (tiles.isNotEmpty()) {
             item {
                 SectionTitle(
@@ -419,75 +500,175 @@ private fun HomeSuccessContent(
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }
 
-        // ── 4. Promotions ──
-        if (promotions.isNotEmpty()) {
-            item {
-                PromotionSection(
-                    title = resolveSectionTitle(bundle, "promotions"),
-                    promotions = promotions,
-                    onPromotionClick = onPromotionClick
-                )
+        // ══════════════════════════════════════════════════════════════════
+        // PRIORITY 6: Sponsors, Promotions, Last set FAQ
+        // ══════════════════════════════════════════════════════════════════
+        if (bundle.isModuleEnabled("sponsors")) {
+            val sponsors = bundle.sponsorOffers
+            if (sponsors.isNotEmpty()) {
+                item {
+                    SponsorOfferSection(
+                        title = resolveSectionTitle(bundle, "sponsors"),
+                        sponsors = sponsors,
+                        onSponsorClick = onSponsorClick
+                    )
+                }
+            } else {
+                item {
+                    SectionTitle(
+                        title = resolveSectionTitle(bundle, "sponsors"),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+                item { ModuleEmptyState(label = "sponsors") }
             }
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }
 
-        // ── 5. Sponsors ──
-        if (sponsors.isNotEmpty()) {
-            item {
-                SponsorOfferSection(
-                    title = resolveSectionTitle(bundle, "sponsors"),
-                    sponsors = sponsors,
-                    onSponsorClick = onSponsorClick
-                )
+        if (bundle.isModuleEnabled("promotions")) {
+            val promotions = bundle.promotions
+            if (promotions.isNotEmpty()) {
+                item {
+                    PromotionSection(
+                        title = resolveSectionTitle(bundle, "promotions"),
+                        promotions = promotions,
+                        onPromotionClick = onPromotionClick
+                    )
+                }
+            } else {
+                item {
+                    SectionTitle(
+                        title = resolveSectionTitle(bundle, "promotions"),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+                item { ModuleEmptyState(label = "promotions") }
             }
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }
 
-        // ── 6. FAQ ──
-        if (faqItems.isNotEmpty()) {
+        if (bundle.isModuleEnabled("faq")) {
+            val faqItems = bundle.faqItems
             item {
                 SectionTitle(
                     title = resolveSectionTitle(bundle, "faq"),
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
-            items(faqItems.size) { index ->
-                FaqExpandableItem(
-                    faqItem = faqItems[index],
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                )
-            }
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onNavigateToFAQ)
-                        .padding(vertical = 12.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "See all FAQ",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF222222),
-                        textDecoration = TextDecoration.Underline
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = Color(0xFF222222)
+            if (faqItems.isNotEmpty()) {
+                items(faqItems.size) { index ->
+                    FaqExpandableItem(
+                        faqItem = faqItems[index],
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                     )
                 }
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onNavigateToFAQ)
+                            .padding(vertical = 22.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "See all FAQ",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF222222),
+                            textDecoration = TextDecoration.Underline
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = Color(0xFF222222)
+                        )
+                    }
+                }
+            } else {
+                item { ModuleEmptyState(label = "FAQ") }
             }
             item { Spacer(modifier = Modifier.height(16.dp)) }
         }
 
-        // ── 7. Footer ──
+        // ── Perks (lower priority) ──
+        if (bundle.isModuleEnabled("perks")) {
+            val perks = bundle.perks
+            item {
+                SectionTitle(
+                    title = resolveSectionTitle(bundle, "perks"),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+            if (perks.isNotEmpty()) {
+                items(perks.size) { index ->
+                    PerkCard(
+                        perk = perks[index],
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                }
+            } else {
+                item { ModuleEmptyState(label = "perks") }
+            }
+            item { Spacer(modifier = Modifier.height(24.dp)) }
+        }
+
+        // ── Footer ──
         item { FooterSection() }
         item { Spacer(modifier = Modifier.height(80.dp)) }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EMERGENCY ACCESS — Placeholder for future persistent CTA
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun EmergencyAccessPlaceholder() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFE53935)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.WarningAmber,
+                contentDescription = null,
+                modifier = Modifier.size(28.dp),
+                tint = Color.White
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Emergency Services",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Text(
+                    text = "Tap for help, medical, or safety assistance",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.9f)
+                )
+            }
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                tint = Color.White
+            )
+        }
     }
 }
 
@@ -1172,6 +1353,301 @@ private fun FaqExpandableItem(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// MODULE EMPTY STATE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun ModuleEmptyState(
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "No $label found",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF999999)
+            )
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// UPCOMING EVENTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@RequiresApi(Build.VERSION_CODES.O)
+@Composable
+private fun UpcomingEventCard(
+    event: UpcomingEvent,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Date/time badge
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CoralRed.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CalendarMonth,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = CoralRed
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = event.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF222222),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                event.venue?.let { venue ->
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = CoralRed
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = venue.name,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = CoralRed,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = formatEventDateTime(event.startsAt),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF666666)
+                )
+            }
+
+            // Status badge
+            event.status?.let { status ->
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(
+                            when (status) {
+                                "published" -> Color(0xFFE8F5E9)
+                                else -> Color(0xFFFFF3E0)
+                            }
+                        )
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = status.replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = when (status) {
+                            "published" -> Color(0xFF2E7D32)
+                            else -> Color(0xFFE65100)
+                        },
+                        fontSize = 10.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.O)
+private fun formatEventDateTime(isoTime: String): String {
+    return try {
+        val instant = Instant.parse(isoTime)
+        val zdt = instant.atZone(ZoneId.systemDefault())
+        val formatter = java.time.format.DateTimeFormatter.ofPattern("EEE, MMM d · h:mm a")
+        zdt.format(formatter)
+    } catch (e: Exception) {
+        isoTime.substringBefore("T")
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PERKS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun PerkCard(
+    perk: PerkItem,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Perk icon
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFFFF3E0)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = Color(0xFFFF8F00)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = perk.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF222222),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                perk.description?.let { desc ->
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = desc,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF666666),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            perk.ctaLabel?.let { label ->
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = label,
+                    modifier = Modifier.size(20.dp),
+                    tint = Color(0xFF999999)
+                )
+            }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ALERTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun AlertCard(
+    alert: AlertItem,
+    modifier: Modifier = Modifier
+) {
+    val bgColor = when (alert.severity) {
+        "critical" -> Color(0xFFFFEBEE)
+        "warning" -> Color(0xFFFFF3E0)
+        else -> Color(0xFFE3F2FD)
+    }
+    val iconTint = when (alert.severity) {
+        "critical" -> Color(0xFFD32F2F)
+        "warning" -> Color(0xFFFF8F00)
+        else -> Color(0xFF1976D2)
+    }
+    val textColor = when (alert.severity) {
+        "critical" -> Color(0xFFC62828)
+        "warning" -> Color(0xFFE65100)
+        else -> Color(0xFF1565C0)
+    }
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        colors = CardDefaults.cardColors(containerColor = bgColor)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Icon(
+                imageVector = Icons.Default.WarningAmber,
+                contentDescription = null,
+                modifier = Modifier.size(22.dp),
+                tint = iconTint
+            )
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = alert.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = textColor,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                alert.body?.let { body ->
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = body,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = textColor.copy(alpha = 0.85f),
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // 7. FOOTER
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1375,6 +1851,8 @@ private fun FestivalBannerHeader(
 
             BannerTextOverlay(
                 festivalName = festival.name,
+                timezone = festival.timezone,
+                startsAt = festival.startsAt,
                 dateRange = formatDateRange(festival.startsAt, festival.endsAt, festival.timezone),
                 location = festival.location,
                 settledPage = settledPage,
@@ -1514,6 +1992,8 @@ private fun CinematicBannerSlide(
 @Composable
 private fun BannerTextOverlay(
     festivalName: String,
+    timezone: String = "",
+    startsAt: String = "",
     dateRange: String,
     location: String? = null,
     settledPage: Int,
@@ -1545,6 +2025,24 @@ private fun BannerTextOverlay(
                     overflow = TextOverflow.Ellipsis,
                     lineHeight = 36.sp
                 )
+                if (timezone.isNotEmpty() || startsAt.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    val compactDate = if (startsAt.isNotEmpty())
+                        com.faster.festival.utils.DateFormatter.formatDateCompact(startsAt)
+                    else ""
+                    val timezoneDate = when {
+                        timezone.isNotEmpty() && compactDate.isNotEmpty() -> "$timezone  ·  $compactDate"
+                        timezone.isNotEmpty() -> timezone
+                        else -> compactDate
+                    }
+                    Text(
+                        text = timezoneDate,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White.copy(alpha = 0.8f),
+                        letterSpacing = 0.2.sp
+                    )
+                }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = dateRange,

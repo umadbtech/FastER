@@ -1,6 +1,7 @@
 package com.faster.festival.ui.screens
 
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -11,6 +12,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,7 +36,10 @@ import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.OndemandVideo
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.WarningAmber
@@ -774,14 +779,38 @@ private fun ArtistBioSection(bio: String) {
 // Social Links
 // ─────────────────────────────────────────────────────────────────────
 
+private val SpotifyGreen = Color(0xFF1DB954)
+
 @Composable
 private fun ArtistSocialLinks(media: ArtistMediaData) {
-    val links = mutableListOf<Pair<String, String>>()
-    media.website?.let { links.add("Website" to it) }
-    media.spotify?.let { links.add("Spotify" to it) }
-    media.instagram?.let { links.add("Instagram" to it) }
-    media.twitter?.let { links.add("Twitter" to it) }
-    media.youtube?.let { links.add("YouTube" to it) }
+    val context = LocalContext.current
+
+    data class SocialLink(
+        val name: String,
+        val url: String,
+        val icon: ImageVector,
+        val tint: Color,
+        val bgColor: Color
+    )
+
+    val links = mutableListOf<SocialLink>()
+
+    // Spotify first — prominent placement
+    media.spotify?.let {
+        links.add(SocialLink("Spotify", it, Icons.Default.PlayArrow, Color.White, SpotifyGreen))
+    }
+    media.website?.let {
+        links.add(SocialLink("Website", it, Icons.Default.Language, DetailCoralRed, DetailWhite))
+    }
+    media.instagram?.let {
+        links.add(SocialLink("Instagram", it, Icons.Default.PhotoCamera, Color(0xFFE1306C), DetailWhite))
+    }
+    media.twitter?.let {
+        links.add(SocialLink("Twitter", it, Icons.Default.Language, Color(0xFF1DA1F2), DetailWhite))
+    }
+    media.youtube?.let {
+        links.add(SocialLink("YouTube", it, Icons.Default.OndemandVideo, Color(0xFFFF0000), DetailWhite))
+    }
 
     if (links.isEmpty()) return
 
@@ -797,31 +826,73 @@ private fun ArtistSocialLinks(media: ArtistMediaData) {
             color = DetailTextDark
         )
         Spacer(modifier = Modifier.height(10.dp))
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            links.forEach { (name, _) ->
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = DetailWhite
+
+        // Spotify gets a full-width prominent button when available
+        media.spotify?.let { spotifyUrl ->
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(spotifyUrl)))
+                    },
+                shape = RoundedCornerShape(12.dp),
+                color = SpotifyGreen
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Listen on Spotify",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+
+        // Other links as smaller chips
+        val otherLinks = links.filter { it.name != "Spotify" }
+        if (otherLinks.isNotEmpty()) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                otherLinks.forEach { link ->
+                    Surface(
+                        modifier = Modifier.clickable {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.url)))
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        color = link.bgColor
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Language,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = DetailCoralRed
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = name,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = DetailTextDark,
-                            fontWeight = FontWeight.Medium
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = link.icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = link.tint
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = link.name,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = DetailTextDark,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                 }
             }

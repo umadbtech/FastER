@@ -277,6 +277,75 @@ data class AppHomeBundleResponse(
         }
 
     /**
+     * Extract perks from modules
+     */
+    val perks: List<PerkItem>
+        get() {
+            val moduleData = modules.find { it.key == "perks" }?.data
+            return if (moduleData is JsonArray) {
+                moduleData.mapNotNull { item ->
+                    if (item is JsonObject) {
+                        try {
+                            PerkItem(
+                                id = (item["id"] as? JsonPrimitive)?.content ?: return@mapNotNull null,
+                                title = (item["title"] as? JsonPrimitive)?.content ?: return@mapNotNull null,
+                                description = (item["description"] as? JsonPrimitive)?.content,
+                                imageUrl = (item["image_url"] as? JsonPrimitive)?.content,
+                                ctaLabel = (item["cta_label"] as? JsonPrimitive)?.content,
+                                ctaUrl = (item["cta_url"] as? JsonPrimitive)?.content,
+                                sortOrder = (item["sort_order"] as? JsonPrimitive)?.intOrNull ?: 0
+                            )
+                        } catch (e: Exception) {
+                            null
+                        }
+                    } else {
+                        null
+                    }
+                }.sortedBy { it.sortOrder }
+            } else {
+                emptyList()
+            }
+        }
+
+    /**
+     * Extract alerts from modules
+     */
+    val alerts: List<AlertItem>
+        get() {
+            val moduleData = modules.find { it.key == "alerts" }?.data
+            return if (moduleData is JsonArray) {
+                moduleData.mapNotNull { item ->
+                    if (item is JsonObject) {
+                        try {
+                            AlertItem(
+                                id = (item["id"] as? JsonPrimitive)?.content ?: return@mapNotNull null,
+                                title = (item["title"] as? JsonPrimitive)?.content ?: return@mapNotNull null,
+                                body = (item["body"] as? JsonPrimitive)?.content
+                                    ?: (item["message"] as? JsonPrimitive)?.content,
+                                severity = (item["severity"] as? JsonPrimitive)?.content ?: "info",
+                                startsAt = (item["starts_at"] as? JsonPrimitive)?.content,
+                                endsAt = (item["ends_at"] as? JsonPrimitive)?.content,
+                                sortOrder = (item["sort_order"] as? JsonPrimitive)?.intOrNull ?: 0
+                            )
+                        } catch (e: Exception) {
+                            null
+                        }
+                    } else {
+                        null
+                    }
+                }.sortedBy { it.sortOrder }
+            } else {
+                emptyList()
+            }
+        }
+
+    /**
+     * Check if a module is enabled
+     */
+    fun isModuleEnabled(key: String): Boolean =
+        modules.find { it.key == key }?.enabled ?: false
+
+    /**
      * Get a module by key
      */
     fun moduleByKey(key: String): HomeModule? = modules.find { it.key == key }
@@ -530,6 +599,48 @@ data class Venue(
     val slug: String? = null,
     @SerialName("location")
     val location: String? = null
+)
+
+/**
+ * Perk item from modules[key="perks"].data[n]
+ */
+@Serializable
+data class PerkItem(
+    @SerialName("id")
+    val id: String,
+    @SerialName("title")
+    val title: String,
+    @SerialName("description")
+    val description: String? = null,
+    @SerialName("image_url")
+    val imageUrl: String? = null,
+    @SerialName("cta_label")
+    val ctaLabel: String? = null,
+    @SerialName("cta_url")
+    val ctaUrl: String? = null,
+    @SerialName("sort_order")
+    val sortOrder: Int = 0
+)
+
+/**
+ * Alert item from modules[key="alerts"].data[n]
+ */
+@Serializable
+data class AlertItem(
+    @SerialName("id")
+    val id: String,
+    @SerialName("title")
+    val title: String,
+    @SerialName("body")
+    val body: String? = null,
+    @SerialName("severity")
+    val severity: String = "info", // "info", "warning", "critical"
+    @SerialName("starts_at")
+    val startsAt: String? = null,
+    @SerialName("ends_at")
+    val endsAt: String? = null,
+    @SerialName("sort_order")
+    val sortOrder: Int = 0
 )
 
 /**

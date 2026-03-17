@@ -72,6 +72,22 @@ object DateFormatter {
     }
 
     /**
+     * Format a single ISO date as "dd-MMM-yyyy" (e.g., "03-MAR-2026")
+     *
+     * @param isoDate ISO 8601 timestamp (e.g., "2026-03-03T16:00:00+00:00")
+     * @return Formatted date string like "03-MAR-2026"
+     */
+    fun formatDateCompact(isoDate: String): String {
+        return try {
+            val date = parseIsoDate(isoDate) ?: return ""
+            val formatter = SimpleDateFormat("dd-MMM-yyyy", Locale.ENGLISH)
+            formatter.format(date).uppercase(Locale.ENGLISH)
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    /**
      * Parse hex color string to Long
      * Handles formats: #00A86B, 00A86B, #00A86BFF, 00A86BFF
      * If null or empty, returns default Navy Blue color (#0B1A4A)

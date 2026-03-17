@@ -7,6 +7,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
@@ -130,12 +131,12 @@ fun FestivalHeaderBanner(festival: FestivalHeader, modifier: Modifier = Modifier
                 verticalArrangement = Arrangement.SpaceBetween,
                 horizontalAlignment = Alignment.Start
         ) {
-            // Top section with logo
+            // Top section with circular logo avatar
             if (festival.logoUrl.isNotEmpty()) {
                 AsyncImage(
                         model = festival.logoUrl,
                         contentDescription = "Festival logo - ${festival.name}",
-                        modifier = Modifier.size(60.dp).clip(RoundedCornerShape(12.dp)),
+                        modifier = Modifier.size(64.dp).clip(CircleShape),
                         contentScale = ContentScale.Crop
                 )
             }
@@ -151,7 +152,22 @@ fun FestivalHeaderBanner(festival: FestivalHeader, modifier: Modifier = Modifier
                         modifier = Modifier.fillMaxWidth()
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // Timezone + starts_at date (e.g., "America/New_York · 03-MAR-2026")
+                val formattedStart = DateFormatter.formatDateCompact(festival.startsAt)
+                Text(
+                        text = if (formattedStart.isNotEmpty())
+                            "${festival.timezone}  ·  $formattedStart"
+                        else
+                            festival.timezone,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White.copy(alpha = 0.85f),
+                        modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
 
                 // Date range formatted
                 Text(
@@ -200,11 +216,11 @@ fun FestivalHeaderShimmer(modifier: Modifier = Modifier) {
                 modifier = Modifier.fillMaxSize().padding(24.dp),
                 verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Logo placeholder
+            // Logo placeholder (circle)
             Box(
                     modifier =
-                            Modifier.size(60.dp)
-                                    .clip(RoundedCornerShape(12.dp))
+                            Modifier.size(64.dp)
+                                    .clip(CircleShape)
                                     .background(Color.Gray.copy(alpha = shimmerAlpha.value))
             )
 
