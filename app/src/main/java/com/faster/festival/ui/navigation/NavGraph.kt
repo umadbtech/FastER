@@ -47,6 +47,9 @@ import com.faster.festival.ui.screens.DemographicsEditScreen
 import com.faster.festival.ui.screens.EmergencyContactsScreen
 import com.faster.festival.ui.screens.EnhancedProfileScreenWithNavigation
 import com.faster.festival.ui.screens.FAQScreen
+import com.faster.festival.ui.screens.FestivalDetailsScreen
+import com.faster.festival.ui.screens.FestivalDetailsLoadingState
+import com.faster.festival.ui.screens.FestivalDetailsErrorState
 import com.faster.festival.ui.screens.FasterScreen
 import com.faster.festival.ui.screens.HeroDetailScreen
 import com.faster.festival.ui.screens.FriendsScreen
@@ -109,6 +112,7 @@ object Routes {
     const val PROMOTION_DETAIL = "promotion/{promotionId}"
     const val SPONSOR_DETAIL = "sponsor/{sponsorId}"
     const val HERO_DETAIL = "hero/{heroItemId}"
+    const val FESTIVAL_DETAILS = "festival_details/{festivalSlug}"
     const val STAGE_SCHEDULE = "stage_schedule"
 }
 
@@ -345,6 +349,10 @@ fun NavGraph(
                 onNavigateToSchedule = { navController.navigate(Routes.STAGE_SCHEDULE) },
                 onNavigateToMap = { navController.navigate(Routes.MAP) },
                 onNavigateToFAQ = { navController.navigate(Routes.FAQ) },
+                onFestivalBannerClick = { festivalSlug ->
+                    val encoded = android.net.Uri.encode(festivalSlug)
+                    navController.navigate("festival_details/$encoded")
+                },
                 sessionManager = sessionManager
             )
         }
@@ -665,6 +673,44 @@ fun NavGraph(
                     ) {
                         Text(s.message)
                     }
+                }
+            }
+        }
+
+        composable(
+            route = Routes.FESTIVAL_DETAILS,
+            arguments = listOf(
+                navArgument("festivalSlug") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val slug = backStackEntry.arguments?.getString("festivalSlug") ?: return@composable
+            val decodedSlug = android.net.Uri.decode(slug)
+
+            val festivalViewModel: com.faster.festival.ui.viewmodel.FestivalDetailsViewModel = viewModel(
+                factory = com.faster.festival.ui.viewmodel.FestivalDetailsViewModel.Factory(
+                    appHomeApi = NetworkModule.appHomeApi,
+                    festivalSlug = decodedSlug
+                )
+            )
+            val state = festivalViewModel.state.collectAsState()
+
+            when (val s = state.value) {
+                is com.faster.festival.ui.viewmodel.FestivalDetailsState.Loading -> {
+                    FestivalDetailsLoadingState()
+                }
+                is com.faster.festival.ui.viewmodel.FestivalDetailsState.Success -> {
+                    FestivalDetailsScreen(
+                        festival = s.festival,
+                        bannerUrls = s.bannerUrls,
+                        location = s.location,
+                        onBackClick = { navController.popBackStack() }
+                    )
+                }
+                is com.faster.festival.ui.viewmodel.FestivalDetailsState.Error -> {
+                    FestivalDetailsErrorState(
+                        message = s.message,
+                        onBackClick = { navController.popBackStack() }
+                    )
                 }
             }
         }

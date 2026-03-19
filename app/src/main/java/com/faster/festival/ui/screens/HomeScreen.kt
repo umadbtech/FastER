@@ -185,6 +185,7 @@ fun HomeScreen(
     onNavigateToSchedule: () -> Unit = {},
     onNavigateToMap: () -> Unit = {},
     onNavigateToFAQ: () -> Unit = {},
+    onFestivalBannerClick: (String) -> Unit = {},
     festivalSlug: String = AppConfig.DEFAULT_FESTIVAL_SLUG,
     sessionManager: EncryptedSessionManager? = null
 ) {
@@ -229,7 +230,8 @@ fun HomeScreen(
                         onSponsorClick = onSponsorClick,
                         onNavigateToSchedule = onNavigateToSchedule,
                         onNavigateToMap = onNavigateToMap,
-                        onNavigateToFAQ = onNavigateToFAQ
+                        onNavigateToFAQ = onNavigateToFAQ,
+                        onFestivalBannerClick = onFestivalBannerClick
                     )
                 }
             }
@@ -359,14 +361,20 @@ private fun HomeSuccessContent(
     onSponsorClick: (String) -> Unit,
     onNavigateToSchedule: () -> Unit,
     onNavigateToMap: () -> Unit,
-    onNavigateToFAQ: () -> Unit
+    onNavigateToFAQ: () -> Unit,
+    onFestivalBannerClick: (String) -> Unit
 ) {
     val festival = bundle.festival
     val tiles = bundle.uiConfig.tiles.filter { it.enabled }.sortedBy { it.order }
 
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         // ── 0. Festival Banner Header ──
-        item { FestivalBannerHeader(festival = festival) }
+        item {
+            FestivalBannerHeader(
+                festival = festival,
+                modifier = Modifier.clickable { onFestivalBannerClick(festival.slug) }
+            )
+        }
         item { Spacer(modifier = Modifier.height(16.dp)) }
 
         // ══════════════════════════════════════════════════════════════════
