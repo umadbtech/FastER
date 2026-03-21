@@ -36,6 +36,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -89,60 +90,60 @@ fun ScheduleScreen(
     )
     val state by viewModel.uiState.collectAsState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(ScheduleBg)
-    ) {
-        // Top bar
-        TopAppBar(
-            title = {
-                Text(
-                    text = "Stage Schedule",
-                    fontWeight = FontWeight.Bold,
-                    color = ScheduleTextDark
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "Stage Schedule",
+                        fontWeight = FontWeight.Bold,
+                        color = ScheduleTextDark
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = ScheduleTextDark
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = ScheduleWhite
                 )
-            },
-            navigationIcon = {
-                IconButton(onClick = onBackClick) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = ScheduleTextDark
+            )
+        },
+        containerColor = ScheduleBg
+    ) { innerPadding ->
+        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            when {
+                state.isLoading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = ScheduleCoralRed)
+                    }
+                }
+                state.error != null -> {
+                    ScheduleErrorContent(
+                        message = state.error ?: "Unknown error",
+                        onRetry = { viewModel.retry() }
                     )
                 }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = ScheduleWhite
-            )
-        )
-
-        when {
-            state.isLoading -> {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = ScheduleCoralRed)
+                else -> {
+                    ScheduleContent(
+                        stages = state.stages,
+                        events = state.filteredEvents,
+                        days = state.days,
+                        selectedStageId = state.selectedStageId,
+                        selectedDay = state.selectedDay,
+                        onStageSelected = { viewModel.selectStage(it) },
+                        onDaySelected = { viewModel.selectDay(it) },
+                        onArtistClick = onArtistClick
+                    )
                 }
-            }
-            state.error != null -> {
-                ScheduleErrorContent(
-                    message = state.error ?: "Unknown error",
-                    onRetry = { viewModel.retry() }
-                )
-            }
-            else -> {
-                ScheduleContent(
-                    stages = state.stages,
-                    events = state.filteredEvents,
-                    days = state.days,
-                    selectedStageId = state.selectedStageId,
-                    selectedDay = state.selectedDay,
-                    onStageSelected = { viewModel.selectStage(it) },
-                    onDaySelected = { viewModel.selectDay(it) },
-                    onArtistClick = onArtistClick
-                )
             }
         }
     }

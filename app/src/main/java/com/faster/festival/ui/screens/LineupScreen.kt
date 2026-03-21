@@ -46,6 +46,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -98,31 +99,29 @@ fun LineupScreen(
 
     val uiState by viewModel.uiState.collectAsState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(LineupBg)
-    ) {
-        // Top bar
-        LineupTopBar()
-
-        when (val state = uiState) {
-            is LineupUiState.Loading -> {
-                LineupShimmerLoading()
-            }
-            is LineupUiState.Error -> {
-                LineupErrorState(
-                    message = state.message,
-                    onRetry = { viewModel.refresh() }
-                )
-            }
-            is LineupUiState.Success -> {
-                LineupSuccessContent(
-                    state = state,
-                    onArtistClick = onArtistClick,
-                    onSearchQueryChanged = { viewModel.onSearchQueryChanged(it) },
-                    onDayFilterChanged = { viewModel.onDayFilterChanged(it) }
-                )
+    Scaffold(
+        topBar = { LineupTopBar() },
+        containerColor = LineupBg
+    ) { innerPadding ->
+        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            when (val state = uiState) {
+                is LineupUiState.Loading -> {
+                    LineupShimmerLoading()
+                }
+                is LineupUiState.Error -> {
+                    LineupErrorState(
+                        message = state.message,
+                        onRetry = { viewModel.refresh() }
+                    )
+                }
+                is LineupUiState.Success -> {
+                    LineupSuccessContent(
+                        state = state,
+                        onArtistClick = onArtistClick,
+                        onSearchQueryChanged = { viewModel.onSearchQueryChanged(it) },
+                        onDayFilterChanged = { viewModel.onDayFilterChanged(it) }
+                    )
+                }
             }
         }
     }

@@ -231,14 +231,14 @@ class OnboardingRepository(
     }
 
     /**
-     * Get profile summary for current user.
+     * Get account profile for current user.
      */
-    suspend fun getProfileSummary(): Result<com.faster.festival.data.models.ProfileSummaryResponse> {
+    suspend fun getAccountProfile(): Result<com.faster.festival.data.models.AccountProfileResponse> {
         return withContext(Dispatchers.IO) {
             try {
                 val token = sessionManager.getAccessToken() ?: return@withContext Result.failure(Exception("No access token"))
                 val authHeader = "Bearer $token"
-                val response = onboardingApiService.getProfileSummary(authHeader)
+                val response = onboardingApiService.getAccountProfile(authHeader)
 
                 if (response.isSuccessful) {
                     val body = response.body()

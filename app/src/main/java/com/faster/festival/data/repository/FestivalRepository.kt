@@ -65,7 +65,7 @@ interface FestivalRepository {
 
     /**
      * Get user profile information
-     * API: GET /functions/v1/profile-summary with Authorization header
+     * API: GET /functions/v1/account-profile with Authorization header
      */
     fun getProfile(): Flow<AccountProfile>
 

@@ -43,6 +43,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -80,35 +81,39 @@ fun MapScreen(
 
     val uiState by viewModel.uiState.collectAsState()
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = {
-                Text(
-                    text = "Map",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "Map",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface
             )
-        )
-
-        when (val state = uiState) {
-            is MapUiState.Loading -> {
-                MapShimmerLoading()
-            }
-            is MapUiState.Error -> {
-                MapErrorState(
-                    message = state.message,
-                    onRetry = { viewModel.refresh() }
-                )
-            }
-            is MapUiState.Success -> {
-                MapSuccessContent(
-                    state = state,
-                    onFilterChanged = { viewModel.onFilterChanged(it) }
-                )
+        }
+    ) { innerPadding ->
+        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            when (val state = uiState) {
+                is MapUiState.Loading -> {
+                    MapShimmerLoading()
+                }
+                is MapUiState.Error -> {
+                    MapErrorState(
+                        message = state.message,
+                        onRetry = { viewModel.refresh() }
+                    )
+                }
+                is MapUiState.Success -> {
+                    MapSuccessContent(
+                        state = state,
+                        onFilterChanged = { viewModel.onFilterChanged(it) }
+                    )
+                }
             }
         }
     }

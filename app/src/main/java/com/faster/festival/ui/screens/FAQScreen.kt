@@ -37,6 +37,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -86,56 +87,56 @@ fun FAQScreen(
     )
     val state by viewModel.uiState.collectAsState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(FaqBg)
-    ) {
-        // Top bar
-        TopAppBar(
-            title = {
-                Text(
-                    text = "FAQ",
-                    fontWeight = FontWeight.Bold,
-                    color = FaqTextDark
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "FAQ",
+                        fontWeight = FontWeight.Bold,
+                        color = FaqTextDark
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = FaqTextDark
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = FaqWhite
                 )
-            },
-            navigationIcon = {
-                IconButton(onClick = onBackClick) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = FaqTextDark
+            )
+        },
+        containerColor = FaqBg
+    ) { innerPadding ->
+        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            when {
+                state.isLoading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = FaqCoralRed)
+                    }
+                }
+                state.error != null -> {
+                    FaqErrorContent(
+                        message = state.error ?: "Unknown error",
+                        onRetry = { viewModel.retry() }
                     )
                 }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = FaqWhite
-            )
-        )
-
-        when {
-            state.isLoading -> {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = FaqCoralRed)
+                else -> {
+                    FaqContent(
+                        categories = state.categories,
+                        items = state.filteredItems,
+                        selectedCategory = state.selectedCategory,
+                        onCategorySelected = { viewModel.selectCategory(it) }
+                    )
                 }
-            }
-            state.error != null -> {
-                FaqErrorContent(
-                    message = state.error ?: "Unknown error",
-                    onRetry = { viewModel.retry() }
-                )
-            }
-            else -> {
-                FaqContent(
-                    categories = state.categories,
-                    items = state.filteredItems,
-                    selectedCategory = state.selectedCategory,
-                    onCategorySelected = { viewModel.selectCategory(it) }
-                )
             }
         }
     }

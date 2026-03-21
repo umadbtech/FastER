@@ -7,7 +7,7 @@ import com.faster.festival.data.model.SaveUsernameRequest
 import com.faster.festival.data.model.EnsureOnboardingResponse
 import com.faster.festival.data.model.SaveEmergencyContactRequest
 import com.faster.festival.data.model.EnsureFestivalOnboardingResponse
-import com.faster.festival.data.models.ProfileSummaryResponse
+import com.faster.festival.data.models.AccountProfileResponse
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -91,11 +91,11 @@ interface OnboardingApiService {
     ): Response<OnboardingResponse>
 
     /**
-     * GET /functions/v1/profile-summary
-     * Get profile summary for current user.
+     * GET /functions/v1/account-profile
+     * Get account profile for current user.
      */
-    @GET("functions/v1/profile-summary")
-    suspend fun getProfileSummary(
+    @GET("functions/v1/account-profile")
+    suspend fun getAccountProfile(
         @Header("Authorization") authorization: String
-    ): Response<ProfileSummaryResponse>
+    ): Response<AccountProfileResponse>
 }
