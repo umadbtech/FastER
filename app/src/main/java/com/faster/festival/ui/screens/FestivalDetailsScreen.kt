@@ -228,21 +228,37 @@ fun FestivalDetailsScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             // ═════════════════════════════════════════════════════════════════
-            // SECTION 1 — Festival Intro
+            // SECTION 1 — About / Overview (top)
             // ═════════════════════════════════════════════════════════════════
             AnimatedVisibility(
                 visible = visible,
                 enter = fadeIn(tween(400)) + slideInVertically(tween(400)) { it / 5 }
             ) {
-                FestivalIntroSection(festival = festival, accent = accent)
+                AboutSection(
+                    festival = festival,
+                    location = location,
+                    accent = accent
+                )
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+
             // ═════════════════════════════════════════════════════════════════
-            // SECTION 2 — Event Schedule
+            // SECTION 2 — Festival Intro
             // ═════════════════════════════════════════════════════════════════
             AnimatedVisibility(
                 visible = visible,
                 enter = fadeIn(tween(500, 80)) + slideInVertically(tween(500, 80)) { it / 5 }
+            ) {
+                FestivalIntroSection(festival = festival, accent = accent)
+            }
+
+            // ═════════════════════════════════════════════════════════════════
+            // SECTION 3 — Event Schedule
+            // ═════════════════════════════════════════════════════════════════
+            AnimatedVisibility(
+                visible = visible,
+                enter = fadeIn(tween(550, 160)) + slideInVertically(tween(550, 160)) { it / 5 }
             ) {
                 EventScheduleSection(
                     festival = festival,
@@ -254,29 +270,13 @@ fun FestivalDetailsScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             // ═════════════════════════════════════════════════════════════════
-            // SECTION 3 — Quick Info Chips
-            // ═════════════════════════════════════════════════════════════════
-            AnimatedVisibility(
-                visible = visible,
-                enter = fadeIn(tween(550, 160)) + slideInVertically(tween(550, 160)) { it / 5 }
-            ) {
-                QuickInfoSection(festival = festival, accent = accent)
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // ═════════════════════════════════════════════════════════════════
-            // SECTION 4 — About / Overview
+            // SECTION 4 — Quick Info Chips
             // ═════════════════════════════════════════════════════════════════
             AnimatedVisibility(
                 visible = visible,
                 enter = fadeIn(tween(600, 240)) + slideInVertically(tween(600, 240)) { it / 5 }
             ) {
-                AboutSection(
-                    festival = festival,
-                    location = location,
-                    accent = accent
-                )
+                QuickInfoSection(festival = festival, accent = accent)
             }
 
             Spacer(modifier = Modifier.height(16.dp))

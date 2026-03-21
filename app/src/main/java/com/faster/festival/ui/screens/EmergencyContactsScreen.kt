@@ -83,7 +83,7 @@ fun EmergencyContactsScreen(modifier: Modifier = Modifier, onBackClick: () -> Un
                     } else {
                         contacts.map { c ->
                             ContactFormState(
-                                    id = c.externalId,
+                                    id = c.id,
                                     name = c.externalName ?: "",
                                     phone = c.externalPhoneE164 ?: "",
                                     relationship = c.relationship ?: "",
@@ -188,6 +188,9 @@ fun EmergencyContactsScreen(modifier: Modifier = Modifier, onBackClick: () -> Un
                     Spacer(modifier = Modifier.height(24.dp))
 
                     // Save Button
+                    val festivalId =
+                            (profileState as? ProfileState.Success)?.profile?.festivalId
+
                     Button(
                             onClick = {
                                 // Save each contact via the ViewModel
@@ -196,7 +199,11 @@ fun EmergencyContactsScreen(modifier: Modifier = Modifier, onBackClick: () -> Un
                                         editViewModel.updateContactName(form.name)
                                         editViewModel.updateContactPhone(form.phone)
                                         editViewModel.updateContactRelationship(form.relationship)
-                                        editViewModel.saveEmergencyContact()
+                                        editViewModel.saveEmergencyContact(
+                                                isPrimary = form.isPrimary,
+                                                contactId = form.id,
+                                                festivalId = festivalId
+                                        )
                                     }
                                 }
                             },

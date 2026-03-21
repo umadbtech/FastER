@@ -8,88 +8,117 @@ import kotlinx.coroutines.runBlocking
 import android.util.Log
 
 /**
- * Interceptor that automatically refreshes expired access tokens
- * using the refresh token before retrying the request
+ * OkHttp interceptor that automatically refreshes expired Supabase access tokens.
  *
  * Flow:
- * 1. Make original request with current access token
- * 2. If response is 401 or contains "JWT expired":
- *    a. Use refresh token to get new access token
- *    b. Save new tokens
- *    c. Retry original request with new token
- * 3. If refresh fails, clear session (invalid refresh token)
+ * 1. Original request proceeds with current access token
+ * 2. If response indicates token expiry (401, "JWT expired", etc.):
+ *    a. Acquire lock — only ONE thread performs the actual refresh
+ *    b. Other threads wait, then retry with the new token
+ *    c. If refresh fails, clear session (forces re-login)
+ * 3. Retry the original request exactly ONCE with the new token
+ *
+ * Thread safety:
+ * Uses a monitor lock so concurrent requests that all hit 401 don't
+ * fire multiple refresh calls. The first thread refreshes; others wait
+ * and pick up the new token from SessionManager.
  */
 class TokenRefreshInterceptor(
     private val sessionManager: EncryptedSessionManager,
     private val getAuthApiService: () -> AuthApiService
 ) : Interceptor {
 
-    private val lock = Any()
-    private var isRefreshing = false
+    companion object {
+        private const val TAG = "TokenRefresh"
+    }
+
+    // Shared lock — all interceptor instances on the same OkHttp client share this
+    private val refreshLock = Object()
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val originalRequest = chain.request()
 
-        // Attempt 1: Make request with current token
+        // Remember which token we sent so we can detect if another thread already refreshed
+        val tokenUsed = originalRequest.header("Authorization")
+
+        // Attempt 1: make request with current token
         val response = chain.proceed(originalRequest)
 
-        // Check if token refresh is needed:
-        // 1. HTTP 401 (standard auth failure)
-        // 2. Non-success response with "JWT expired" / "Invalid JWT" in body
-        //    (Supabase Edge Functions may return 500/400 with JWT errors)
-        val needsRefresh = when {
-            response.code == 401 -> true
-            !response.isSuccessful -> {
-                val bodyString = peekResponseBody(response)
-                bodyString != null && (
-                    bodyString.contains("JWT expired", ignoreCase = true) ||
-                    bodyString.contains("Invalid JWT", ignoreCase = true) ||
-                    bodyString.contains("token is expired", ignoreCase = true)
-                )
-            }
-            else -> false
+        if (!needsTokenRefresh(response)) {
+            return response
         }
 
-        if (needsRefresh) {
-            Log.d("TokenRefresh", "Token refresh needed (HTTP ${response.code})")
-            synchronized(lock) {
-                if (!isRefreshing) {
-                    isRefreshing = true
-                    try {
-                        val refreshToken = sessionManager.getRefreshToken()
-                        if (!refreshToken.isNullOrBlank()) {
-                            val refreshSuccess = runBlocking {
-                                refreshAccessToken(refreshToken)
-                            }
+        Log.d(TAG, "⏳ Token refresh needed (HTTP ${response.code}) for ${originalRequest.url.encodedPath}")
 
-                            if (refreshSuccess) {
-                                isRefreshing = false
-                                val newToken = sessionManager.getAccessToken()
-                                if (!newToken.isNullOrBlank()) {
-                                    response.close()
+        // Enter the refresh critical section
+        synchronized(refreshLock) {
+            // Check if another thread already refreshed while we were waiting
+            val currentToken = sessionManager.getAccessToken()
+            val currentAuthHeader = if (!currentToken.isNullOrBlank()) "Bearer $currentToken" else null
 
-                                    val retryRequest = originalRequest.newBuilder()
-                                        .header("Authorization", "Bearer $newToken")
-                                        .build()
+            if (currentAuthHeader != null && currentAuthHeader != tokenUsed) {
+                // Another thread already refreshed — just retry with the new token
+                Log.d(TAG, "✅ Token was already refreshed by another thread, retrying")
+                response.close()
+                val retryRequest = originalRequest.newBuilder()
+                    .header("Authorization", currentAuthHeader)
+                    .build()
+                return chain.proceed(retryRequest)
+            }
 
-                                    Log.d("TokenRefresh", "Retrying request with refreshed token")
-                                    return chain.proceed(retryRequest)
-                                }
-                            }
-                        }
-                    } finally {
-                        isRefreshing = false
-                    }
-                }
+            // We're the first thread — perform the refresh
+            val refreshToken = sessionManager.getRefreshToken()
+            if (refreshToken.isNullOrBlank()) {
+                Log.w(TAG, "❌ No refresh token available — cannot refresh")
+                sessionManager.clearSession()
+                return response
+            }
+
+            val refreshSuccess = runBlocking {
+                performRefresh(refreshToken)
+            }
+
+            if (!refreshSuccess) {
+                Log.w(TAG, "❌ Refresh failed — session cleared, user must re-login")
+                // Session already cleared inside performRefresh on failure
+                return response
             }
         }
 
-        return response
+        // Refresh succeeded — retry original request with new token
+        val newToken = sessionManager.getAccessToken()
+        if (newToken.isNullOrBlank()) {
+            Log.w(TAG, "❌ Access token is null after successful refresh")
+            return response
+        }
+
+        response.close()
+        val retryRequest = originalRequest.newBuilder()
+            .header("Authorization", "Bearer $newToken")
+            .build()
+
+        Log.d(TAG, "🔄 Retrying ${originalRequest.url.encodedPath} with refreshed token")
+        return chain.proceed(retryRequest)
     }
 
     /**
-     * Peek at the response body without consuming it.
-     * Returns the body string (up to 4KB) or null if body can't be read.
+     * Check whether the response indicates the access token has expired.
+     * Supabase can return:
+     * - HTTP 401 (standard)
+     * - HTTP 500/400 with "JWT expired" in the body (Edge Functions)
+     */
+    private fun needsTokenRefresh(response: Response): Boolean {
+        if (response.code == 401) return true
+        if (response.isSuccessful) return false
+
+        val bodyString = peekResponseBody(response) ?: return false
+        return bodyString.contains("JWT expired", ignoreCase = true) ||
+                bodyString.contains("Invalid JWT", ignoreCase = true) ||
+                bodyString.contains("token is expired", ignoreCase = true)
+    }
+
+    /**
+     * Peek at the response body without consuming it (up to 4KB).
      */
     private fun peekResponseBody(response: Response): String? {
         return try {
@@ -97,44 +126,43 @@ class TokenRefreshInterceptor(
             source.request(4096)
             source.buffer.clone().readUtf8(minOf(4096, source.buffer.size))
         } catch (e: Exception) {
-            Log.w("TokenRefresh", "Failed to peek response body: ${e.message}")
+            Log.w(TAG, "Failed to peek response body: ${e.message}")
             null
         }
     }
 
-    private suspend fun refreshAccessToken(refreshToken: String): Boolean {
+    /**
+     * Call Supabase refresh endpoint. Returns true on success.
+     * On failure, clears the session so the user is redirected to login.
+     */
+    private suspend fun performRefresh(refreshToken: String): Boolean {
         return try {
-            Log.d("TokenRefresh", "Attempting to refresh access token...")
+            Log.d(TAG, "🔑 Calling Supabase refresh endpoint...")
             val request = RefreshTokenRequest(refreshToken = refreshToken)
-            // ✅ Get authApiService lazily when actually needed
             val authApiService = getAuthApiService()
             val response = authApiService.refreshToken(request)
 
             if (response.isSuccessful) {
-                val newTokens = response.body()
-                if (newTokens != null && !newTokens.accessToken.isNullOrBlank()) {
-                    Log.d("TokenRefresh", "✅ Token refreshed successfully")
-                    sessionManager.saveAccessToken(newTokens.accessToken)
-                    newTokens.refreshToken?.let {
-                        sessionManager.saveRefreshToken(it)
-                    }
+                val body = response.body()
+                if (body != null && !body.accessToken.isNullOrBlank()) {
+                    sessionManager.saveAccessToken(body.accessToken)
+                    body.refreshToken?.let { sessionManager.saveRefreshToken(it) }
+                    Log.d(TAG, "✅ Token refreshed successfully (expires_in=${body.expiresIn}s)")
                     true
                 } else {
-                    Log.w("TokenRefresh", "❌ Refresh response body is null or empty")
+                    Log.w(TAG, "❌ Refresh response body is null or has no access token")
                     sessionManager.clearSession()
                     false
                 }
             } else {
-                // Refresh failed - token is invalid
-                Log.w("TokenRefresh", "❌ Token refresh failed: ${response.code()}")
+                Log.w(TAG, "❌ Refresh endpoint returned HTTP ${response.code()}")
                 sessionManager.clearSession()
                 false
             }
         } catch (e: Exception) {
-            Log.e("TokenRefresh", "❌ Token refresh exception: ${e.message}", e)
+            Log.e(TAG, "❌ Refresh exception: ${e.message}", e)
             sessionManager.clearSession()
             false
         }
     }
 }
-

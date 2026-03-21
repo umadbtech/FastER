@@ -10,6 +10,7 @@ import com.faster.festival.data.models.ProfileSummary
 import com.faster.festival.data.models.toProfileSummary
 import com.faster.festival.data.remote.ProfileApiService
 import com.faster.festival.data.remote.SaveEmergencyContactRequest
+import com.faster.festival.data.remote.SaveEmergencyContactResponse
 import com.faster.festival.data.remote.SaveLegalNameRequest
 import java.io.File
 import java.io.FileOutputStream
@@ -22,11 +23,11 @@ import okhttp3.RequestBody.Companion.asRequestBody
 /** Repository for Profile-related API calls */
 class ProfileRepository(private val profileApiService: ProfileApiService) {
 
-    /** Load profile summary from API */
+    /** Load account profile from API — GET /functions/v1/account-profile */
     fun loadProfileSummary(accessToken: String): Flow<Result<ProfileSummary>> = flow {
         try {
             val response =
-                    profileApiService.getProfileSummary(authorization = "Bearer $accessToken")
+                    profileApiService.getAccountProfile(authorization = "Bearer $accessToken")
 
             if (response.ok) {
                 val profileSummary = response.toProfileSummary()
@@ -35,7 +36,7 @@ class ProfileRepository(private val profileApiService: ProfileApiService) {
                 emit(Result.failure(Exception("Profile response not ok")))
             }
         } catch (e: Exception) {
-            Log.e("ProfileRepository", "Error loading profile summary: ${e.message}", e)
+            Log.e("ProfileRepository", "Error loading account profile: ${e.message}", e)
             emit(Result.failure(e))
         }
     }
@@ -45,7 +46,7 @@ class ProfileRepository(private val profileApiService: ProfileApiService) {
             firstName: String,
             lastName: String,
             accessToken: String
-    ): Flow<Result<ProfileSummary>> = flow {
+    ): Flow<Result<Unit>> = flow {
         try {
             val request = SaveLegalNameRequest(firstName, lastName)
             val response =
@@ -56,9 +57,8 @@ class ProfileRepository(private val profileApiService: ProfileApiService) {
 
             if (response.isSuccessful) {
                 val body = response.body()
-                if (body != null && body.ok) {
-                    val profileSummary = body.toProfileSummary()
-                    emit(Result.success(profileSummary))
+                if (body != null && body.saved == true) {
+                    emit(Result.success(Unit))
                 } else {
                     emit(Result.failure(Exception("Save legal name failed")))
                 }
@@ -241,25 +241,12 @@ class ProfileRepository(private val profileApiService: ProfileApiService) {
         }
     }
 
-    /** Save (add or update) emergency contact */
+    /** Save (create or update) emergency contact via POST /functions/v1/save-emergency-contact */
     fun saveEmergencyContact(
-            name: String,
-            phone: String,
-            relationship: String? = null,
-            isPrimary: Boolean = false,
-            contactId: String? = null,
+            request: SaveEmergencyContactRequest,
             accessToken: String
-    ): Flow<Result<ProfileSummary>> = flow {
+    ): Flow<Result<SaveEmergencyContactResponse>> = flow {
         try {
-            val request =
-                    SaveEmergencyContactRequest(
-                            name = name,
-                            phone = phone,
-                            relationship = relationship,
-                            isPrimary = isPrimary,
-                            contactId = contactId
-                    )
-
             val response =
                     profileApiService.saveEmergencyContact(
                             authorization = "Bearer $accessToken",
@@ -268,9 +255,8 @@ class ProfileRepository(private val profileApiService: ProfileApiService) {
 
             if (response.isSuccessful) {
                 val body = response.body()
-                if (body != null && body.ok) {
-                    val profileSummary = body.toProfileSummary()
-                    emit(Result.success(profileSummary))
+                if (body != null && body.saved) {
+                    emit(Result.success(body))
                 } else {
                     emit(Result.failure(Exception("Save emergency contact failed")))
                 }
@@ -284,23 +270,23 @@ class ProfileRepository(private val profileApiService: ProfileApiService) {
         }
     }
 
-    /** Delete emergency contact by ID */
+    /** Delete emergency contact via POST /functions/v1/save-emergency-contact with delete:true */
     fun deleteEmergencyContact(
             contactId: String,
             accessToken: String
-    ): Flow<Result<ProfileSummary>> = flow {
+    ): Flow<Result<SaveEmergencyContactResponse>> = flow {
         try {
+            val request = SaveEmergencyContactRequest(id = contactId, delete = true)
             val response =
-                    profileApiService.deleteEmergencyContact(
+                    profileApiService.saveEmergencyContact(
                             authorization = "Bearer $accessToken",
-                            contactId = contactId
+                            request = request
                     )
 
             if (response.isSuccessful) {
                 val body = response.body()
-                if (body != null && body.ok) {
-                    val profileSummary = body.toProfileSummary()
-                    emit(Result.success(profileSummary))
+                if (body != null && body.saved) {
+                    emit(Result.success(body))
                 } else {
                     emit(Result.failure(Exception("Delete emergency contact failed")))
                 }

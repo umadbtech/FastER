@@ -1,6 +1,7 @@
 package com.faster.festival.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +17,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
+import java.util.TimeZone
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.faster.festival.data.local.EncryptedSessionManager
 import com.faster.festival.data.repository.ProfileRepository
@@ -58,6 +63,7 @@ fun PersonalInfoEditScreen(
     var phone by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var genderExpanded by remember { mutableStateOf(false) }
+    var showDatePicker by remember { mutableStateOf(false) }
 
     // Load profile data
     LaunchedEffect(Unit) {
@@ -79,6 +85,24 @@ fun PersonalInfoEditScreen(
             if (formState.lastName.isBlank() && lastName.isNotBlank()) {
                 editViewModel.updateLastName(lastName)
             }
+            // Phone & Email (local state)
+            if (phone.isBlank()) {
+                phone = profile.phone ?: ""
+            }
+            if (email.isBlank()) {
+                email = profile.email ?: ""
+            }
+            // Date of Birth
+            if (formState.dateOfBirth.isBlank() && !profile.dateOfBirth.isNullOrBlank()) {
+                editViewModel.updateDateOfBirth(profile.dateOfBirth)
+            }
+            // Gender Identity
+            if (formState.genderIdentity.isBlank() && !profile.genderIdentity.isNullOrBlank()) {
+                // Convert API value to display label (e.g. "male" -> "Male")
+                val displayLabel = com.faster.festival.data.model.GenderIdentity
+                        .toDisplayLabel(profile.genderIdentity) ?: profile.genderIdentity
+                editViewModel.updateGenderIdentity(displayLabel)
+            }
         }
     }
 
@@ -90,38 +114,35 @@ fun PersonalInfoEditScreen(
         }
     }
 
-    Column(
-            modifier =
-                    modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
-    ) {
-        // Top bar — clean white with back arrow and title
-        Row(
-                modifier =
-                        Modifier.fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surface)
-                                .statusBarsPadding()
-                                .padding(horizontal = 4.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        modifier = Modifier.size(24.dp)
+    Scaffold(
+            topBar = {
+                TopAppBar(
+                        title = {
+                            Text(
+                                    "Update Personal Information",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp
+                            )
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = onBackClick) {
+                                Icon(
+                                        Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Back"
+                                )
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = MaterialTheme.colorScheme.surface
+                        )
                 )
             }
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                    "Update Personal Information",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-            )
-        }
-
+    ) { innerPadding ->
         // Scrollable form content
         Column(
                 modifier =
-                        Modifier.fillMaxSize()
+                        modifier.fillMaxSize()
+                                .padding(innerPadding)
                                 .verticalScroll(rememberScrollState())
                                 .padding(horizontal = 24.dp, vertical = 20.dp)
         ) {
@@ -174,18 +195,66 @@ fun PersonalInfoEditScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Date of Birth
+            // Date of Birth — read-only field that opens a date picker
             FormFieldLabel("Date of Birth")
             Spacer(modifier = Modifier.height(6.dp))
-            OutlinedTextField(
-                    value = formState.dateOfBirth,
-                    onValueChange = { editViewModel.updateDateOfBirth(it) },
-                    placeholder = { Text("May 13, 1964", color = Color(0xFFB0B0B0)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = formFieldColors()
-            )
+            Box(modifier = Modifier.fillMaxWidth().clickable { showDatePicker = true }) {
+                OutlinedTextField(
+                        value = formatDateForDisplay(formState.dateOfBirth),
+                        onValueChange = {},
+                        readOnly = true,
+                        enabled = false,
+                        placeholder = { Text("Select date", color = Color(0xFFB0B0B0)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                disabledBorderColor = Color(0xFFD6D6D6),
+                                disabledPlaceholderColor = Color(0xFFB0B0B0)
+                        )
+                )
+            }
+
+            if (showDatePicker) {
+                val datePickerState = rememberDatePickerState(
+                        initialSelectedDateMillis = parseDateToMillis(formState.dateOfBirth)
+                )
+                DatePickerDialog(
+                        onDismissRequest = { showDatePicker = false },
+                        confirmButton = {
+                            TextButton(
+                                    onClick = {
+                                        datePickerState.selectedDateMillis?.let { millis ->
+                                            val apiDate = formatMillisToApiDate(millis)
+                                            editViewModel.updateDateOfBirth(apiDate)
+                                        }
+                                        showDatePicker = false
+                                    },
+                                    colors = ButtonDefaults.textButtonColors(contentColor = CoralRed)
+                            ) {
+                                Text("OK")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(
+                                    onClick = { showDatePicker = false },
+                                    colors = ButtonDefaults.textButtonColors(contentColor = CoralRed)
+                            ) {
+                                Text("Cancel")
+                            }
+                        },
+                        colors = DatePickerDefaults.colors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    DatePicker(
+                            state = datePickerState,
+                            colors = DatePickerDefaults.colors(
+                                    selectedDayContainerColor = CoralRed,
+                                    todayDateBorderColor = CoralRed
+                            )
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(20.dp))
 
@@ -313,4 +382,36 @@ private fun formFieldColors(): TextFieldColors {
             unfocusedBorderColor = Color(0xFFD6D6D6),
             cursorColor = CoralRed
     )
+}
+
+/** Convert API date "YYYY-MM-DD" to display format "MMM dd, yyyy" (e.g. "Jan 01, 1990") */
+private fun formatDateForDisplay(apiDate: String): String {
+    if (apiDate.isBlank()) return ""
+    return try {
+        val parser = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        parser.timeZone = TimeZone.getTimeZone("UTC")
+        val date = parser.parse(apiDate) ?: return apiDate
+        SimpleDateFormat("MMM dd, yyyy", Locale.US).format(date)
+    } catch (_: Exception) {
+        apiDate
+    }
+}
+
+/** Parse API date "YYYY-MM-DD" to epoch millis for DatePickerState */
+private fun parseDateToMillis(apiDate: String): Long? {
+    if (apiDate.isBlank()) return null
+    return try {
+        val parser = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        parser.timeZone = TimeZone.getTimeZone("UTC")
+        parser.parse(apiDate)?.time
+    } catch (_: Exception) {
+        null
+    }
+}
+
+/** Convert epoch millis from DatePicker to API date "YYYY-MM-DD" */
+private fun formatMillisToApiDate(millis: Long): String {
+    val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    formatter.timeZone = TimeZone.getTimeZone("UTC")
+    return formatter.format(millis)
 }

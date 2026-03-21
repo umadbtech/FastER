@@ -29,12 +29,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -182,10 +186,12 @@ fun HomeScreen(
     onHeroItemClick: (String) -> Unit = {},
     onPromotionClick: (String) -> Unit = {},
     onSponsorClick: (String) -> Unit = {},
+    onAnnouncementClick: (String) -> Unit = {},
     onNavigateToSchedule: () -> Unit = {},
     onNavigateToMap: () -> Unit = {},
     onNavigateToFAQ: () -> Unit = {},
     onFestivalBannerClick: (String) -> Unit = {},
+    onUpcomingEventClick: (String) -> Unit = {},
     festivalSlug: String = AppConfig.DEFAULT_FESTIVAL_SLUG,
     sessionManager: EncryptedSessionManager? = null
 ) {
@@ -205,16 +211,18 @@ fun HomeScreen(
         modifier = Modifier.fillMaxSize()
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
+            val topBarHeight = 56.dp + WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
             when (val state = uiState) {
                 is HomeUiState.Loading -> {
                     Column(modifier = Modifier.fillMaxSize()) {
-                        Spacer(modifier = Modifier.height(56.dp))
+                        Spacer(modifier = Modifier.height(topBarHeight))
                         HomeShimmerLoading()
                     }
                 }
                 is HomeUiState.Error -> {
                     Column(modifier = Modifier.fillMaxSize()) {
-                        Spacer(modifier = Modifier.height(56.dp))
+                        Spacer(modifier = Modifier.height(topBarHeight))
                         HomeErrorState(
                             message = state.message,
                             onRetry = { viewModel.refresh() }
@@ -228,10 +236,12 @@ fun HomeScreen(
                         onHeroItemClick = onHeroItemClick,
                         onPromotionClick = onPromotionClick,
                         onSponsorClick = onSponsorClick,
+                        onAnnouncementClick = onAnnouncementClick,
                         onNavigateToSchedule = onNavigateToSchedule,
                         onNavigateToMap = onNavigateToMap,
                         onNavigateToFAQ = onNavigateToFAQ,
-                        onFestivalBannerClick = onFestivalBannerClick
+                        onFestivalBannerClick = onFestivalBannerClick,
+                        onUpcomingEventClick = onUpcomingEventClick
                     )
                 }
             }
@@ -359,10 +369,12 @@ private fun HomeSuccessContent(
     onHeroItemClick: (String) -> Unit,
     onPromotionClick: (String) -> Unit,
     onSponsorClick: (String) -> Unit,
+    onAnnouncementClick: (String) -> Unit,
     onNavigateToSchedule: () -> Unit,
     onNavigateToMap: () -> Unit,
     onNavigateToFAQ: () -> Unit,
-    onFestivalBannerClick: (String) -> Unit
+    onFestivalBannerClick: (String) -> Unit,
+    onUpcomingEventClick: (String) -> Unit
 ) {
     val festival = bundle.festival
     val tiles = bundle.uiConfig.tiles.filter { it.enabled }.sortedBy { it.order }
@@ -406,6 +418,7 @@ private fun HomeSuccessContent(
                     AnnouncementsSection(
                         title = resolveSectionTitle(bundle, "announcements"),
                         announcements = announcements,
+                        onAnnouncementClick = onAnnouncementClick,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
@@ -433,6 +446,7 @@ private fun HomeSuccessContent(
                 items(upcomingEvents.size) { index ->
                     UpcomingEventCard(
                         event = upcomingEvents[index],
+                        onClick = { onUpcomingEventClick(upcomingEvents[index].id) },
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                     )
                 }
@@ -705,6 +719,7 @@ private fun SectionTitle(
 private fun AnnouncementsSection(
     title: String,
     announcements: List<Announcement>,
+    onAnnouncementClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -722,7 +737,10 @@ private fun AnnouncementsSection(
             )
 
             announcements.forEach { announcement ->
-                AnnouncementAlertItem(announcement = announcement)
+                AnnouncementAlertItem(
+                    announcement = announcement,
+                    onClick = { onAnnouncementClick(announcement.id) }
+                )
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
@@ -750,6 +768,7 @@ private fun AnnouncementsSection(
 @Composable
 private fun AnnouncementAlertItem(
     announcement: Announcement,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -757,7 +776,7 @@ private fun AnnouncementAlertItem(
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(Color.White)
-            .clickable { /* open announcement detail */ }
+            .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1400,9 +1419,11 @@ private fun ModuleEmptyState(
 @Composable
 private fun UpcomingEventCard(
     event: UpcomingEvent,
+    onClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Card(
+        onClick = onClick,
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -1683,15 +1704,20 @@ fun FasterTopAppBar(
     onWristbandClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .height(56.dp)
             .background(Color(0xFFF7F7F7))
-            .padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .statusBarsPadding()
     ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
         Box(
             modifier = Modifier
                 .size(36.dp)
@@ -1756,7 +1782,8 @@ fun FasterTopAppBar(
                 tint = Color(0xFF555555)
             )
         }
-    }
+    } // Row
+    } // Column
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -2201,7 +2228,8 @@ private fun AnnouncementsSectionPreview() {
                     publishedAt = null,
                     order = 0
                 )
-            )
+            ),
+            onAnnouncementClick = {}
         )
     }
 }

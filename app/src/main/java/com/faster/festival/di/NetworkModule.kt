@@ -107,25 +107,29 @@ object NetworkModule {
         }
     }
 
-    // ✅ Build OkHttp client with all interceptors in correct order
-    private val client =
-            OkHttpClient.Builder()
-                    // Step 1: Log requests
-                    .addInterceptor(loggingInterceptor)
-                    // Step 2: Add API key to all requests
-                    .addInterceptor(apiKeyInterceptor)
-                    // Step 3: Add Bearer token if available
-                    .addInterceptor(createAuthorizationInterceptor())
-                    // Step 4: Detect 401 and refresh token (MUST be LAST to retry with new token)
-                    .also { builder ->
-                        createTokenRefreshInterceptor()?.let {
-                            builder.addInterceptor(it)
-                        }
-                    }
-                    .connectTimeout(30, TimeUnit.SECONDS)
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .writeTimeout(30, TimeUnit.SECONDS)
-                    .build()
+    // ✅ Build OkHttp client LAZILY so it's created AFTER initializeWithSessionManager()
+    // This is critical: if built eagerly, sessionManager is still null and
+    // TokenRefreshInterceptor won't be installed — causing all 401s to go unhandled.
+    private val client by lazy {
+        OkHttpClient.Builder()
+                // Step 1: Log requests
+                .addInterceptor(loggingInterceptor)
+                // Step 2: Add API key to all requests
+                .addInterceptor(apiKeyInterceptor)
+                // Step 3: Add Bearer token if available
+                .addInterceptor(createAuthorizationInterceptor())
+                // Step 4: Detect 401 and refresh token (MUST be LAST to retry with new token)
+                .also { builder ->
+                    createTokenRefreshInterceptor()?.let {
+                        builder.addInterceptor(it)
+                        Log.d(TAG, "✅ TokenRefreshInterceptor installed")
+                    } ?: Log.w(TAG, "⚠️ TokenRefreshInterceptor NOT installed (sessionManager is null)")
+                }
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .build()
+    }
 
     private val retrofit by lazy {
         val baseUrl = BuildConfig.VITE_SUPABASE_URL

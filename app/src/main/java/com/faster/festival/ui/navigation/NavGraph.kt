@@ -50,6 +50,9 @@ import com.faster.festival.ui.screens.FAQScreen
 import com.faster.festival.ui.screens.FestivalDetailsScreen
 import com.faster.festival.ui.screens.FestivalDetailsLoadingState
 import com.faster.festival.ui.screens.FestivalDetailsErrorState
+import com.faster.festival.ui.screens.UpcomingEventDetailScreen
+import com.faster.festival.ui.screens.UpcomingEventDetailLoadingState
+import com.faster.festival.ui.screens.UpcomingEventDetailErrorState
 import com.faster.festival.ui.screens.FasterScreen
 import com.faster.festival.ui.screens.HeroDetailScreen
 import com.faster.festival.ui.screens.FriendsScreen
@@ -64,6 +67,7 @@ import com.faster.festival.ui.screens.NotificationSettingsScreen
 import com.faster.festival.ui.screens.PaymentSettingsScreen
 import com.faster.festival.ui.screens.PersonalInfoEditScreen
 import com.faster.festival.ui.screens.PrivacyPolicyScreen
+import com.faster.festival.ui.screens.AnnouncementDetailScreen
 import com.faster.festival.ui.screens.PromotionDetailScreen
 import com.faster.festival.ui.screens.SponsorDetailScreen
 import com.faster.festival.ui.screens.SupportTicketScreen
@@ -109,10 +113,12 @@ object Routes {
     const val FAQ = "faq"
     const val ACCOUNT_MANAGEMENT = "account_management"
     const val ABOUT_FASTER = "about_faster"
+    const val ANNOUNCEMENT_DETAIL = "announcement/{announcementId}"
     const val PROMOTION_DETAIL = "promotion/{promotionId}"
     const val SPONSOR_DETAIL = "sponsor/{sponsorId}"
     const val HERO_DETAIL = "hero/{heroItemId}"
     const val FESTIVAL_DETAILS = "festival_details/{festivalSlug}"
+    const val UPCOMING_EVENT_DETAIL = "upcoming_event/{eventId}"
     const val STAGE_SCHEDULE = "stage_schedule"
 }
 
@@ -346,12 +352,20 @@ fun NavGraph(
                     val encoded = android.net.Uri.encode(sponsorId)
                     navController.navigate("sponsor/$encoded")
                 },
+                onAnnouncementClick = { announcementId ->
+                    val encoded = android.net.Uri.encode(announcementId)
+                    navController.navigate("announcement/$encoded")
+                },
                 onNavigateToSchedule = { navController.navigate(Routes.STAGE_SCHEDULE) },
                 onNavigateToMap = { navController.navigate(Routes.MAP) },
                 onNavigateToFAQ = { navController.navigate(Routes.FAQ) },
                 onFestivalBannerClick = { festivalSlug ->
                     val encoded = android.net.Uri.encode(festivalSlug)
                     navController.navigate("festival_details/$encoded")
+                },
+                onUpcomingEventClick = { eventId ->
+                    val encoded = android.net.Uri.encode(eventId)
+                    navController.navigate("upcoming_event/$encoded")
                 },
                 sessionManager = sessionManager
             )
@@ -542,6 +556,50 @@ fun NavGraph(
         }
 
         composable(
+            route = Routes.ANNOUNCEMENT_DETAIL,
+            arguments = listOf(
+                navArgument("announcementId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val announcementId = backStackEntry.arguments?.getString("announcementId") ?: return@composable
+            val decodedId = android.net.Uri.decode(announcementId)
+
+            val announcementViewModel: com.faster.festival.ui.viewmodel.AnnouncementDetailViewModel = viewModel(
+                factory = com.faster.festival.ui.viewmodel.AnnouncementDetailViewModel.Factory(
+                    appHomeApi = NetworkModule.appHomeApi,
+                    festivalSlug = AppConfig.DEFAULT_FESTIVAL_SLUG,
+                    announcementId = decodedId
+                )
+            )
+            val announcementState = announcementViewModel.state.collectAsState()
+
+            when (val s = announcementState.value) {
+                is com.faster.festival.ui.viewmodel.AnnouncementDetailState.Loading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+                is com.faster.festival.ui.viewmodel.AnnouncementDetailState.Success -> {
+                    AnnouncementDetailScreen(
+                        announcement = s.announcement,
+                        onBackClick = { navController.popBackStack() }
+                    )
+                }
+                is com.faster.festival.ui.viewmodel.AnnouncementDetailState.Error -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(s.message)
+                    }
+                }
+            }
+        }
+
+        composable(
             route = Routes.PROMOTION_DETAIL,
             arguments = listOf(
                 navArgument("promotionId") { type = NavType.StringType }
@@ -708,6 +766,43 @@ fun NavGraph(
                 }
                 is com.faster.festival.ui.viewmodel.FestivalDetailsState.Error -> {
                     FestivalDetailsErrorState(
+                        message = s.message,
+                        onBackClick = { navController.popBackStack() }
+                    )
+                }
+            }
+        }
+
+        composable(
+            route = Routes.UPCOMING_EVENT_DETAIL,
+            arguments = listOf(
+                navArgument("eventId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val eventId = backStackEntry.arguments?.getString("eventId") ?: return@composable
+            val decodedId = android.net.Uri.decode(eventId)
+
+            val eventViewModel: com.faster.festival.ui.viewmodel.UpcomingEventDetailViewModel = viewModel(
+                factory = com.faster.festival.ui.viewmodel.UpcomingEventDetailViewModel.Factory(
+                    appHomeApi = NetworkModule.appHomeApi,
+                    festivalSlug = AppConfig.DEFAULT_FESTIVAL_SLUG,
+                    eventId = decodedId
+                )
+            )
+            val state = eventViewModel.state.collectAsState()
+
+            when (val s = state.value) {
+                is com.faster.festival.ui.viewmodel.UpcomingEventDetailState.Loading -> {
+                    UpcomingEventDetailLoadingState()
+                }
+                is com.faster.festival.ui.viewmodel.UpcomingEventDetailState.Success -> {
+                    UpcomingEventDetailScreen(
+                        event = s.event,
+                        onBackClick = { navController.popBackStack() }
+                    )
+                }
+                is com.faster.festival.ui.viewmodel.UpcomingEventDetailState.Error -> {
+                    UpcomingEventDetailErrorState(
                         message = s.message,
                         onBackClick = { navController.popBackStack() }
                     )

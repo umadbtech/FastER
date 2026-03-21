@@ -132,8 +132,8 @@ class ProfileEditViewModel(
                 ->
                 _editState.value =
                         result.fold(
-                                onSuccess = { profile ->
-                                    ProfileEditUiState.Success("Name saved successfully", profile)
+                                onSuccess = {
+                                    ProfileEditUiState.Success("Name saved successfully")
                                 },
                                 onFailure = { error ->
                                     ProfileEditUiState.Error(
@@ -368,8 +368,12 @@ class ProfileEditViewModel(
         return isValid
     }
 
-    /** Save emergency contact */
-    fun saveEmergencyContact() {
+    /** Save emergency contact (create or update) */
+    fun saveEmergencyContact(
+            isPrimary: Boolean = false,
+            contactId: String? = null,
+            festivalId: String? = null
+    ) {
         if (!validateContactForm()) return
 
         viewModelScope.launch {
@@ -380,22 +384,27 @@ class ProfileEditViewModel(
                 _editState.value =
                         ProfileEditUiState.Error(
                                 "Session expired. Please log in again.",
-                                { saveEmergencyContact() }
+                                { saveEmergencyContact(isPrimary, contactId, festivalId) }
                         )
                 return@launch
             }
 
             val state = _formState.value
-            profileRepository.saveEmergencyContact(
+            val request =
+                    com.faster.festival.data.remote.SaveEmergencyContactRequest(
+                            festivalId = festivalId,
+                            id = contactId,
                             name = state.contactName,
                             phone = state.contactPhone,
                             relationship = state.contactRelationship.ifBlank { null },
-                            accessToken = token
+                            isPrimary = isPrimary
                     )
+
+            profileRepository.saveEmergencyContact(request = request, accessToken = token)
                     .collect { result ->
                         _editState.value =
                                 result.fold(
-                                        onSuccess = { profile ->
+                                        onSuccess = {
                                             // Clear form
                                             _formState.update {
                                                 it.copy(
@@ -405,15 +414,14 @@ class ProfileEditViewModel(
                                                 )
                                             }
                                             ProfileEditUiState.Success(
-                                                    "Emergency contact saved successfully",
-                                                    profile
+                                                    "Emergency contact saved successfully"
                                             )
                                         },
                                         onFailure = { error ->
                                             ProfileEditUiState.Error(
                                                     error.message
                                                             ?: "Failed to save emergency contact",
-                                                    { saveEmergencyContact() }
+                                                    { saveEmergencyContact(isPrimary, contactId, festivalId) }
                                             )
                                         }
                                 )
@@ -421,7 +429,7 @@ class ProfileEditViewModel(
         }
     }
 
-    /** Delete emergency contact */
+    /** Delete emergency contact via POST with delete:true */
     fun deleteEmergencyContact(contactId: String) {
         viewModelScope.launch {
             _editState.value = ProfileEditUiState.Loading
@@ -439,8 +447,8 @@ class ProfileEditViewModel(
             profileRepository.deleteEmergencyContact(contactId, token).collect { result ->
                 _editState.value =
                         result.fold(
-                                onSuccess = { profile ->
-                                    ProfileEditUiState.Success("Emergency contact deleted", profile)
+                                onSuccess = {
+                                    ProfileEditUiState.Success("Emergency contact deleted")
                                 },
                                 onFailure = { error ->
                                     ProfileEditUiState.Error(

@@ -7,7 +7,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -32,6 +31,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -65,12 +65,10 @@ class MainActivity : FragmentActivity() {
 
         enableEdgeToEdge()
 
-        // Hide status bar — full immersive view
+        // Enable edge-to-edge with visible status bar
         WindowCompat.setDecorFitsSystemWindows(window, false)
         val insetsController = WindowInsetsControllerCompat(window, window.decorView)
-        insetsController.hide(WindowInsetsCompat.Type.statusBars())
-        insetsController.systemBarsBehavior =
-            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        insetsController.isAppearanceLightStatusBars = true
 
         val sessionManager = EncryptedSessionManager(applicationContext)
         NetworkModule.initializeWithSessionManager(sessionManager)
@@ -143,20 +141,26 @@ fun FastERApp(
     authRepository: AuthRepository,
     sessionManager: EncryptedSessionManager
 ) {
-    var showSplash by remember { mutableStateOf(true) }
     val navController = rememberNavController()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
 
-    val mainViewModel: MainViewModel = viewModel(factory = MainViewModel.Factory(sessionManager))
+    val mainViewModel: MainViewModel = viewModel(
+        factory = MainViewModel.Factory(sessionManager, NetworkModule.authApiService)
+    )
     val startDestination by mainViewModel.startDestination.collectAsState()
 
+    // Minimum splash display so logo + spinner are visible even when auth resolves instantly
+    var splashMinElapsed by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(1200)
+        splashMinElapsed = true
+    }
+
+    val showSplash = !splashMinElapsed || startDestination == null
+
     if (showSplash) {
-        SplashScreen(onSplashFinished = { showSplash = false })
-    } else if (startDestination == null) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
-        }
+        SplashScreen()
     } else {
         val showBottomNav = currentRoute in bottomNavRoutes
 
@@ -247,11 +251,7 @@ fun FastERBottomNavBar(
 }
 
 @Composable
-fun SplashScreen(onSplashFinished: () -> Unit) {
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        delay(1500)
-        onSplashFinished()
-    }
+fun SplashScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
