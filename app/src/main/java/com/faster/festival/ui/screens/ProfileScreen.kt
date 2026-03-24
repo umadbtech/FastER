@@ -499,6 +499,7 @@ fun MySettingsSection(
     onNotificationsClick: () -> Unit = {},
     onLocationClick: () -> Unit = {},
     onPaymentsClick: () -> Unit = {},
+    onFriendsClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -538,6 +539,12 @@ fun MySettingsSection(
                     icon = Icons.Default.Payment,
                     label = "Payments",
                     onClick = onPaymentsClick,
+                    showDivider = true
+                )
+                SettingsMenuItem(
+                    icon = Icons.Default.Group,
+                    label = "Friends & Family",
+                    onClick = onFriendsClick,
                     showDivider = false
                 )
             }
@@ -720,6 +727,7 @@ fun ProfileScreenNew(
     onNotificationsClick: () -> Unit = {},
     onLocationClick: () -> Unit = {},
     onPaymentsClick: () -> Unit = {},
+    onFriendsClick: () -> Unit = {},
     onAboutClick: () -> Unit = {},
     onReportClick: () -> Unit = {},
     onTermsClick: () -> Unit = {},
@@ -771,7 +779,8 @@ fun ProfileScreenNew(
                 onHealthClick = onHealthClick,
                 onNotificationsClick = onNotificationsClick,
                 onLocationClick = onLocationClick,
-                onPaymentsClick = onPaymentsClick
+                onPaymentsClick = onPaymentsClick,
+                onFriendsClick = onFriendsClick
             )
         }
 
@@ -821,6 +830,7 @@ fun EnhancedProfileScreenWithNavigation(
     onNavigateToNotifications: () -> Unit,
     onNavigateToLocation: () -> Unit,
     onNavigateToPayments: () -> Unit,
+    onNavigateToFriends: () -> Unit = {},
     onNavigateToReportIssue: () -> Unit,
     onNavigateToTerms: () -> Unit,
     onNavigateToPrivacy: () -> Unit,
@@ -887,6 +897,7 @@ fun EnhancedProfileScreenWithNavigation(
         onNotificationsClick = onNavigateToNotifications,
         onLocationClick = onNavigateToLocation,
         onPaymentsClick = onNavigateToPayments,
+        onFriendsClick = onNavigateToFriends,
         onReportClick = onNavigateToReportIssue,
         onTermsClick = onNavigateToTerms,
         onPrivacyClick = onNavigateToPrivacy,

@@ -425,6 +425,7 @@ fun NavGraph(
                 onNavigateToNotifications = { navController.navigate(Routes.NOTIFICATION_SETTINGS) },
                 onNavigateToLocation = { navController.navigate(Routes.LOCATION_SETTINGS) },
                 onNavigateToPayments = { navController.navigate(Routes.PAYMENT_SETTINGS) },
+                onNavigateToFriends = { navController.navigate(Routes.FRIENDS) },
                 onNavigateToReportIssue = { navController.navigate(Routes.REPORT_ISSUE) },
                 onNavigateToTerms = { navController.navigate(Routes.TERMS_CONDITIONS) },
                 onNavigateToPrivacy = { navController.navigate(Routes.PRIVACY_POLICY) },
