@@ -25,10 +25,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Directions
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -40,7 +39,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
@@ -186,66 +184,33 @@ fun PromotionDetailScreen(
                 }
             }
 
-            // Action buttons (Directions + Menu)
+            // Directions button (full width)
             item {
-                Row(
+                Button(
+                    onClick = {
+                        val address = promotion.address ?: promotion.locationText ?: ""
+                        if (address.isNotBlank()) {
+                            try {
+                                val uri = Uri.parse("geo:0,0?q=${Uri.encode(address)}")
+                                context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                            } catch (_: Exception) { }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = PromoCoralRed
+                    ),
+                    shape = RoundedCornerShape(24.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
-                    // Directions button
-                    Button(
-                        onClick = {
-                            val address = promotion.address ?: promotion.locationText ?: ""
-                            if (address.isNotBlank()) {
-                                try {
-                                    val uri = Uri.parse("geo:0,0?q=${Uri.encode(address)}")
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, uri))
-                                } catch (_: Exception) { }
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = PromoCoralRed
-                        ),
-                        shape = RoundedCornerShape(24.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            Icons.Default.Directions,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Directions", fontWeight = FontWeight.SemiBold)
-                    }
-
-                    // Menu button
-                    OutlinedButton(
-                        onClick = {
-                            promotion.menuUrl?.let { url ->
-                                try {
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                } catch (_: Exception) { }
-                            }
-                        },
-                        shape = RoundedCornerShape(24.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, PromoBorderLight),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.MenuBook,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = PromoTextDark
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            "Menu",
-                            fontWeight = FontWeight.SemiBold,
-                            color = PromoTextDark
-                        )
-                    }
+                    Icon(
+                        Icons.Default.Directions,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Directions", fontWeight = FontWeight.SemiBold)
                 }
             }
 

@@ -326,7 +326,7 @@ private fun LineupSuccessContent(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 100.dp)
+        contentPadding = PaddingValues(bottom = 140.dp)
     ) {
         // Search bar
         item {
@@ -390,7 +390,7 @@ private fun LineupSuccessContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
-                        .padding(bottom = 12.dp),
+                        .padding(bottom = 2.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     rowItems.forEach { artist ->

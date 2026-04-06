@@ -285,26 +285,6 @@ private fun EventHeaderSection(event: UpcomingEvent) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            event.status?.let { status ->
-                val (color, label) = when (status.lowercase()) {
-                    "published" -> Pair(Color(0xFF66BB6A), "Published")
-                    "draft" -> Pair(Color(0xFFFFA726), "Draft")
-                    else -> Pair(TextLight, status.replaceFirstChar { it.uppercase() })
-                }
-                Box(
-                    modifier = Modifier
-                        .background(color.copy(alpha = 0.1f), RoundedCornerShape(20.dp))
-                        .padding(horizontal = 12.dp, vertical = 5.dp)
-                ) {
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = color,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
             val duration = formatDuration(event.startsAt, event.endsAt)
             if (duration.isNotBlank()) {
                 Box(

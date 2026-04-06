@@ -16,24 +16,13 @@ data class MapVenue(
     val description: String?,
     val latitude: Double?,
     val longitude: Double?,
-    val iconUrl: String?,
-    val imageUrl: String?
+    val nextEventTitle: String?,
+    val nextEventTime: String?
 )
 
 data class MapInfo(
-    val mapImageUrl: String,
-    val thumbnailUrl: String?,
-    val venues: List<MapVenue>,
-    val facilities: List<MapFacility>
-)
-
-data class MapFacility(
-    val id: String,
-    val name: String,
-    val facilityType: String,
-    val description: String?,
-    val location: String?,
-    val openingHours: String?
+    val festivalName: String,
+    val venues: List<MapVenue>
 )
 
 sealed class MapUiState {
@@ -69,33 +58,21 @@ class NewMapViewModel(
                 if (response.isSuccessful) {
                     val body = response.body()
                     if (body != null) {
-                        val venues = body.points_of_interest.map { poi ->
+                        val venues = body.mapPoints.map { point ->
                             MapVenue(
-                                id = poi.id,
-                                name = poi.name,
-                                type = poi.type,
-                                description = poi.description,
-                                latitude = poi.latitude,
-                                longitude = poi.longitude,
-                                iconUrl = poi.icon_url,
-                                imageUrl = poi.image_url
-                            )
-                        }
-                        val facilities = body.facilities.map { f ->
-                            MapFacility(
-                                id = f.id,
-                                name = f.name,
-                                facilityType = f.facility_type,
-                                description = f.description,
-                                location = f.location,
-                                openingHours = f.opening_hours
+                                id = point.id,
+                                name = point.name,
+                                type = point.kind,
+                                description = point.description,
+                                latitude = point.lat,
+                                longitude = point.lng,
+                                nextEventTitle = point.nextEvent?.title,
+                                nextEventTime = point.nextEvent?.startsAt
                             )
                         }
                         mapInfo = MapInfo(
-                            mapImageUrl = body.map.image_url,
-                            thumbnailUrl = body.map.thumbnail_url,
-                            venues = venues,
-                            facilities = facilities
+                            festivalName = body.festival.name,
+                            venues = venues
                         )
                         applyFilter()
                     } else {

@@ -12,10 +12,8 @@ enum class GenderIdentity(val apiValue: String, val displayLabel: String) {
     MALE("male", "Male"),
     FEMALE("female", "Female"),
     NON_BINARY("non_binary", "Non-binary"),
-    TRANSGENDER("transgender", "Transgender"),
-    GENDER_FLUID("gender_fluid", "Gender Fluid"),
-    PREFER_NOT_TO_SAY("prefer_not_to_say", "Prefer Not to Say"),
-    OTHER("other", "Other");
+    PREFER_NOT_TO_SAY("prefer_not_to_say", "Prefer not to say"),
+    SELF_DESCRIBE("self_describe", "Self-describe");
 
     companion object {
         /** Map a display label (e.g. "Female") to the DB-safe API value (e.g. "female"). */
@@ -44,13 +42,11 @@ data class SaveUsernameRequest(
  */
 @Serializable
 data class SaveDemographicsRequest(
-    val dob: String?, // YYYY-MM-DD
+    val dob: String? = null, // YYYY-MM-DD, not future, within last 120 years
+    val gender_identity: String? = null, // male, female, non_binary, prefer_not_to_say, self_describe
+    val gender_identity_text: String? = null, // required if gender_identity = self_describe
     val race_ethnicity: List<String>? = null,
-    val race_ethnicity_text: String? = null,
-    val gender_identity: String? = null,
-    val gender_identity_text: String? = null,
-    val wristband_code: String? = null,
-    val terms_acceptance: Boolean? = null
+    val race_ethnicity_text: String? = null // required if race_ethnicity contains self_describe
 )
 
 /**

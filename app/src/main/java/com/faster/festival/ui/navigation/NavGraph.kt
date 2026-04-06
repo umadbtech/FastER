@@ -73,6 +73,9 @@ import com.faster.festival.ui.screens.SponsorDetailScreen
 import com.faster.festival.ui.screens.SupportTicketScreen
 import com.faster.festival.ui.screens.TermsScreen
 import com.faster.festival.ui.screens.TicketsScreen
+import com.faster.festival.ui.screens.InAppWebViewScreen
+import com.faster.festival.ui.screens.PinchHelpScreen
+import com.faster.festival.ui.viewmodel.PinchHelpViewModel
 import com.faster.festival.ui.screens.WebPlaceholderScreen
 import com.faster.festival.ui.viewmodel.EnhancedProfileViewModel
 import com.faster.festival.ui.viewmodel.ProfileState
@@ -120,6 +123,8 @@ object Routes {
     const val FESTIVAL_DETAILS = "festival_details/{festivalSlug}"
     const val UPCOMING_EVENT_DETAIL = "upcoming_event/{eventId}"
     const val STAGE_SCHEDULE = "stage_schedule"
+    const val IN_APP_WEB = "in_app_web/{url}/{title}"
+    const val PINCH_HELP = "pinch_help"
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -389,7 +394,17 @@ fun NavGraph(
         }
 
         composable(Routes.FASTER_SCREEN) {
-            FasterScreen()
+            FasterScreen(
+                onPinchHelp = { navController.navigate(Routes.PINCH_HELP) }
+            )
+        }
+
+        composable(Routes.PINCH_HELP) {
+            val pinchViewModel: PinchHelpViewModel = viewModel()
+            PinchHelpScreen(
+                viewModel = pinchViewModel,
+                onBackClick = { navController.popBackStack() }
+            )
         }
 
         // =====================================================================
@@ -828,6 +843,22 @@ fun NavGraph(
                 else -> type
             }
             WebPlaceholderScreen(title = title, onBackClick = { navController.popBackStack() })
+        }
+
+        composable(
+            route = Routes.IN_APP_WEB,
+            arguments = listOf(
+                navArgument("url") { type = NavType.StringType },
+                navArgument("title") { type = NavType.StringType; defaultValue = "Website" }
+            )
+        ) { backStackEntry ->
+            val url = android.net.Uri.decode(backStackEntry.arguments?.getString("url") ?: "")
+            val title = android.net.Uri.decode(backStackEntry.arguments?.getString("title") ?: "Website")
+            InAppWebViewScreen(
+                url = url,
+                title = title,
+                onClose = { navController.popBackStack() }
+            )
         }
     }
 }

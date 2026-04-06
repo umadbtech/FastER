@@ -170,20 +170,22 @@ fun EmergencyContactsScreen(modifier: Modifier = Modifier, onBackClick: () -> Un
                         Spacer(modifier = Modifier.height(16.dp))
                     }
 
-                    // Add Emergency Contact +
-                    Text(
-                            text = "Add Emergency Contact +",
-                            color = CoralRed,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 15.sp,
-                            modifier =
-                                    Modifier.clickable {
-                                                contactForms =
-                                                        contactForms +
-                                                                ContactFormState(isPrimary = false)
-                                            }
-                                            .padding(vertical = 8.dp)
-                    )
+                    // Add Emergency Contact + (only if fewer than 2 contacts)
+                    if (contactForms.size < 2) {
+                        Text(
+                                text = "Add Emergency Contact +",
+                                color = CoralRed,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 15.sp,
+                                modifier =
+                                        Modifier.clickable {
+                                                    contactForms =
+                                                            contactForms +
+                                                                    ContactFormState(isPrimary = false)
+                                                }
+                                                .padding(vertical = 8.dp)
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(24.dp))
 

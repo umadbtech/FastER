@@ -282,7 +282,7 @@ class ProfileEditViewModel(
     }
 
     /** Save demographics */
-    fun saveDemographics() {
+    fun saveDemographics(genderIdentityText: String? = null) {
         viewModelScope.launch {
             _editState.value = ProfileEditUiState.Loading
             val token = sessionManager.getAccessToken()
@@ -291,7 +291,7 @@ class ProfileEditViewModel(
                 _editState.value =
                         ProfileEditUiState.Error(
                                 "Session expired. Please log in again.",
-                                { saveDemographics() }
+                                { saveDemographics(genderIdentityText) }
                         )
                 return@launch
             }
@@ -302,9 +302,14 @@ class ProfileEditViewModel(
 
             val genderApiValue = state.genderIdentity.ifBlank { null }
                     ?.let { GenderIdentity.toApiValue(it) ?: it.lowercase().replace(" ", "_") }
+
+            // gender_identity_text is required when self_describe, otherwise null
+            val genderText = if (genderApiValue == "self_describe") genderIdentityText else null
+
             profileRepository.saveDemographics(
                             dateOfBirth = state.dateOfBirth.ifBlank { null },
                             genderIdentity = genderApiValue,
+                            genderIdentityText = genderText,
                             raceEthnicity = raceList,
                             accessToken = token
                     )

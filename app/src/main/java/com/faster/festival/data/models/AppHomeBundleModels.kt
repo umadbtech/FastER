@@ -403,6 +403,8 @@ data class PromotionItem(
     val hoursText: String? = null,
     @SerialName("menu_url")
     val menuUrl: String? = null,
+    @SerialName("cta_url")
+    val ctaUrl: String? = null,
     @SerialName("media_urls")
     val mediaUrls: List<String> = emptyList()
 )

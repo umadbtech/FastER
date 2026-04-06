@@ -3,6 +3,7 @@ package com.faster.festival.ui.onboarding
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import android.content.Context
 import android.util.Log
 import com.faster.festival.data.local.EncryptedSessionManager
 import com.faster.festival.data.model.GenderIdentity
@@ -10,6 +11,9 @@ import com.faster.festival.data.model.SaveDemographicsRequest
 import com.faster.festival.data.model.SaveEmergencyContactRequest
 import com.faster.festival.data.model.SaveProfileNameRequest
 import com.faster.festival.data.repository.OnboardingRepository
+import com.faster.festival.utils.DeviceContact
+import com.faster.festival.utils.DeviceContactsHelper
+import com.faster.festival.utils.PhoneNumberUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,6 +40,8 @@ data class OnboardingUiState(
     val emergencyName: String = "",
     val emergencyPhone: String = "",
     val emergencyRelationship: String = "",
+    val deviceContactsEnabled: Boolean = false,
+    val contactSuggestions: List<DeviceContact> = emptyList(),
 
     // Step 3: Confirm Account Details
     val legalName: String = "",
@@ -120,12 +126,67 @@ class OnboardingViewModel(
         _uiState.update { it.copy(emergencyName = value, emergencyNameError = null) }
     }
 
+    /**
+     * Called as the user types in the name field.
+     * If device contacts are enabled, searches for matching contacts.
+     */
+    fun updateEmergencyNameWithSearch(value: String, context: Context) {
+        _uiState.update { it.copy(emergencyName = value, emergencyNameError = null) }
+        if (_uiState.value.deviceContactsEnabled) {
+            searchDeviceContacts(value, context)
+        }
+    }
+
     fun updateEmergencyPhone(value: String) {
         _uiState.update { it.copy(emergencyPhone = value, emergencyPhoneError = null) }
     }
 
     fun updateEmergencyRelationship(value: String) {
         _uiState.update { it.copy(emergencyRelationship = value) }
+    }
+
+    /**
+     * Mark device contacts as enabled (after permission is granted).
+     */
+    fun enableDeviceContacts() {
+        _uiState.update { it.copy(deviceContactsEnabled = true) }
+    }
+
+    /**
+     * Mark device contacts as disabled (toggle off or permission denied).
+     */
+    fun disableDeviceContacts() {
+        _uiState.update { it.copy(deviceContactsEnabled = false, contactSuggestions = emptyList()) }
+    }
+
+    /**
+     * Search device contacts by partial name match.
+     */
+    private fun searchDeviceContacts(query: String, context: Context) {
+        val results = DeviceContactsHelper.searchContacts(context, query)
+        _uiState.update { it.copy(contactSuggestions = results) }
+    }
+
+    /**
+     * Select a device contact — auto-fill name and phone.
+     */
+    fun selectDeviceContact(contact: DeviceContact) {
+        _uiState.update {
+            it.copy(
+                emergencyName = contact.name,
+                emergencyPhone = contact.normalizedPhone,
+                emergencyNameError = null,
+                emergencyPhoneError = null,
+                contactSuggestions = emptyList()
+            )
+        }
+    }
+
+    /**
+     * Dismiss contact suggestions without selecting.
+     */
+    fun dismissContactSuggestions() {
+        _uiState.update { it.copy(contactSuggestions = emptyList()) }
     }
 
     fun updateLegalName(value: String) {
@@ -239,13 +300,21 @@ class OnboardingViewModel(
             return
         }
 
+        val normalizedPhone = PhoneNumberUtils.normalizeToE164(state.emergencyPhone)
+        if (!PhoneNumberUtils.isValidE164(normalizedPhone)) {
+            _uiState.update {
+                it.copy(emergencyPhoneError = "Invalid phone number. Include country code (e.g. +1)")
+            }
+            return
+        }
+
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
 
             val request = SaveEmergencyContactRequest(
                 festival_id = _festivalId.value.ifBlank { null },
                 external_name = state.emergencyName,
-                external_phone_e164 = normalizePhoneNumber(state.emergencyPhone),
+                external_phone_e164 = normalizedPhone,
                 relationship = state.emergencyRelationship.ifBlank { null },
                 is_primary = true
             )
@@ -475,15 +544,6 @@ class OnboardingViewModel(
             }
         } catch (e: Exception) {
             "Invalid date format. Use YYYY-MM-DD"
-        }
-    }
-
-    private fun normalizePhoneNumber(phone: String): String {
-        val cleaned = phone.replace(Regex("[^\\d+]"), "")
-        return if (cleaned.startsWith("+")) {
-            cleaned
-        } else {
-            "+1${cleaned.takeLast(10)}"
         }
     }
 

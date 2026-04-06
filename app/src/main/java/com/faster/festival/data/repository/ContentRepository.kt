@@ -11,6 +11,7 @@ import com.faster.festival.data.remote.ContentArtistDetailApi
 import com.faster.festival.data.remote.ContentHomeApi
 import com.faster.festival.data.remote.ContentLineupApi
 import com.faster.festival.data.remote.ContentMapApi
+import com.faster.festival.data.remote.ContentMapResponse
 import com.faster.festival.data.remote.ContentStageScheduleApi
 import com.faster.festival.data.remote.FestivalExperienceApi
 import com.faster.festival.data.remote.FestivalHeaderApi
@@ -125,7 +126,7 @@ class ContentRepository(
     }
 
     // ========== Content Map ==========
-    fun getContentMap(festivalSlug: String): Flow<ContentMapApi.ContentMapResponse> = flow {
+    fun getContentMap(festivalSlug: String): Flow<ContentMapResponse> = flow {
         if (festivalSlug.isBlank()) throw IOException("Missing festival slug")
         val response = contentMapApi.getContentMap(festivalSlug)
         when {

@@ -266,14 +266,14 @@ class MapViewModelFactory(
                 kotlinx.coroutines.flow.flow {
                     try {
                         val response = com.faster.festival.di.NetworkModule.contentMapApi.getContentMap(festivalSlug)
-                        if (response.isSuccessful && response.body()?.points_of_interest != null) {
-                            emit(response.body()!!.points_of_interest.map {
+                        if (response.isSuccessful && response.body()?.mapPoints != null) {
+                            emit(response.body()!!.mapPoints.map {
                                 Poi(
                                     id = it.id,
                                     name = it.name,
-                                    type = it.type,
-                                    latitude = it.latitude ?: 0.0,
-                                    longitude = it.longitude ?: 0.0,
+                                    type = it.kind,
+                                    latitude = it.lat ?: 0.0,
+                                    longitude = it.lng ?: 0.0,
                                     description = it.description ?: ""
                                 )
                             })

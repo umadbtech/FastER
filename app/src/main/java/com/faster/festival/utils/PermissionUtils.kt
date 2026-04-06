@@ -63,4 +63,14 @@ object PermissionUtils {
     fun hasAllPhotoPermissions(context: Context): Boolean {
         return hasCameraPermission(context) && hasPhotoLibraryPermission(context)
     }
+
+    /**
+     * Check if READ_CONTACTS permission is granted
+     */
+    fun hasContactsPermission(context: Context): Boolean {
+        return ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.READ_CONTACTS
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    }
 }

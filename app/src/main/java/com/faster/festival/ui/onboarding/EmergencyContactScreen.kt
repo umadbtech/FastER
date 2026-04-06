@@ -22,8 +22,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Contacts
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -31,8 +32,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -53,15 +54,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.faster.festival.utils.DeviceContact
 
 /**
  * Emergency Contacts screen (Step 2 of onboarding).
  *
  * Features:
  * - "Connect Device Contacts" toggle with permission request
+ * - Contact name field with device contact suggestions
+ * - Phone number auto-filled from selected contact
  * - Primary Emergency Contact form (name, phone, relationship)
- * - "Add Emergency Contact +" for future multi-contact support
  */
 @Composable
 fun EmergencyContactScreen(
@@ -70,16 +74,19 @@ fun EmergencyContactScreen(
     emergencyRelationship: String,
     emergencyNameError: String?,
     emergencyPhoneError: String?,
+    deviceContactsEnabled: Boolean,
+    contactSuggestions: List<DeviceContact>,
     onNameChange: (String) -> Unit,
     onPhoneChange: (String) -> Unit,
     onRelationshipChange: (String) -> Unit,
-    onConnectDeviceContacts: () -> Unit,
+    onToggleDeviceContacts: (Boolean) -> Unit,
+    onContactSelected: (DeviceContact) -> Unit,
+    onDismissSuggestions: () -> Unit,
     onContinue: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
-    var connectContactsEnabled by remember { mutableStateOf(false) }
 
     val relationshipOptions = listOf(
         "Parent / Legal Guardian",
@@ -127,27 +134,22 @@ fun EmergencyContactScreen(
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "Connect Device Contacts",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.weight(1f)
-                )
-                IconButton(onClick = { /* edit action */ }) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Connect Device Contacts",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = "Search your contacts by name",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Switch(
-                    checked = connectContactsEnabled,
-                    onCheckedChange = { enabled ->
-                        connectContactsEnabled = enabled
-                        if (enabled) onConnectDeviceContacts()
-                    },
+                    checked = deviceContactsEnabled,
+                    onCheckedChange = { enabled -> onToggleDeviceContacts(enabled) },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
                         checkedTrackColor = MaterialTheme.colorScheme.primary
@@ -179,27 +181,79 @@ fun EmergencyContactScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ---- Contact Name ----
-        OutlinedTextField(
-            value = emergencyName,
-            onValueChange = onNameChange,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Contact Name") },
-            placeholder = { Text("e.g., Dave Smith") },
-            singleLine = true,
-            isError = emergencyNameError != null,
-            supportingText = if (emergencyNameError != null) {
-                { Text(text = emergencyNameError, color = MaterialTheme.colorScheme.error) }
-            } else null,
-            shape = RoundedCornerShape(12.dp),
-            keyboardOptions = KeyboardOptions(
-                imeAction = ImeAction.Next,
-                capitalization = KeyboardCapitalization.Words
-            ),
-            keyboardActions = KeyboardActions(
-                onNext = { focusManager.moveFocus(FocusDirection.Down) }
+        // ---- Contact Name with suggestions ----
+        Box {
+            OutlinedTextField(
+                value = emergencyName,
+                onValueChange = onNameChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Contact Name") },
+                placeholder = {
+                    Text(
+                        if (deviceContactsEnabled) "Start typing to search contacts..."
+                        else "e.g., Dave Smith"
+                    )
+                },
+                singleLine = true,
+                isError = emergencyNameError != null,
+                supportingText = if (emergencyNameError != null) {
+                    { Text(text = emergencyNameError, color = MaterialTheme.colorScheme.error) }
+                } else null,
+                shape = RoundedCornerShape(12.dp),
+                keyboardOptions = KeyboardOptions(
+                    imeAction = ImeAction.Next,
+                    capitalization = KeyboardCapitalization.Words
+                ),
+                keyboardActions = KeyboardActions(
+                    onNext = {
+                        onDismissSuggestions()
+                        focusManager.moveFocus(FocusDirection.Down)
+                    }
+                )
             )
-        )
+
+            // Contact suggestions dropdown
+            DropdownMenu(
+                expanded = contactSuggestions.isNotEmpty(),
+                onDismissRequest = onDismissSuggestions,
+                modifier = Modifier.fillMaxWidth(0.92f)
+            ) {
+                contactSuggestions.forEach { contact ->
+                    DropdownMenuItem(
+                        text = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = contact.name,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = contact.phoneNumber,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        },
+                        onClick = { onContactSelected(contact) }
+                    )
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -209,13 +263,20 @@ fun EmergencyContactScreen(
             onValueChange = onPhoneChange,
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Phone Number") },
-            placeholder = { Text("111-111-1111") },
+            placeholder = { Text("+1 234 567 8900") },
             singleLine = true,
             isError = emergencyPhoneError != null,
             supportingText = if (emergencyPhoneError != null) {
                 { Text(text = emergencyPhoneError, color = MaterialTheme.colorScheme.error) }
             } else null,
             shape = RoundedCornerShape(12.dp),
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Phone,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+            },
             keyboardOptions = KeyboardOptions(
                 imeAction = ImeAction.Done,
                 keyboardType = KeyboardType.Phone

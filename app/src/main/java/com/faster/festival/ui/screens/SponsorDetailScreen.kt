@@ -11,6 +11,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,13 +28,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -37,7 +40,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -64,6 +66,7 @@ private val SponsorTextMedium = Color(0xFF333333)
 private val SponsorTextLight = Color(0xFF666666)
 private val SponsorBorderLight = Color(0xFFE0E0E0)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SponsorDetailScreen(
     sponsor: SponsorOffer,
@@ -71,55 +74,53 @@ fun SponsorDetailScreen(
 ) {
     val context = LocalContext.current
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(SponsorBg)
-    ) {
-        // Top bar
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(SponsorWhite)
-                .padding(horizontal = 4.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = SponsorTextDark
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = {
+                    Text(
+                        text = sponsor.sponsorName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = SponsorTextDark,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = {
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, "${sponsor.sponsorName} - ${sponsor.offerText ?: sponsor.title ?: ""}")
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "Share"))
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Share",
+                            tint = SponsorTextDark,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = SponsorTextDark,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = SponsorWhite
                 )
-            }
-
-            Text(
-                text = sponsor.sponsorName,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = SponsorTextDark,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
             )
-
-            IconButton(onClick = {
-                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, "${sponsor.sponsorName} - ${sponsor.offerText ?: sponsor.title ?: ""}")
-                }
-                context.startActivity(Intent.createChooser(shareIntent, "Share"))
-            }) {
-                Icon(
-                    imageVector = Icons.Default.Share,
-                    contentDescription = "Share",
-                    tint = SponsorTextDark,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
         }
-
+    ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().padding(innerPadding),
             contentPadding = PaddingValues(bottom = 32.dp)
         ) {
             // Hero image
@@ -233,61 +234,27 @@ fun SponsorDetailScreen(
                 }
             }
 
-            // Action buttons
+            // Directions button (full width)
             item {
-                Row(
+                Button(
+                    onClick = {
+                        val address = sponsor.address ?: sponsor.locationText ?: ""
+                        if (address.isNotBlank()) {
+                            try {
+                                val uri = Uri.parse("geo:0,0?q=${Uri.encode(address)}")
+                                context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                            } catch (_: Exception) { }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = SponsorCoralRed),
+                    shape = RoundedCornerShape(24.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
-                    // Directions
-                    Button(
-                        onClick = {
-                            val address = sponsor.address ?: sponsor.locationText ?: ""
-                            if (address.isNotBlank()) {
-                                try {
-                                    val uri = Uri.parse("geo:0,0?q=${Uri.encode(address)}")
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, uri))
-                                } catch (_: Exception) { }
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = SponsorCoralRed),
-                        shape = RoundedCornerShape(24.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.Directions, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Directions", fontWeight = FontWeight.SemiBold)
-                    }
-
-                    // Website / CTA
-                    OutlinedButton(
-                        onClick = {
-                            val url = sponsor.ctaUrl ?: sponsor.website
-                            if (!url.isNullOrBlank()) {
-                                try {
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                } catch (_: Exception) { }
-                            }
-                        },
-                        shape = RoundedCornerShape(24.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, SponsorBorderLight),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            Icons.Default.Language,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = SponsorTextDark
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = sponsor.ctaLabel ?: "Website",
-                            fontWeight = FontWeight.SemiBold,
-                            color = SponsorTextDark
-                        )
-                    }
+                    Icon(Icons.Default.Directions, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Directions", fontWeight = FontWeight.SemiBold)
                 }
             }
 

@@ -11,7 +11,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,9 +28,9 @@ import androidx.compose.material.icons.filled.Fastfood
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocalHospital
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.Wc
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Button
@@ -55,12 +54,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.AsyncImage
 import com.faster.festival.AppConfig
 import com.faster.festival.di.NetworkModule
 import com.faster.festival.ui.viewmodel.MapUiState
@@ -86,7 +83,7 @@ fun MapScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "Map",
+                        text = "Festival Map",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -138,18 +135,11 @@ private fun MapShimmerLoading() {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(250.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color.Gray.copy(alpha = alpha))
-        )
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            repeat(5) {
+            repeat(4) {
                 Box(
                     modifier = Modifier
                         .width(72.dp)
@@ -159,7 +149,7 @@ private fun MapShimmerLoading() {
                 )
             }
         }
-        repeat(4) {
+        repeat(5) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -222,47 +212,11 @@ private fun MapSuccessContent(
     state: MapUiState.Success,
     onFilterChanged: (String) -> Unit
 ) {
-    val filters = listOf("All", "Stages", "Food", "Restrooms", "Medical", "Info")
+    val filters = listOf("All", "Stage", "Area", "Service")
 
     LazyColumn(
         modifier = Modifier.fillMaxSize()
     ) {
-        // Map image
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(280.dp)
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .clip(RoundedCornerShape(12.dp))
-            ) {
-                AsyncImage(
-                    model = state.mapInfo.mapImageUrl,
-                    contentDescription = "Festival Map",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-
-                // Map overlay icon
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(12.dp)
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Map,
-                        contentDescription = "Fullscreen map",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-        }
-
         // Filter chips
         item {
             Row(
@@ -274,10 +228,10 @@ private fun MapSuccessContent(
             ) {
                 filters.forEach { filter ->
                     FilterChip(
-                        selected = state.selectedFilter == filter,
+                        selected = state.selectedFilter.equals(filter, ignoreCase = true),
                         onClick = { onFilterChanged(filter) },
                         label = { Text(filter) },
-                        leadingIcon = if (state.selectedFilter == filter) {
+                        leadingIcon = if (state.selectedFilter.equals(filter, ignoreCase = true)) {
                             {
                                 Icon(
                                     imageVector = getFilterIcon(filter),
@@ -342,79 +296,6 @@ private fun MapSuccessContent(
             }
         }
 
-        // Facilities section
-        if (state.mapInfo.facilities.isNotEmpty()) {
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Facilities",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-            items(
-                items = state.mapInfo.facilities,
-                key = { it.id }
-            ) { facility ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.secondaryContainer),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = getFilterIcon(facility.facilityType),
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = facility.name,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            if (facility.description != null) {
-                                Text(
-                                    text = facility.description,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            if (facility.openingHours != null) {
-                                Text(
-                                    text = facility.openingHours,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         item { Spacer(modifier = Modifier.height(100.dp)) }
     }
 }
@@ -475,6 +356,17 @@ private fun VenueCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+                if (venue.nextEventTitle != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Up next: ${venue.nextEventTitle}",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.tertiary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
     }
@@ -486,7 +378,8 @@ private fun getFilterIcon(type: String): ImageVector {
         "food" -> Icons.Default.Fastfood
         "restrooms", "restroom" -> Icons.Default.Wc
         "medical" -> Icons.Default.LocalHospital
-        "info", "information" -> Icons.Default.Info
+        "service" -> Icons.Default.Info
+        "area" -> Icons.Default.Store
         else -> Icons.Default.LocationOn
     }
 }

@@ -21,8 +21,8 @@ interface ProfileApiService {
             @Body request: SaveLegalNameRequest
     ): Response<com.faster.festival.data.model.OnboardingResponse>
 
-    /** POST /functions/v1/update-onboarding-demographics Save user's demographics */
-    @POST("functions/v1/update-onboarding-demographics")
+    /** POST /functions/v1/save-demographics Save user's demographics */
+    @POST("functions/v1/save-demographics")
     suspend fun saveDemographics(
             @Header("Authorization") authorization: String,
             @Body request: com.faster.festival.data.model.SaveDemographicsRequest

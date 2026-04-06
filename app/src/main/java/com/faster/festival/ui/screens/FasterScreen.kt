@@ -58,7 +58,9 @@ import com.faster.festival.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FasterScreen() {
+fun FasterScreen(
+    onPinchHelp: () -> Unit = {}
+) {
     // Stubbed wristband data since BLE SDK is not available
     val isConnected = true
     val batteryLevel = 82
@@ -101,6 +103,45 @@ fun FasterScreen() {
                         modifier = Modifier.size(80.dp),
                         contentScale = ContentScale.Fit
                     )
+                }
+            }
+
+            // Pinch Help — Emergency CTA
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFD32F2F)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                    onClick = onPinchHelp
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Sos,
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp),
+                            tint = Color.White
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Get Medical Help",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Tap to swipe for help or use your wristband",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.85f),
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
 

@@ -33,6 +33,8 @@ data class ContentArtistLineup(
     val genres: List<String>? = null,
     @SerialName("social_links")
     val socialLinks: Map<String, String>? = null,
+    @SerialName("external_links")
+    val externalLinks: Map<String, String>? = null,
     @SerialName("order")
     val order: Int = 0
 )
@@ -90,7 +92,9 @@ data class ContentArtistDetail(
     @SerialName("founded_year")
     val foundedYear: Int? = null,
     @SerialName("member_count")
-    val memberCount: Int? = null
+    val memberCount: Int? = null,
+    @SerialName("external_links")
+    val externalLinks: Map<String, String>? = null
 )
 
 @Serializable

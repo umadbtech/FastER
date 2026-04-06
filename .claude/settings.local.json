@@ -10,7 +10,11 @@
       "Bash(./gradlew testDebugUnitTest --tests \"com.faster.festival.ui.onboarding.*\")",
       "Bash(./gradlew testDebugUnitTest --tests \"com.faster.festival.ui.onboarding.OnboardingViewModelTest.test saveProfileDetails succeeds and advances to EMERGENCY_CONTACT\" --info)",
       "Bash(./gradlew testDebugUnitTest)",
-      "Bash(./gradlew assembleDebug)"
+      "Bash(./gradlew assembleDebug)",
+      "Bash(grep -n \"class HeroCarouselItem\\\\|data class HeroCarouselItem\" /Users/umasenthil/FastER/app/src/main/java/com/faster/festival/data/models/*.kt)",
+      "Bash(grep -n \"heroCarouselItems\\\\|hero_carousel\" /Users/umasenthil/FastER/app/src/main/java/com/faster/festival/data/models/*.kt)",
+      "Bash(grep -n \"class HomeModule\\\\|data class HomeModule\" /Users/umasenthil/FastER/app/src/main/java/com/faster/festival/data/models/*.kt)",
+      "Bash(ls /Users/umasenthil/FastER/app/src/main/res/drawable*)"
     ]
   }
 }

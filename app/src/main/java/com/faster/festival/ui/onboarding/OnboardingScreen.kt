@@ -1,5 +1,8 @@
 package com.faster.festival.ui.onboarding
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -29,12 +32,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.faster.festival.data.local.EncryptedSessionManager
 import com.faster.festival.data.repository.OnboardingRepository
 import com.faster.festival.di.NetworkModule
 import com.faster.festival.ui.components.StepIndicator
+import com.faster.festival.utils.PermissionUtils
 
 /**
  * Main onboarding coordinator composable.
@@ -63,6 +68,18 @@ fun OnboardingScreen(
 
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+
+    // Permission launcher for READ_CONTACTS
+    val contactsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            viewModel.enableDeviceContacts()
+        } else {
+            viewModel.disableDeviceContacts()
+        }
+    }
 
     LaunchedEffect(uiState.isComplete) {
         if (uiState.isComplete) {
@@ -143,10 +160,26 @@ fun OnboardingScreen(
                         emergencyRelationship = uiState.emergencyRelationship,
                         emergencyNameError = uiState.emergencyNameError,
                         emergencyPhoneError = uiState.emergencyPhoneError,
-                        onNameChange = viewModel::updateEmergencyName,
+                        deviceContactsEnabled = uiState.deviceContactsEnabled,
+                        contactSuggestions = uiState.contactSuggestions,
+                        onNameChange = { value ->
+                            viewModel.updateEmergencyNameWithSearch(value, context)
+                        },
                         onPhoneChange = viewModel::updateEmergencyPhone,
                         onRelationshipChange = viewModel::updateEmergencyRelationship,
-                        onConnectDeviceContacts = { /* TODO: request READ_CONTACTS permission */ },
+                        onToggleDeviceContacts = { enabled ->
+                            if (enabled) {
+                                if (PermissionUtils.hasContactsPermission(context)) {
+                                    viewModel.enableDeviceContacts()
+                                } else {
+                                    contactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+                                }
+                            } else {
+                                viewModel.disableDeviceContacts()
+                            }
+                        },
+                        onContactSelected = viewModel::selectDeviceContact,
+                        onDismissSuggestions = viewModel::dismissContactSuggestions,
                         onContinue = viewModel::saveEmergencyContact
                     )
 

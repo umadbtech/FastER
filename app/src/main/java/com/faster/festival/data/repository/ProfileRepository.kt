@@ -76,15 +76,19 @@ class ProfileRepository(private val profileApiService: ProfileApiService) {
     fun saveDemographics(
             dateOfBirth: String?,
             genderIdentity: String?,
+            genderIdentityText: String? = null,
             raceEthnicity: List<String>?,
+            raceEthnicityText: String? = null,
             accessToken: String
     ): Flow<Result<Unit>> = flow {
         try {
             val request =
                     com.faster.festival.data.model.SaveDemographicsRequest(
-                            dob = dateOfBirth, // <-- FIXED: was date_of_birth
+                            dob = dateOfBirth,
                             gender_identity = genderIdentity,
-                            race_ethnicity = raceEthnicity
+                            gender_identity_text = genderIdentityText,
+                            race_ethnicity = raceEthnicity,
+                            race_ethnicity_text = raceEthnicityText
                     )
             val response =
                     profileApiService.saveDemographics(

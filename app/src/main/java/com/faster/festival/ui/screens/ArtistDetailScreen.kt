@@ -104,6 +104,7 @@ private val DetailCardBg = Color(0xFFF5F5F5)
 
 data class ArtistDetailData(
     val id: String,
+    val slug: String,
     val name: String,
     val bio: String?,
     val imageUrl: String?,
@@ -179,10 +180,19 @@ class ArtistDetailScreenViewModel(
                             twitter = m.twitter,
                             youtube = m.youtube
                         )
+                    } ?: artist.externalLinks?.let { links ->
+                        ArtistMediaData(
+                            website = links["website"],
+                            spotify = links["spotify"],
+                            instagram = links["instagram"],
+                            twitter = links["twitter"],
+                            youtube = links["youtube"]
+                        )
                     }
                     _uiState.value = ArtistDetailUiState.Success(
                         ArtistDetailData(
                             id = artist.id,
+                            slug = artist.slug,
                             name = artist.name,
                             bio = artist.bio,
                             imageUrl = artist.imageUrl,
@@ -226,9 +236,21 @@ class ArtistDetailScreenViewModel(
                                 }
                         }
 
+                        val links = foundArtist.externalLinks ?: foundArtist.socialLinks
+                        val fallbackMedia = links?.let {
+                            ArtistMediaData(
+                                website = it["website"],
+                                spotify = it["spotify"],
+                                instagram = it["instagram"],
+                                twitter = it["twitter"],
+                                youtube = it["youtube"]
+                            )
+                        }
+
                         _uiState.value = ArtistDetailUiState.Success(
                             ArtistDetailData(
                                 id = foundArtist.id,
+                                slug = foundArtist.slug,
                                 name = foundArtist.name,
                                 bio = foundArtist.bio,
                                 imageUrl = foundArtist.imageUrl,
@@ -238,7 +260,7 @@ class ArtistDetailScreenViewModel(
                                 foundedYear = null,
                                 memberCount = null,
                                 performances = schedulePerformances,
-                                media = null
+                                media = fallbackMedia
                             )
                         )
                         return@launch
@@ -465,14 +487,14 @@ private fun ArtistDetailError(message: String, onRetry: () -> Unit) {
             modifier = Modifier
                 .size(80.dp)
                 .clip(CircleShape)
-                .background(Color(0xFFFFEBEE)),
+                .background(DetailCoralRed),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Default.WarningAmber,
                 contentDescription = "Error",
                 modifier = Modifier.size(40.dp),
-                tint = DetailCoralRed
+                tint = Color.White
             )
         }
         Spacer(modifier = Modifier.height(20.dp))
@@ -512,54 +534,95 @@ private fun ArtistDetailError(message: String, onRetry: () -> Unit) {
 
 @Composable
 private fun ArtistDetailContent(artist: ArtistDetailData) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 100.dp)
-    ) {
-        // ── Hero Image ──────────────────────────────────────────────
-        item {
-            ArtistHeroHeader(artist = artist)
-        }
+    val context = LocalContext.current
 
-        // ── Quick Info Pills ────────────────────────────────────────
-        item {
-            ArtistQuickInfo(artist = artist)
-        }
-
-        // ── Bio Section ─────────────────────────────────────────────
-        if (!artist.bio.isNullOrBlank()) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 100.dp)
+        ) {
+            // ── Hero Image ──────────────────────────────────────────────
             item {
-                ArtistBioSection(bio = artist.bio)
+                ArtistHeroHeader(artist = artist)
+            }
+
+            // ── Quick Info Pills ────────────────────────────────────────
+            item {
+                ArtistQuickInfo(artist = artist)
+            }
+
+            // ── Bio Section ─────────────────────────────────────────────
+            if (!artist.bio.isNullOrBlank()) {
+                item {
+                    ArtistBioSection(bio = artist.bio)
+                }
+            }
+
+            // ── Social / Media Links ────────────────────────────────────
+            if (artist.media != null) {
+                item {
+                    ArtistSocialLinks(media = artist.media)
+                }
+            }
+
+            // ── Performances Section ────────────────────────────────────
+            if (artist.performances.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Performances",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = DetailTextDark,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                    )
+                }
+
+                items(
+                    items = artist.performances,
+                    key = { it.id }
+                ) { performance ->
+                    PerformanceCard(
+                        performance = performance,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                }
             }
         }
 
-        // ── Social / Media Links ────────────────────────────────────
-        if (artist.media != null) {
-            item {
-                ArtistSocialLinks(media = artist.media)
-            }
-        }
-
-        // ── Performances Section ────────────────────────────────────
-        if (artist.performances.isNotEmpty()) {
-            item {
-                Text(
-                    text = "Performances",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = DetailTextDark,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                )
-            }
-
-            items(
-                items = artist.performances,
-                key = { it.id }
-            ) { performance ->
-                PerformanceCard(
-                    performance = performance,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                )
+        // ── Spotify FAB ────────────────────────────────────────────
+        artist.media?.spotify?.let { spotifyUrl ->
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 66.dp)
+                    .clickable {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(spotifyUrl))
+                        )
+                    },
+                shape = RoundedCornerShape(16.dp),
+                color = SpotifyGreen,
+                shadowElevation = 6.dp,
+                tonalElevation = 2.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MusicNote,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Spotify",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
         }
     }
@@ -624,7 +687,7 @@ private fun ArtistHeroHeader(artist: ArtistDetailData) {
                 )
         )
 
-        // Artist name + genres overlay
+        // Artist name + slug + genres overlay
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
@@ -637,22 +700,30 @@ private fun ArtistHeroHeader(artist: ArtistDetailData) {
                 color = Color.White,
                 lineHeight = 36.sp
             )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "@${artist.slug}",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(alpha = 0.6f),
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 0.5.sp
+            )
             if (artist.genres.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     artist.genres.take(3).forEach { genre ->
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = Color.Black.copy(alpha = 0.4f)
+                            shape = RoundedCornerShape(20.dp),
+                            color = Color.White.copy(alpha = 0.15f)
                         ) {
                             Text(
                                 text = genre,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.9f),
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                fontWeight = FontWeight.Medium
+                                color = Color.White.copy(alpha = 0.95f),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
@@ -819,49 +890,9 @@ private fun ArtistSocialLinks(media: ArtistMediaData) {
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
-        Text(
-            text = "Links",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = DetailTextDark
-        )
-        Spacer(modifier = Modifier.height(10.dp))
+        
 
-        // Spotify gets a full-width prominent button when available
-        media.spotify?.let { spotifyUrl ->
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(spotifyUrl)))
-                    },
-                shape = RoundedCornerShape(12.dp),
-                color = SpotifyGreen
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = Color.White
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Listen on Spotify",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-        }
-
-        // Other links as smaller chips
+        // Other links as smaller chips (Spotify is now a FAB)
         val otherLinks = links.filter { it.name != "Spotify" }
         if (otherLinks.isNotEmpty()) {
             Row(

@@ -1,6 +1,7 @@
 package com.faster.festival.ui.screens
 
 import android.os.Build
+import com.faster.festival.R
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -24,6 +25,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -58,8 +60,12 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material.icons.filled.Watch
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -87,6 +93,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -138,7 +145,7 @@ private val PromoGradientEnd = Color(0xFF1A4A7A)
 private fun resolveModuleTitle(module: HomeModule): String {
     return module.displayTitle
         ?: module.title
-        ?: humanizeModuleKey(module.key)
+        ?: defaultSectionTitle(module.key)
 }
 
 /**
@@ -147,7 +154,15 @@ private fun resolveModuleTitle(module: HomeModule): String {
  */
 private fun resolveSectionTitle(bundle: AppHomeBundleResponse, moduleKey: String): String {
     val module = bundle.moduleByKey(moduleKey)
-    return if (module != null) resolveModuleTitle(module) else humanizeModuleKey(moduleKey)
+    return if (module != null) resolveModuleTitle(module) else defaultSectionTitle(moduleKey)
+}
+
+private val sectionTitleOverrides = mapOf(
+    "hero_carousel" to "Must See"
+)
+
+private fun defaultSectionTitle(key: String): String {
+    return sectionTitleOverrides[key] ?: humanizeModuleKey(key)
 }
 
 /**
@@ -211,7 +226,7 @@ fun HomeScreen(
         modifier = Modifier.fillMaxSize()
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            val topBarHeight = 56.dp + WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+            val topBarHeight = 44.dp + WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
             when (val state = uiState) {
                 is HomeUiState.Loading -> {
@@ -516,7 +531,8 @@ private fun HomeSuccessContent(
                 ExploreCategoryGrid(
                     tiles = tiles,
                     onNavigateToSchedule = onNavigateToSchedule,
-                    onNavigateToMap = onNavigateToMap
+                    onNavigateToMap = onNavigateToMap,
+                    onNavigateToFAQ = onNavigateToFAQ
                 )
             }
             item { Spacer(modifier = Modifier.height(24.dp)) }
@@ -954,8 +970,12 @@ private fun HeroGridCard(
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Icon(
-                    imageVector = Icons.Default.Star,
-                    contentDescription = "Ticket",
+                    imageVector = when (item.kind?.lowercase()) {
+                        "artist" -> Icons.Default.MusicNote
+                        "event" -> Icons.Default.Event
+                        else -> Icons.Default.Star
+                    },
+                    contentDescription = item.kind ?: "Featured",
                     modifier = Modifier.size(22.dp),
                     tint = CoralRed
                 )
@@ -988,7 +1008,8 @@ private fun HeroGridCard(
 private fun ExploreCategoryGrid(
     tiles: List<TileConfig>,
     onNavigateToSchedule: () -> Unit,
-    onNavigateToMap: () -> Unit
+    onNavigateToMap: () -> Unit,
+    onNavigateToFAQ: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -1005,6 +1026,7 @@ private fun ExploreCategoryGrid(
                     val onClick = when (tile.key) {
                         "festival_experience" -> onNavigateToMap
                         "lineup_schedule" -> onNavigateToSchedule
+                        "faq" -> onNavigateToFAQ
                         else -> { {} }
                     }
                     ExploreTileCard(
@@ -1037,17 +1059,16 @@ private fun ExploreTileCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
+            Image(
+                painter = painterResource(id = R.drawable.party),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color(0xFF2C3E50),
-                                Color(0xFF1A252F)
-                            )
-                        )
-                    )
+                    .background(Color.Black.copy(alpha = 0.7f))
             )
 
             Column(
@@ -1492,31 +1513,13 @@ private fun UpcomingEventCard(
                 )
             }
 
-            // Status badge
-            event.status?.let { status ->
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(
-                            when (status) {
-                                "published" -> Color(0xFFE8F5E9)
-                                else -> Color(0xFFFFF3E0)
-                            }
-                        )
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = status.replaceFirstChar { it.uppercase() },
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = when (status) {
-                            "published" -> Color(0xFF2E7D32)
-                            else -> Color(0xFFE65100)
-                        },
-                        fontSize = 10.sp
-                    )
-                }
-            }
+            // Forward chevron
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                modifier = Modifier.size(22.dp),
+                tint = Color(0xFF999999)
+            )
         }
     }
 }
@@ -1704,23 +1707,19 @@ fun FasterTopAppBar(
     onWristbandClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    Column(
+    Row(
         modifier = modifier
             .fillMaxWidth()
             .background(Color(0xFFF7F7F7))
             .statusBarsPadding()
+            .height(44.dp)
+            .padding(horizontal = 22.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
         Box(
             modifier = Modifier
-                .size(36.dp)
+                .size(32.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(Color(0xFFE0E0E0)),
             contentAlignment = Alignment.Center
@@ -1736,7 +1735,7 @@ fun FasterTopAppBar(
                 Text(
                     text = "F",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
+                    fontSize = 14.sp,
                     color = Color(0xFF666666)
                 )
             }
@@ -1748,28 +1747,33 @@ fun FasterTopAppBar(
                 .background(Color.White)
                 .border(1.dp, Color(0xFF333333), RoundedCornerShape(50))
                 .clickable(onClick = onWristbandClick)
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.LocationOn,
+                imageVector = Icons.Default.Watch,
                 contentDescription = null,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(16.dp),
                 tint = Color(0xFF333333)
             )
+            Icon(
+                imageVector = Icons.Default.SignalCellularAlt,
+                contentDescription = "Connection status",
+                modifier = Modifier.size(12.dp),
+                tint = Color(0xFF4CAF50)
+            )
             Text(
-                text = "WRISTBAND",
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp,
-                letterSpacing = 0.5.sp,
+                text = "Connected",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 12.sp,
                 color = Color(0xFF222222)
             )
         }
 
         Box(
             modifier = Modifier
-                .size(36.dp)
+                .size(32.dp)
                 .clip(CircleShape)
                 .background(Color(0xFFE8E8E8))
                 .clickable(onClick = onSearchClick),
@@ -1778,12 +1782,11 @@ fun FasterTopAppBar(
             Icon(
                 imageVector = Icons.Default.Search,
                 contentDescription = null,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(18.dp),
                 tint = Color(0xFF555555)
             )
         }
-    } // Row
-    } // Column
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

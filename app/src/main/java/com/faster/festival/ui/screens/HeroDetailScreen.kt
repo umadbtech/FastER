@@ -10,11 +10,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -77,6 +80,7 @@ fun HeroDetailScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(HeroWhite)
+                .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding())
                 .padding(horizontal = 4.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -95,7 +99,9 @@ fun HeroDetailScreen(
                 color = HeroTextDark,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 4.dp)
             )
 
             IconButton(onClick = {
@@ -372,7 +378,7 @@ fun HeroDetailScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp)
-                            .padding(top = 20.dp)
+                            .padding(top = 20.dp, bottom = 44.dp)
                     ) {
                         Text(
                             text = "Schedule",
@@ -416,6 +422,7 @@ fun HeroDetailScreen(
                                             )
                                         }
                                     }
+                                     Spacer(modifier = Modifier.width(4.dp))
                                 }
                             }
                         }

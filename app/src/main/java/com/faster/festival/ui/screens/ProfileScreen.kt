@@ -737,18 +737,20 @@ fun ProfileScreenNew(
     onLogoutClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
         verticalArrangement = Arrangement.spacedBy(12.dp),
-        contentPadding = PaddingValues(vertical = 16.dp)
+        contentPadding = PaddingValues(top = statusBarTop + 16.dp, bottom = 16.dp)
     ) {
         // Section 0: Avatar
         item {
             AvatarSection(
                 avatarUrl = avatarUrl,
-                displayName = name,
+                displayName = username ?: name,
                 onUploadAvatarClick = onUploadAvatarClick
             )
         }

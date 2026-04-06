@@ -32,7 +32,7 @@ import com.faster.festival.ui.viewmodel.ProfileState
 
 private val CoralRed = Color(0xFFE53935)
 
-private val genderOptions = listOf("Male", "Female", "Non-binary", "Prefer not to say", "Other")
+private val genderOptions = listOf("Male", "Female", "Non-binary", "Prefer not to say", "Self-describe")
 
 /**
  * Personal Information Edit Screen
@@ -63,6 +63,7 @@ fun PersonalInfoEditScreen(
     var phone by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var genderExpanded by remember { mutableStateOf(false) }
+    var genderIdentityText by remember { mutableStateOf("") }
     var showDatePicker by remember { mutableStateOf(false) }
 
     // Load profile data
@@ -146,17 +147,28 @@ fun PersonalInfoEditScreen(
                                 .verticalScroll(rememberScrollState())
                                 .padding(horizontal = 24.dp, vertical = 20.dp)
         ) {
-            // Full Legal Name
-            FormFieldLabel("Full Legal Name")
+            // First Name (Legal)
+            FormFieldLabel("First Name")
             Spacer(modifier = Modifier.height(6.dp))
             OutlinedTextField(
-                    value =
-                            "${formState.firstName}${if (formState.firstName.isNotBlank() && formState.lastName.isNotBlank()) " " else ""}${formState.lastName}",
-                    onValueChange = { fullName ->
-                        val parts = fullName.trim().split(" ", limit = 2)
-                        editViewModel.updateFirstName(parts.getOrElse(0) { "" })
-                        editViewModel.updateLastName(parts.getOrElse(1) { "" })
-                    },
+                    value = formState.firstName,
+                    onValueChange = { editViewModel.updateFirstName(it) },
+                    placeholder = { Text("First name", color = Color(0xFFB0B0B0)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = formFieldColors()
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Last Name (Legal)
+            FormFieldLabel("Last Name")
+            Spacer(modifier = Modifier.height(6.dp))
+            OutlinedTextField(
+                    value = formState.lastName,
+                    onValueChange = { editViewModel.updateLastName(it) },
+                    placeholder = { Text("Last name", color = Color(0xFFB0B0B0)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
@@ -295,6 +307,20 @@ fun PersonalInfoEditScreen(
                 }
             }
 
+            // Gender identity text (required when "Self-describe" is selected)
+            if (formState.genderIdentity == "Self-describe") {
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                        value = genderIdentityText,
+                        onValueChange = { genderIdentityText = it },
+                        placeholder = { Text("Please describe", color = Color(0xFFB0B0B0)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = formFieldColors()
+                )
+            }
+
             // Status messages
             Spacer(modifier = Modifier.height(16.dp))
             when (editState) {
@@ -337,7 +363,9 @@ fun PersonalInfoEditScreen(
                         if (formState.dateOfBirth.isNotBlank() ||
                                         formState.genderIdentity.isNotBlank()
                         ) {
-                            editViewModel.saveDemographics()
+                            editViewModel.saveDemographics(
+                                    genderIdentityText = genderIdentityText.ifBlank { null }
+                            )
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
