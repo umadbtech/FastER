@@ -1,0 +1,29 @@
+ FAQ
+Tables:
+public.faq_categories
+public.faq_items
+Supports:
+phase_scope: all | pre_event | event | post_event
+publish control: is_published, is_active, starts_at/ends_at
+filters/tags: category_keys[], tag_keys[], search_keywords[]
+enterprise governance: visibility, audience_filter, metadata, audit columns, soft delete, indexes, RLS/grants
+Environment vars:
+base_url = https://<PROJECT_REF>.supabase.co/functions/v1
+anon_key = <SUPABASE_ANON_KEY>
+admin_token = <ADMIN_ACCESS_TOKEN>
+festival_slug = <festival-slug>
+faq_category_id = (empty)
+faq_item_id = (empty)
+Headers:
+Always: apikey: {{anon_key}}
+
+1)All FAQ
+GET {{base_url}}/content-faq?festival_slug={{festival_slug}}
+2) Pre-Event FAQ
+GET {{base_url}}/content-faq?festival_slug={{festival_slug}}&phase=pre_event
+3) Event FAQ
+GET {{base_url}}/content-faq?festival_slug={{festival_slug}}&phase=event
+4) Filter by Category
+GET {{base_url}}/content-faq?festival_slug={{festival_slug}}&category=allowed-items
+5) Search Query
+GET {{base_url}}/content-faq?festival_slug={{festival_slug}}&q=water
