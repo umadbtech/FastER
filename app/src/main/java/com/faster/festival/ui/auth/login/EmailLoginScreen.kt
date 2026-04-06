@@ -63,8 +63,8 @@ fun EmailLoginScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            SmallTopAppBar(
-                title = { /* empty title - main title shown in content for visual parity */ Text("") },
+            TopAppBar(
+                title = { Text(signInTitle, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
                 navigationIcon = {
                     IconButton(onClick = onBackToSignup) {
                         Icon(imageVector = Icons.Default.ArrowBack, contentDescription = stringResource(id = R.string.back))
@@ -90,8 +90,6 @@ fun EmailLoginScreen(
             ) {
                 Spacer(modifier = Modifier.height(24.dp))
 
-                Text(text = signInTitle, style = MaterialTheme.typography.headlineSmall)
-                Spacer(modifier = Modifier.height(8.dp))
                 Text(text = signInHint, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                 Spacer(modifier = Modifier.height(24.dp))

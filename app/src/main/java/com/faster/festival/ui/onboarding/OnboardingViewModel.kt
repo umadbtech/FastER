@@ -3,9 +3,17 @@ package com.faster.festival.ui.onboarding
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import android.content.Context
+import android.util.Log
+import com.faster.festival.data.local.EncryptedSessionManager
+import com.faster.festival.data.model.GenderIdentity
 import com.faster.festival.data.model.SaveDemographicsRequest
 import com.faster.festival.data.model.SaveEmergencyContactRequest
+import com.faster.festival.data.model.SaveProfileNameRequest
 import com.faster.festival.data.repository.OnboardingRepository
+import com.faster.festival.utils.DeviceContact
+import com.faster.festival.utils.DeviceContactsHelper
+import com.faster.festival.utils.PhoneNumberUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,514 +24,522 @@ import java.util.Calendar
 import java.util.Locale
 
 /**
- * UI state for onboarding flow.
+ * UI state for the 6-step onboarding flow.
  */
-sealed interface OnboardingUiState {
-    data object Loading : OnboardingUiState
-    data object Idle : OnboardingUiState
-    data class Error(val message: String) : OnboardingUiState
-    data class Success(val message: String) : OnboardingUiState
-    data object OnboardingComplete : OnboardingUiState
-}
+data class OnboardingUiState(
+    val currentStep: OnboardingStep = OnboardingStep.PROFILE_DETAILS,
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val isComplete: Boolean = false,
 
-/**
- * Form state for the entire onboarding flow.
- */
-data class OnboardingFormState(
-    // Screen 1: Date of Birth
-    val dateOfBirth: String = "", // YYYY-MM-DD
-    val dobError: String? = null,
+    // Step 1: Profile Details
+    val dateOfBirth: String = "",
+    val genderIdentity: String = "",
 
-    // Screen 2: Race & Ethnicity
-    val selectedRaceEthnicity: List<String> = emptyList(),
-    val raceEthnicityText: String = "",
+    // Step 2: Emergency Contact
+    val emergencyName: String = "",
+    val emergencyPhone: String = "",
+    val emergencyRelationship: String = "",
+    val deviceContactsEnabled: Boolean = false,
+    val contactSuggestions: List<DeviceContact> = emptyList(),
 
-    // Screen 3: Gender Identity
-    val selectedGenderIdentity: String = "",
-    val genderIdentityText: String = "",
+    // Step 3: Confirm Account Details
+    val legalName: String = "",
+    val phoneNumber: String = "",
+    val email: String = "",
 
-    // Screen 4: Primary Emergency Contact
-    val emergencyContactName: String = "",
-    val emergencyContactPhone: String = "",
-    val emergencyContactRelationship: String = "",
-    val emergencyContactError: String? = null,
-
-    // Screen 5: Wristband
-    val wristbandCode: String = "",
-    val wristbandError: String? = null,
-
-    // Username (dynamic screen if in missing)
+    // Step 4: Username
     val username: String = "",
-    val usernameError: String? = null,
 
-    // Terms acceptance (dynamic screen if in missing)
+    // Step 5: Accept Terms
     val termsAccepted: Boolean = false,
 
-    // Ordered list of steps based on backend `missing` field
-    val orderedSteps: List<OnboardingStep> = emptyList(),
+    // Step 6: Wristband
+    val wristbandCode: String = "",
 
-    // Current step index in the ordered steps list
-    val currentStepIndex: Int = 0,
-
-    // Backend missing fields
-    val missing: List<String> = emptyList()
+    // Validation errors
+    val dateOfBirthError: String? = null,
+    val emergencyNameError: String? = null,
+    val emergencyPhoneError: String? = null,
+    val legalNameError: String? = null,
+    val phoneNumberError: String? = null,
+    val usernameError: String? = null
 )
 
 /**
- * ViewModel for managing onboarding flow state and API interactions.
+ * ViewModel for the 6-step onboarding flow.
+ *
+ * Steps: PROFILE_DETAILS -> EMERGENCY_CONTACT -> CONFIRM_DETAILS
+ *        -> USERNAME -> ACCEPT_TERMS -> WRISTBAND
  */
 class OnboardingViewModel(
     private val onboardingRepository: OnboardingRepository,
-    private val defaultFestivalId: String = "297d5837-a7b6-49a4-873b-4e3b17b60657"
+    private val sessionManager: EncryptedSessionManager
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow<OnboardingUiState>(OnboardingUiState.Idle)
+    private val _uiState = MutableStateFlow(OnboardingUiState())
     val uiState: StateFlow<OnboardingUiState> = _uiState.asStateFlow()
 
-    private val _formState = MutableStateFlow(OnboardingFormState())
-    val formState: StateFlow<OnboardingFormState> = _formState.asStateFlow()
-
-    // Mutable state for festival_id retrieved from RPC
-    private val _festivalId = MutableStateFlow(defaultFestivalId)
-    val festivalId: StateFlow<String> = _festivalId.asStateFlow()
-
+    private val _festivalId = MutableStateFlow("")
     private val dateFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
 
-    /**
-     * Initialize onboarding flow by calling ensure_festival_onboarding RPC
-     * to retrieve the actual festival_id for this user's session.
-     */
-    fun initializeOnboarding() {
+    private val steps = OnboardingStep.entries.toList()
+
+    init {
+        // Load email from session
+        val email = sessionManager.getUserEmail() ?: ""
+        _uiState.update { it.copy(email = email) }
+        initializeOnboarding()
+    }
+
+    private fun initializeOnboarding() {
         viewModelScope.launch {
-            _uiState.value = OnboardingUiState.Loading
+            _uiState.update { it.copy(isLoading = true, error = null) }
             val result = onboardingRepository.ensureOnboarding()
-            result.onSuccess { retrievedFestivalId ->
-                // Update festival_id from RPC response
-                _festivalId.value = retrievedFestivalId
-
-                // Set default missing fields to show the onboarding flow
-                // In a full implementation, these would come from the backend response
-                // ✅ NOW INCLUDES: username (step 1) and terms_acceptance (step 7) - ALL 7 STEPS
-                val defaultMissing = listOf(
-                    "username",
-                    "date_of_birth",
-                    "race_ethnicity",
-                    "gender_identity",
-                    "emergency_contact",
-                    "wristband",
-                    "terms_acceptance"
-                )
-                setMissingFields(defaultMissing)
-
-                _uiState.value = OnboardingUiState.Idle
+            result.onSuccess { festivalId ->
+                _festivalId.value = festivalId
+                _uiState.update { it.copy(isLoading = false) }
             }.onFailure { error ->
-                // Log error but fallback to default festival_id and steps
-                _festivalId.value = defaultFestivalId
-
-                // Still set missing fields so the screen shows content
-                // ✅ NOW INCLUDES: username (step 1) and terms_acceptance (step 7) - ALL 7 STEPS
-                val defaultMissing = listOf(
-                    "username",
-                    "date_of_birth",
-                    "race_ethnicity",
-                    "gender_identity",
-                    "emergency_contact",
-                    "wristband",
-                    "terms_acceptance"
-                )
-                setMissingFields(defaultMissing)
-
-                _uiState.value = OnboardingUiState.Error("${error.message ?: "Failed to initialize onboarding"} - using default flow")
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = error.message ?: "Failed to initialize onboarding"
+                    )
+                }
             }
         }
     }
 
+    // ============================================================
+    // Field update methods
+    // ============================================================
+
+    fun updateDateOfBirth(value: String) {
+        _uiState.update { it.copy(dateOfBirth = value, dateOfBirthError = null) }
+    }
+
+    fun updateGenderIdentity(value: String) {
+        _uiState.update { it.copy(genderIdentity = value) }
+    }
+
+    fun updateEmergencyName(value: String) {
+        _uiState.update { it.copy(emergencyName = value, emergencyNameError = null) }
+    }
+
     /**
-     * Set missing fields and build ordered steps based on backend response.
+     * Called as the user types in the name field.
+     * If device contacts are enabled, searches for matching contacts.
      */
-    fun setMissingFields(missing: List<String>?) {
-        val orderedSteps = OnboardingStepCoordinator.buildOrderedSteps(missing)
-        _formState.update { state ->
-            state.copy(
-                missing = missing ?: emptyList(),
-                orderedSteps = orderedSteps,
-                currentStepIndex = 0
+    fun updateEmergencyNameWithSearch(value: String, context: Context) {
+        _uiState.update { it.copy(emergencyName = value, emergencyNameError = null) }
+        if (_uiState.value.deviceContactsEnabled) {
+            searchDeviceContacts(value, context)
+        }
+    }
+
+    fun updateEmergencyPhone(value: String) {
+        _uiState.update { it.copy(emergencyPhone = value, emergencyPhoneError = null) }
+    }
+
+    fun updateEmergencyRelationship(value: String) {
+        _uiState.update { it.copy(emergencyRelationship = value) }
+    }
+
+    /**
+     * Mark device contacts as enabled (after permission is granted).
+     */
+    fun enableDeviceContacts() {
+        _uiState.update { it.copy(deviceContactsEnabled = true) }
+    }
+
+    /**
+     * Mark device contacts as disabled (toggle off or permission denied).
+     */
+    fun disableDeviceContacts() {
+        _uiState.update { it.copy(deviceContactsEnabled = false, contactSuggestions = emptyList()) }
+    }
+
+    /**
+     * Search device contacts by partial name match.
+     */
+    private fun searchDeviceContacts(query: String, context: Context) {
+        val results = DeviceContactsHelper.searchContacts(context, query)
+        _uiState.update { it.copy(contactSuggestions = results) }
+    }
+
+    /**
+     * Select a device contact — auto-fill name and phone.
+     */
+    fun selectDeviceContact(contact: DeviceContact) {
+        _uiState.update {
+            it.copy(
+                emergencyName = contact.name,
+                emergencyPhone = contact.normalizedPhone,
+                emergencyNameError = null,
+                emergencyPhoneError = null,
+                contactSuggestions = emptyList()
             )
         }
     }
 
     /**
-     * Get the total number of steps in the current flow.
+     * Dismiss contact suggestions without selecting.
      */
-    fun getTotalSteps(): Int = _formState.value.orderedSteps.size
-
-    /**
-     * Get the current step based on currentStepIndex.
-     */
-    fun getCurrentStep(): OnboardingStep? {
-        val state = _formState.value
-        return OnboardingStepCoordinator.getStepAtIndex(state.orderedSteps, state.currentStepIndex)
+    fun dismissContactSuggestions() {
+        _uiState.update { it.copy(contactSuggestions = emptyList()) }
     }
 
-    /**
-     * Get the step at a specific index.
-     */
-    fun getStepAtIndex(index: Int): OnboardingStep? {
-        return OnboardingStepCoordinator.getStepAtIndex(_formState.value.orderedSteps, index)
+    fun updateLegalName(value: String) {
+        _uiState.update { it.copy(legalName = value, legalNameError = null) }
     }
 
-    /**
-     * Move to the next step.
-     */
-    fun proceedToNextStep() {
-        val currentState = _formState.value
-        if (currentState.currentStepIndex < currentState.orderedSteps.size - 1) {
-            _formState.update { it.copy(currentStepIndex = it.currentStepIndex + 1) }
+    fun updatePhoneNumber(value: String) {
+        _uiState.update { it.copy(phoneNumber = value, phoneNumberError = null) }
+    }
+
+    fun updateUsername(value: String) {
+        _uiState.update { it.copy(username = value, usernameError = null) }
+    }
+
+    fun updateTermsAccepted(value: Boolean) {
+        _uiState.update { it.copy(termsAccepted = value) }
+    }
+
+    fun updateWristbandCode(value: String) {
+        _uiState.update { it.copy(wristbandCode = value) }
+    }
+
+    fun clearError() {
+        _uiState.update { it.copy(error = null) }
+    }
+
+    // ============================================================
+    // Navigation
+    // ============================================================
+
+    fun previousStep() {
+        val current = _uiState.value.currentStep
+        val currentIndex = steps.indexOf(current)
+        if (currentIndex > 0) {
+            _uiState.update { it.copy(currentStep = steps[currentIndex - 1], error = null) }
         }
     }
 
-    /**
-     * Move to the previous step.
-     */
-    fun goBack() {
-        val currentState = _formState.value
-        if (currentState.currentStepIndex > 0) {
-            _formState.update { it.copy(currentStepIndex = it.currentStepIndex - 1) }
-        }
-    }
+    val currentStepIndex: Int
+        get() = steps.indexOf(_uiState.value.currentStep)
+
+    val totalSteps: Int
+        get() = steps.size
+
+    val isFirstStep: Boolean
+        get() = currentStepIndex == 0
+
+    // ============================================================
+    // Save methods
+    // ============================================================
 
     /**
-     * Validate and proceed from current step based on step type.
+     * Step 1: Validate and save demographics (DOB + gender identity).
+     * On success, advances to EMERGENCY_CONTACT.
      */
-    fun proceedFromCurrentStep() {
-        val currentStep = getCurrentStep() ?: return
+    fun saveProfileDetails() {
+        val state = _uiState.value
 
-        when (currentStep) {
-            OnboardingStep.USERNAME -> proceedFromUsername()
-            OnboardingStep.DATE_OF_BIRTH -> proceedFromDOB()
-            OnboardingStep.RACE_ETHNICITY -> proceedFromRaceEthnicity()
-            OnboardingStep.GENDER_IDENTITY -> proceedFromGenderIdentity()
-            OnboardingStep.EMERGENCY_CONTACT -> proceedFromEmergencyContact()
-            OnboardingStep.WRISTBAND -> proceedFromWristband()
-            OnboardingStep.TERMS_ACCEPTANCE -> proceedFromTermsAcceptance()
-        }
-    }
-
-    /**
-     * Validate and proceed from username screen.
-     */
-    private fun proceedFromUsername() {
-        val username = _formState.value.username
-        if (!validateUsername(username)) {
-            _formState.update { it.copy(usernameError = "Username must be 3-30 characters") }
+        val dobError = validateDateOfBirth(state.dateOfBirth)
+        if (dobError != null) {
+            _uiState.update { it.copy(dateOfBirthError = dobError) }
             return
         }
 
         viewModelScope.launch {
-            _uiState.value = OnboardingUiState.Loading
-            val result = onboardingRepository.saveUsername(username)
-            result.onSuccess { response ->
-                // Clear error and proceed to next step
-                _formState.update { it.copy(usernameError = null) }
-                proceedToNextStep()
-                _uiState.value = OnboardingUiState.Idle
+            _uiState.update { it.copy(isLoading = true, error = null) }
+
+            val genderApiValue = state.genderIdentity.ifBlank { null }
+                ?.let { GenderIdentity.toApiValue(it) ?: it.lowercase().replace(" ", "_") }
+            val request = SaveDemographicsRequest(
+                dob = state.dateOfBirth,
+                gender_identity = genderApiValue
+            )
+            val result = onboardingRepository.saveDemographics(request)
+
+            result.onSuccess {
+                Log.d("OnboardingVM", "saveDemographics succeeded, advancing to EMERGENCY_CONTACT")
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        currentStep = OnboardingStep.EMERGENCY_CONTACT,
+                        error = null
+                    )
+                }
             }.onFailure { error ->
-                _uiState.value = OnboardingUiState.Error(error.message ?: "Failed to save username")
-            }
-        }
-    }
-
-    /**
-     * Update username field.
-     */
-    fun updateUsername(username: String) {
-        _formState.update { it.copy(username = username, usernameError = null) }
-    }
-
-    /**
-     * Update date of birth and validate.
-     */
-    fun updateDateOfBirth(date: String) {
-        val error = validateDOB(date)
-        _formState.update { it.copy(dateOfBirth = date, dobError = error) }
-    }
-
-    /**
-     * Proceed from Screen 1 to Screen 2.
-     */
-    fun proceedFromDOB() {
-        val current = _formState.value
-        val error = validateDOB(current.dateOfBirth)
-
-        if (error != null) {
-            _formState.update { it.copy(dobError = error) }
-            return
-        }
-
-        proceedToNextStep()
-    }
-
-    /**
-     * Toggle race/ethnicity selection.
-     */
-    fun toggleRaceEthnicity(option: String) {
-        _formState.update { state ->
-            val updated = state.selectedRaceEthnicity.toMutableList()
-            if (updated.contains(option)) {
-                updated.remove(option)
-            } else {
-                updated.add(option)
-            }
-            state.copy(selectedRaceEthnicity = updated)
-        }
-    }
-
-    /**
-     * Update race/ethnicity custom text.
-     */
-    fun updateRaceEthnicityText(text: String) {
-        _formState.update { it.copy(raceEthnicityText = text) }
-    }
-
-    /**
-     * Proceed from Screen 2 to Screen 3.
-     */
-    fun proceedFromRaceEthnicity() {
-        // No validation required, but at least one should be selected ideally
-        proceedToNextStep()
-    }
-
-    /**
-     * Update gender identity selection.
-     */
-    fun updateGenderIdentity(option: String) {
-        _formState.update { it.copy(selectedGenderIdentity = option) }
-    }
-
-    /**
-     * Update gender identity custom text.
-     */
-    fun updateGenderIdentityText(text: String) {
-        _formState.update { it.copy(genderIdentityText = text) }
-    }
-
-    /**
-     * Proceed from Screen 3 to Screen 4.
-     */
-    fun proceedFromGenderIdentity() {
-        proceedToNextStep()
-    }
-
-    /**
-     * Update emergency contact name.
-     */
-    fun updateEmergencyContactName(name: String) {
-        _formState.update { it.copy(emergencyContactName = name, emergencyContactError = null) }
-    }
-
-    /**
-     * Update emergency contact phone.
-     */
-    fun updateEmergencyContactPhone(phone: String) {
-        _formState.update { it.copy(emergencyContactPhone = phone, emergencyContactError = null) }
-    }
-
-    /**
-     * Update emergency contact relationship.
-     */
-    fun updateEmergencyContactRelationship(relationship: String) {
-        _formState.update { it.copy(emergencyContactRelationship = relationship) }
-    }
-
-    /**
-     * Proceed from Screen 4 to Screen 5 (wristband).
-     */
-    fun proceedFromEmergencyContact() {
-        val current = _formState.value
-        val error = validateEmergencyContact(current.emergencyContactName, current.emergencyContactPhone)
-
-        if (error != null) {
-            _formState.update { it.copy(emergencyContactError = error) }
-            return
-        }
-
-        // Save emergency contact
-        saveEmergencyContactToBackend()
-    }
-
-    /**
-     * Save emergency contact to backend and proceed to next screen.
-     */
-    private fun saveEmergencyContactToBackend() {
-        viewModelScope.launch {
-            _uiState.value = OnboardingUiState.Loading
-
-            val current = _formState.value
-            val currentFestivalId = _festivalId.value  // Get latest festival_id
-
-            try {
-                // Create emergency contact request with festival_id from RPC response
-                val request = SaveEmergencyContactRequest(
-                    festival_id = currentFestivalId,
-                    external_name = current.emergencyContactName,
-                    external_phone_e164 = normalizePhoneNumber(current.emergencyContactPhone),
-                    relationship = current.emergencyContactRelationship.ifBlank { null },
-                    is_primary = true  // First emergency contact is primary
-                )
-
-                val result = onboardingRepository.saveEmergencyContact(request)
-
-                result.onSuccess { response ->
-                    proceedToNextStep()
-                    _uiState.value = OnboardingUiState.Idle
-                }.onFailure { error ->
-                    _uiState.value = OnboardingUiState.Error(error.message ?: "Failed to save emergency contact")
+                Log.e("OnboardingVM", "saveDemographics failed: ${error.message}")
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = error.message ?: "Failed to save profile details"
+                    )
                 }
-            } catch (e: Exception) {
-                _uiState.value = OnboardingUiState.Error(e.message ?: "Unknown error saving emergency contact")
             }
         }
     }
 
     /**
-     * Update wristband code.
+     * Step 2: Validate and save emergency contact.
+     * On success, advances to CONFIRM_DETAILS.
      */
-    fun updateWristbandCode(code: String) {
-        _formState.update { it.copy(wristbandCode = code, wristbandError = null) }
-    }
+    fun saveEmergencyContact() {
+        val state = _uiState.value
 
-    /**
-     * Proceed from wristband screen.
-     */
-    private fun proceedFromWristband() {
-        proceedToNextStep()
-    }
-
-    /**
-     * Update terms acceptance.
-     */
-    fun updateTermsAcceptance(accepted: Boolean) {
-        _formState.update { it.copy(termsAccepted = accepted) }
-    }
-
-    /**
-     * Proceed from terms acceptance screen.
-     */
-    private fun proceedFromTermsAcceptance() {
-        val current = _formState.value
-        if (!current.termsAccepted) {
-            _uiState.value = OnboardingUiState.Error("You must accept the terms to proceed")
+        if (state.emergencyName.isBlank()) {
+            _uiState.update { it.copy(emergencyNameError = "Contact name is required") }
             return
         }
-        proceedToNextStep()
-    }
 
-    /**
-     * Submit entire onboarding flow.
-     *
-     * When called from the last step (TERMS_ACCEPTANCE), this saves all onboarding data.
-     * The API response will indicate what fields are still missing (if any).
-     *
-     * If the response has missing fields, rebuild the steps and continue to the next screen.
-     * If no missing fields, the onboarding is complete.
-     */
-    fun submitOnboarding() {
+        if (state.emergencyPhone.isBlank()) {
+            _uiState.update { it.copy(emergencyPhoneError = "Phone number is required") }
+            return
+        }
+
+        val normalizedPhone = PhoneNumberUtils.normalizeToE164(state.emergencyPhone)
+        if (!PhoneNumberUtils.isValidE164(normalizedPhone)) {
+            _uiState.update {
+                it.copy(emergencyPhoneError = "Invalid phone number. Include country code (e.g. +1)")
+            }
+            return
+        }
+
         viewModelScope.launch {
-            _uiState.value = OnboardingUiState.Loading
+            _uiState.update { it.copy(isLoading = true, error = null) }
 
-            val current = _formState.value
+            val request = SaveEmergencyContactRequest(
+                festival_id = _festivalId.value.ifBlank { null },
+                external_name = state.emergencyName,
+                external_phone_e164 = normalizedPhone,
+                relationship = state.emergencyRelationship.ifBlank { null },
+                is_primary = true
+            )
 
-            // Validate all fields
-            val dobError = validateDOB(current.dateOfBirth)
-            if (dobError != null) {
-                _uiState.value = OnboardingUiState.Error(dobError)
-                return@launch
-            }
+            val result = onboardingRepository.saveEmergencyContact(request)
 
-            try {
-                // Save demographics (final submission)
-                val demographicsRequest = SaveDemographicsRequest(
-                    dob = current.dateOfBirth,
-                    race_ethnicity = current.selectedRaceEthnicity.ifEmpty { null },
-                    race_ethnicity_text = current.raceEthnicityText.ifBlank { null },
-                    gender_identity = current.selectedGenderIdentity.ifBlank { null },
-                    gender_identity_text = current.genderIdentityText.ifBlank { null },
-                    wristband_code = current.wristbandCode.ifBlank { null },
-                    terms_acceptance = if (current.termsAccepted) true else null
-                )
-
-                val result = onboardingRepository.saveDemographics(demographicsRequest)
-
-                result.onSuccess { response ->
-                    // Check if there are missing fields
-                    if (!response.missing.isNullOrEmpty()) {
-                        // API indicates more fields are needed
-                        // Rebuild the steps to include the missing fields
-                        setMissingFields(response.missing)
-
-                        // Advance to the next step in the flow
-                        proceedToNextStep()
-
-                        _uiState.value = OnboardingUiState.Idle
-                    } else if (response.activated == true) {
-                        // No missing fields and activated = true → onboarding complete
-                        _uiState.value = OnboardingUiState.OnboardingComplete
-                    } else {
-                        // Saved but not activated and no missing fields reported
-                        _uiState.value = OnboardingUiState.Success("Onboarding saved successfully.")
-                    }
-                }.onFailure { error ->
-                    _uiState.value = OnboardingUiState.Error(error.message ?: "Failed to submit onboarding")
+            result.onSuccess {
+                Log.d("OnboardingVM", "saveEmergencyContact succeeded, advancing to CONFIRM_DETAILS")
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        currentStep = OnboardingStep.CONFIRM_DETAILS,
+                        error = null
+                    )
                 }
-            } catch (e: Exception) {
-                _uiState.value = OnboardingUiState.Error(e.message ?: "Unknown error")
+            }.onFailure { error ->
+                Log.e("OnboardingVM", "saveEmergencyContact failed: ${error.message}")
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = error.message ?: "Failed to save emergency contact"
+                    )
+                }
             }
         }
     }
 
     /**
-     * Validate emergency contact: name and phone required, phone must have country code.
+     * Step 3: Save legal name and advance to USERNAME.
      */
-    private fun validateEmergencyContact(name: String, phone: String): String? {
-        return when {
-            name.isBlank() -> "Emergency contact name is required"
-            phone.isBlank() -> "Emergency contact phone is required"
-            !phone.startsWith("+") -> "Phone number must include country code (e.g., +1, +44, +91)"
-            else -> null
+    fun createAccount() {
+        val state = _uiState.value
+
+        if (state.legalName.isBlank()) {
+            _uiState.update { it.copy(legalNameError = "Full legal name is required") }
+            return
+        }
+
+        if (state.phoneNumber.isBlank()) {
+            _uiState.update { it.copy(phoneNumberError = "Phone number is required") }
+            return
+        }
+
+        // Split legal name into first/last
+        val nameParts = state.legalName.trim().split(" ", limit = 2)
+        val firstName = nameParts[0]
+        val lastName = if (nameParts.size > 1) nameParts[1] else ""
+
+        if (lastName.isBlank()) {
+            _uiState.update { it.copy(legalNameError = "Please enter your first and last name") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+
+            val nameResult = onboardingRepository.saveProfileName(
+                SaveProfileNameRequest(
+                    legalFirstName = firstName,
+                    legalLastName = lastName
+                )
+            )
+            nameResult.onSuccess {
+                Log.d("OnboardingVM", "saveProfileName succeeded, advancing to USERNAME")
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        currentStep = OnboardingStep.USERNAME,
+                        error = null
+                    )
+                }
+            }.onFailure { error ->
+                Log.e("OnboardingVM", "saveProfileName failed: ${error.message}")
+                _uiState.update {
+                    it.copy(isLoading = false, error = error.message ?: "Failed to save name")
+                }
+            }
         }
     }
 
     /**
-     * Normalize phone number to E.164 format.
-     * For now, simple formatting. In production, use Google's libphonenumber.
+     * Step 4: Validate and save username.
+     * On success, advances to ACCEPT_TERMS.
      */
-    private fun normalizePhoneNumber(phone: String): String {
-        // Remove all non-digit characters except leading +
-        val cleaned = phone.replace(Regex("[^\\d+]"), "")
-        // If it doesn't start with +, assume US and add +1
-        return if (cleaned.startsWith("+")) {
-            cleaned
-        } else {
-            "+1${cleaned.takeLast(10)}"
+    fun saveUsername() {
+        val state = _uiState.value
+        val username = state.username.trim()
+
+        if (username.isBlank()) {
+            _uiState.update { it.copy(usernameError = "Username is required") }
+            return
+        }
+        if (username.length < 3) {
+            _uiState.update { it.copy(usernameError = "Username must be at least 3 characters") }
+            return
+        }
+        if (username.length > 30) {
+            _uiState.update { it.copy(usernameError = "Username must be 30 characters or less") }
+            return
+        }
+        if (!username.matches(Regex("^[a-zA-Z0-9_-]+$"))) {
+            _uiState.update { it.copy(usernameError = "Only letters, numbers, underscores, and hyphens allowed") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+
+            val result = onboardingRepository.saveUsername(username)
+
+            result.onSuccess {
+                Log.d("OnboardingVM", "saveUsername succeeded, advancing to ACCEPT_TERMS")
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        currentStep = OnboardingStep.ACCEPT_TERMS,
+                        error = null
+                    )
+                }
+            }.onFailure { error ->
+                Log.e("OnboardingVM", "saveUsername failed: ${error.message}")
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = error.message ?: "Failed to save username"
+                    )
+                }
+            }
         }
     }
 
     /**
-     * Validate date of birth: not in future, within 120 years.
+     * Step 5: Accept terms and advance to WRISTBAND.
      */
-    private fun validateDOB(dateStr: String): String? {
+    fun acceptTermsAndContinue() {
+        val state = _uiState.value
+
+        if (!state.termsAccepted) {
+            _uiState.update { it.copy(error = "You must accept the terms to continue") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+
+            val result = onboardingRepository.acceptTerms()
+
+            result.onSuccess {
+                Log.d("OnboardingVM", "acceptTerms succeeded, advancing to WRISTBAND")
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        currentStep = OnboardingStep.WRISTBAND,
+                        error = null
+                    )
+                }
+            }.onFailure { error ->
+                Log.e("OnboardingVM", "acceptTerms failed: ${error.message}")
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = error.message ?: "Failed to accept terms"
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Step 6: Pair wristband (optional). On success or skip, marks onboarding complete.
+     */
+    fun saveWristband() {
+        val code = _uiState.value.wristbandCode.trim()
+
+        if (code.isBlank()) {
+            // Skip — mark complete
+            sessionManager.setOnboardingJustCompleted(true)
+            _uiState.update { it.copy(isComplete = true) }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+
+            val result = onboardingRepository.saveWristband(code)
+
+            result.onSuccess {
+                Log.d("OnboardingVM", "saveWristband succeeded, onboarding complete")
+                sessionManager.setOnboardingJustCompleted(true)
+                _uiState.update {
+                    it.copy(isLoading = false, isComplete = true, error = null)
+                }
+            }.onFailure { error ->
+                Log.e("OnboardingVM", "saveWristband failed: ${error.message}")
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = error.message ?: "Failed to pair wristband"
+                    )
+                }
+            }
+        }
+    }
+
+    fun skipWristband() {
+        sessionManager.setOnboardingJustCompleted(true)
+        _uiState.update { it.copy(isComplete = true) }
+    }
+
+    // ============================================================
+    // Validation helpers
+    // ============================================================
+
+    private fun validateDateOfBirth(dateStr: String): String? {
         if (dateStr.isBlank()) {
             return "Date of birth is required"
         }
-
         return try {
             val dob = dateFormatter.parse(dateStr) ?: return "Invalid date format"
             val today = Calendar.getInstance()
             val dobCal = Calendar.getInstance().apply { time = dob }
-
             when {
-                dobCal > today -> "Date of birth cannot be in the future"
-                today.get(Calendar.YEAR) - dobCal.get(Calendar.YEAR) > 120 -> "Date of birth is too old (max 120 years)"
+                dobCal.after(today) -> "Date of birth cannot be in the future"
+                today.get(Calendar.YEAR) - dobCal.get(Calendar.YEAR) > 120 ->
+                    "Please enter a valid date of birth"
                 else -> null
             }
         } catch (e: Exception) {
@@ -531,25 +547,19 @@ class OnboardingViewModel(
         }
     }
 
-    /**
-     * Validate username: 3-30 characters.
-     */
-    private fun validateUsername(username: String): Boolean {
-        return username.length in 3..30
-    }
+    // ============================================================
+    // Factory
+    // ============================================================
 
-    /**
-     * Factory for creating OnboardingViewModel instances.
-     */
     companion object {
         fun createFactory(
             onboardingRepository: OnboardingRepository,
-            defaultFestivalId: String = "297d5837-a7b6-49a4-873b-4e3b17b60657"
+            sessionManager: EncryptedSessionManager
         ): ViewModelProvider.Factory {
             return object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    return OnboardingViewModel(onboardingRepository, defaultFestivalId) as T
+                    return OnboardingViewModel(onboardingRepository, sessionManager) as T
                 }
             }
         }

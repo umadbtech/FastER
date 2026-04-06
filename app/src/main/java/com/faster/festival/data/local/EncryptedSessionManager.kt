@@ -20,10 +20,16 @@ class EncryptedSessionManager(context: Context) {
 
     fun saveAccessToken(token: String) {
         sharedPreferences.edit().putString(KEY_ACCESS_TOKEN, token).apply()
+        // ✅ Track when token was saved for debugging expiry
+        sharedPreferences.edit().putLong(KEY_ACCESS_TOKEN_TIMESTAMP, System.currentTimeMillis()).apply()
     }
 
     fun getAccessToken(): String? {
         return sharedPreferences.getString(KEY_ACCESS_TOKEN, null)
+    }
+
+    fun getAccessTokenTimestamp(): Long {
+        return sharedPreferences.getLong(KEY_ACCESS_TOKEN_TIMESTAMP, 0L)
     }
 
     fun saveRefreshToken(token: String) {
@@ -66,12 +72,21 @@ class EncryptedSessionManager(context: Context) {
         return sharedPreferences.getBoolean(KEY_IS_EMAIL_CONFIRMED, false)
     }
 
+    fun setOnboardingJustCompleted(completed: Boolean) {
+        sharedPreferences.edit().putBoolean(KEY_ONBOARDING_JUST_COMPLETED, completed).apply()
+    }
+
+    fun isOnboardingJustCompleted(): Boolean {
+        return sharedPreferences.getBoolean(KEY_ONBOARDING_JUST_COMPLETED, false)
+    }
+
     fun clearSession() {
         sharedPreferences.edit().clear().apply()
     }
 
     companion object {
         private const val KEY_ACCESS_TOKEN = "access_token"
+        private const val KEY_ACCESS_TOKEN_TIMESTAMP = "access_token_timestamp"
         private const val KEY_REFRESH_TOKEN = "refresh_token"
         private const val KEY_USER_EMAIL = "user_email"
         private const val KEY_USER_PHONE = "user_phone"
@@ -79,5 +94,6 @@ class EncryptedSessionManager(context: Context) {
         private const val KEY_IS_2FA_ENABLED = "is_2fa_enabled"
         private const val KEY_IS_EMAIL_VERIFIED = "is_email_verified"
         private const val KEY_IS_EMAIL_CONFIRMED = "is_email_confirmed"
+        private const val KEY_ONBOARDING_JUST_COMPLETED = "onboarding_just_completed"
     }
 }

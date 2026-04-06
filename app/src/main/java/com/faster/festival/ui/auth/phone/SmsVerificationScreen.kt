@@ -87,7 +87,7 @@ fun SmsVerificationScreen(
     val retryLabel = stringResource(id = R.string.retry)
 
     Scaffold(topBar = {
-        SmallTopAppBar(title = { Text(verifyTitle) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = backDesc) } })
+        TopAppBar(title = { Text(verifyTitle) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = backDesc) } })
     }, snackbarHost = { SnackbarHost(hostState = snackbarHostState) }) { padding ->
         Column(modifier = Modifier
             .padding(padding)

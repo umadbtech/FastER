@@ -1,20 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- App -->
     <string name="app_name">FastER Festival</string>
+
+    <!-- Bottom Navigation -->
     <string name="home">Home</string>
+    <string name="lineup">Lineup</string>
     <string name="map">Map</string>
+    <string name="friends">Friends</string>
+    <string name="band">FASTER</string>
     <string name="schedule">Schedule</string>
     <string name="profile">Profile</string>
     <string name="tickets">Tickets</string>
+
+    <!-- Home Screen -->
     <string name="welcome_to_faster">Welcome to FASTER</string>
     <string name="setup_your_account">Setup Your Account</string>
     <string name="headliners">Headliners</string>
     <string name="experience">Experience</string>
     <string name="festival_home">Festival Home</string>
     <string name="faqs">FAQs</string>
+    <string name="announcements">Announcements</string>
+    <string name="upcoming_events">Upcoming Events</string>
+    <string name="quick_actions">Quick Actions</string>
+    <string name="view_all">View All</string>
+
+    <!-- Schedule/Lineup -->
     <string name="schedule_title">Schedule</string>
-    <string name="map_title">Map</string>
+    <string name="all_days">All Days</string>
+    <string name="search_artists">Search artists</string>
+    <string name="no_artists_found">No artists found</string>
+    <string name="festival_sets">Festival Sets</string>
     <string name="shortcuts">Shortcuts</string>
+
+    <!-- Map -->
+    <string name="map_title">Map</string>
     <string name="error_loading_map">Error loading map</string>
     <string name="stages">Stages</string>
     <string name="medical_tents">Medical Tents</string>
@@ -23,64 +43,136 @@
     <string name="restrooms">Restrooms</string>
     <string name="info">Info</string>
     <string name="filter">Filter</string>
-    <string name="back">Back</string>
-    <string name="settings">Settings</string>
-    <string name="festival_sets">Festival Sets</string>
-    <string name="edit">Edit</string>
-    <string name="profile_title">Profile</string>
-    <string name="phone">Phone</string>
-    <string name="email">Email</string>
-    <string name="emergency_contact">Emergency Contact</string>
-    <string name="add">Add</string>
-    <string name="health">Health</string>
-    <string name="allergies">Allergies</string>
-    <string name="medications">Medications</string>
-    <string name="payments">Payments</string>
-    <string name="personal_details">Personal Details</string>
+    <string name="all">All</string>
+    <string name="medical">Medical</string>
+    <string name="venues">Venues</string>
+    <string name="facilities">Facilities</string>
+
+    <!-- Friends -->
+    <string name="pending">Pending</string>
+    <string name="requests">Requests</string>
+    <string name="search_users">Search users</string>
+    <string name="add_friend">Add Friend</string>
+    <string name="send_request">Send Request</string>
+    <string name="accept">Accept</string>
+    <string name="decline">Decline</string>
+    <string name="no_friends_yet">No friends yet</string>
+    <string name="no_pending_requests">No pending requests</string>
+    <string name="no_incoming_requests">No incoming requests</string>
+    <string name="request_sent">Friend request sent</string>
+
+    <!-- FASTER / Wristband -->
+    <string name="wristband_status">Wristband Status</string>
+    <string name="connected">Connected</string>
+    <string name="disconnected">Disconnected</string>
+    <string name="battery">Battery</string>
+    <string name="last_synced">Last Synced</string>
+    <string name="wristband_info">Wristband Info</string>
+    <string name="wristband_id">Wristband ID</string>
+    <string name="firmware_version">Firmware Version</string>
+    <string name="paired_date">Paired Date</string>
+    <string name="find_my_wristband">Find My Wristband</string>
+    <string name="sync_now">Sync Now</string>
+    <string name="unpair_wristband">Unpair Wristband</string>
+    <string name="wristband_features">Features</string>
+    <string name="nfc_payments">NFC Tap to Pay</string>
+    <string name="emergency_sos">Emergency SOS</string>
+    <string name="friend_detection">Friend Detection</string>
+
+    <!-- Auth -->
     <string name="login">Login</string>
+    <string name="sign_in">Sign in</string>
     <string name="continue_with_phone">Continue with Phone</string>
     <string name="continue_with_email">Continue with Email</string>
     <string name="continue_with_google">Continue with Google</string>
-    <string name="verify_email">Verify your email</string>
-    <string name="send_code">Send Code</string>
-    <string name="enter_verification_code">Enter verification code</string>
-    <string name="verify">Verify</string>
-    <string name="country">Country</string>
-    <string name="phone_number">Phone number</string>
-    <string name="enter_phone_title">Enter your phone number</string>
-    <string name="next">Next</string>
-    <string name="sign_up_other_method">Sign up using another method</string>
-    <string name="resend">Resend</string>
-    <string name="resend_in">Resend code in 00:%1$d</string>
-    <string name="we_sent_code">We sent a code to %1$s</string>
-    <string name="verify_code_title">Verify code</string>
-    <string name="use_email_instead">Use Email Instead</string>
-    <string name="retry">Retry</string>
-    <string name="troubleshoot">Troubleshoot</string>
-    <string name="troubleshoot_title">Troubleshoot SMS</string>
-    <string name="troubleshoot_text">Try these steps to improve SMS delivery:\n• Check mobile signal and retry\n• Toggle airplane mode off/on\n• Clear your SMS inbox or allow new messages\n• Use a different phone number or try email signup</string>
-    <string name="ok">OK</string>
-    <string name="close">Close</string>
-    <string name="sms_failed">SMS failed to send. Check signal or try email.</string>
-    <string name="rate_limited">Too many attempts. Wait 60s.</string>
-    <string name="invalid_phone_format">Invalid number format.</string>
-    <!-- Additional UI strings -->
-    <string name="sign_in">Sign in</string>
     <string name="continue_with_email_hint">Continue with your email</string>
-    <string name="verify_sms_code_title">Verify SMS code</string>
-    <string name="code_sent_to">Code sent to: %1$s</string>
-    <string name="verify_otp_button">Verify OTP</string>
-    <string name="resend_seconds">Resend in %1$ds</string>
-    <string name="more_info">More Info</string>
-    <string name="save">Save</string>
-    <string name="get_tickets">Get Tickets</string>
-    <string name="browse_all_tickets">Browse All Tickets</string>
-    <string name="open_in_browser">Open in Browser</string>
+    <string name="sign_up_other_method">Sign up using another method</string>
+    <string name="create_account">Create Account</string>
     <string name="email_label">Email</string>
     <string name="password_label">Password</string>
     <string name="forgot_password">Forgot Password?</string>
     <string name="login_label">Login</string>
     <string name="back_to_signup">Back to Sign Up</string>
     <string name="send_reset_code">Send Reset Code</string>
-    <string name="create_account">Create Account</string>
+
+    <!-- Verification -->
+    <string name="verify_email">Verify your email</string>
+    <string name="send_code">Send Code</string>
+    <string name="enter_verification_code">Enter verification code</string>
+    <string name="verify">Verify</string>
+    <string name="verify_code_title">Verify code</string>
+    <string name="verify_sms_code_title">Verify SMS code</string>
+    <string name="verify_otp_button">Verify OTP</string>
+    <string name="resend">Resend</string>
+    <string name="resend_in">Resend code in 00:%1$d</string>
+    <string name="resend_seconds">Resend in %1$ds</string>
+    <string name="we_sent_code">We sent a code to %1$s</string>
+    <string name="code_sent_to">Code sent to: %1$s</string>
+
+    <!-- Phone Auth -->
+    <string name="country">Country</string>
+    <string name="phone">Phone</string>
+    <string name="phone_number">Phone number</string>
+    <string name="enter_phone_title">Enter your phone number</string>
+    <string name="use_email_instead">Use Email Instead</string>
+    <string name="troubleshoot">Troubleshoot</string>
+    <string name="troubleshoot_title">Troubleshoot SMS</string>
+    <string name="troubleshoot_text">Try these steps to improve SMS delivery:\n• Check mobile signal and retry\n• Toggle airplane mode off/on\n• Clear your SMS inbox or allow new messages\n• Use a different phone number or try email signup</string>
+    <string name="sms_failed">SMS failed to send. Check signal or try email.</string>
+    <string name="rate_limited">Too many attempts. Wait 60s.</string>
+    <string name="invalid_phone_format">Invalid number format.</string>
+
+    <!-- Onboarding -->
+    <string name="profile_details">Profile Details</string>
+    <string name="username">Username</string>
+    <string name="first_name">First Name</string>
+    <string name="last_name">Last Name</string>
+    <string name="date_of_birth">Date of Birth</string>
+    <string name="race_ethnicity">Race / Ethnicity</string>
+    <string name="gender_identity">Gender Identity</string>
+    <string name="emergency_contact_info">Emergency Contact</string>
+    <string name="contact_name">Contact Name</string>
+    <string name="contact_phone">Phone Number</string>
+    <string name="relationship">Relationship</string>
+    <string name="wristband_code">Wristband Code</string>
+    <string name="pair_wristband">Pair Wristband</string>
+    <string name="skip_for_now">Skip for Now</string>
+    <string name="confirm_details">Confirm Details</string>
+    <string name="complete_setup">Complete Setup</string>
+    <string name="terms_and_conditions">Terms and Conditions</string>
+    <string name="i_accept_terms">I accept the Terms and Conditions</string>
+    <string name="continue_text">Continue</string>
+
+    <!-- Profile -->
+    <string name="profile_title">Profile</string>
+    <string name="personal_details">Personal Details</string>
+    <string name="email">Email</string>
+    <string name="emergency_contact">Emergency Contact</string>
+    <string name="health">Health</string>
+    <string name="allergies">Allergies</string>
+    <string name="medications">Medications</string>
+    <string name="payments">Payments</string>
+    <string name="edit">Edit</string>
+    <string name="add">Add</string>
+    <string name="settings">Settings</string>
+
+    <!-- Common -->
+    <string name="next">Next</string>
+    <string name="back">Back</string>
+    <string name="save">Save</string>
+    <string name="ok">OK</string>
+    <string name="close">Close</string>
+    <string name="retry">Retry</string>
+    <string name="cancel">Cancel</string>
+    <string name="loading">Loading…</string>
+    <string name="error_occurred">An error occurred</string>
+    <string name="no_data">No data available</string>
+    <string name="more_info">More Info</string>
+    <string name="get_tickets">Get Tickets</string>
+    <string name="browse_all_tickets">Browse All Tickets</string>
+    <string name="open_in_browser">Open in Browser</string>
+    <string name="about_faster">About FASTER</string>
+    <string name="terms">Terms</string>
+    <string name="privacy">Privacy</string>
+    <string name="faq">FAQ</string>
 </resources>

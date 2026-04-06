@@ -36,10 +36,12 @@ import com.faster.festival.ui.theme.*
 // Festival Hero Header
 @Composable
 fun FestivalHeroHeader(
+        modifier: Modifier = Modifier,
         festivalName: String,
-        location: String,
-        date: String,
-        modifier: Modifier = Modifier
+        bannerUrl: String? = null,
+        logoUrl: String? = null,
+        dateText: String = "",
+        accentColorHex: String? = null
 ) {
         Box(
                 modifier =
@@ -48,7 +50,7 @@ fun FestivalHeroHeader(
                                 .background(
                                         brush =
                                                 Brush.verticalGradient(
-                                                        colors = listOf(NavyBlue, NavyBlueLight)
+                                                        colors = listOf(FasterRed, FasterRedLight)
                                                 )
                                 )
         ) {
@@ -61,10 +63,10 @@ fun FestivalHeroHeader(
                                                         Brush.verticalGradient(
                                                                 colors =
                                                                         listOf(
-                                                                                NavyBlue.copy(
+                                                                                FasterRed.copy(
                                                                                         alpha = 0.7f
                                                                                 ),
-                                                                                NavyBlueLight.copy(
+                                                                                FasterRedLight.copy(
                                                                                         alpha = 0.9f
                                                                                 )
                                                                         )
@@ -72,21 +74,43 @@ fun FestivalHeroHeader(
                                         )
                 )
 
+                // Banner background image if available
+                if (!bannerUrl.isNullOrEmpty()) {
+                        coil.compose.AsyncImage(
+                                model = bannerUrl,
+                                contentDescription = "Festival Banner",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
+                                alpha = 0.3f
+                        )
+                }
+
                 // Content
                 Column(
                         modifier = Modifier.fillMaxSize().padding(24.dp),
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                        // Logo/Icon placeholder
-                        Image(
-                                painter = painterResource(id = R.drawable.faster_red),
-                                contentDescription = "FASTER Logo",
-                                modifier = Modifier
-                                        .size(60.dp)
-                                        .clip(RoundedCornerShape(0.dp)),
-                                contentScale = ContentScale.Fit
-                        )
+                        // Logo from API if available, otherwise use app logo
+                        if (!logoUrl.isNullOrEmpty()) {
+                                coil.compose.AsyncImage(
+                                        model = logoUrl,
+                                        contentDescription = "Festival Logo",
+                                        modifier = Modifier
+                                                .size(60.dp)
+                                                .clip(RoundedCornerShape(8.dp)),
+                                        contentScale = ContentScale.Crop
+                                )
+                        } else {
+                                Image(
+                                        painter = painterResource(id = R.drawable.faster_red),
+                                        contentDescription = "Festival Logo",
+                                        modifier = Modifier
+                                                .size(60.dp)
+                                                .clip(RoundedCornerShape(0.dp)),
+                                        contentScale = ContentScale.Fit
+                                )
+                        }
 
                         Spacer(modifier = Modifier.height(16.dp))
 
@@ -100,21 +124,16 @@ fun FestivalHeroHeader(
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        Text(
-                                text = location,
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Color.White.copy(alpha = 0.9f),
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-
-                        Text(
-                                text = date,
-                                style = MaterialTheme.typography.labelLarge,
-                                color = Color.White.copy(alpha = 0.8f),
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
+                        // Display date text if available
+                        if (dateText.isNotEmpty()) {
+                                Text(
+                                        text = dateText,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = Color.White.copy(alpha = 0.8f),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                        }
                 }
         }
 }
@@ -434,9 +453,11 @@ fun TicketsFabPill(onClick: () -> Unit, modifier: Modifier = Modifier, isVisible
 fun PreviewFestivalHeroHeader() {
         FastERTheme {
                 FestivalHeroHeader(
-                        festivalName = "FASTER",
-                        location = "Desert Valley, California",
-                        date = "May 15-17, 2026"
+                        festivalName = "FloydFest 26",
+                        bannerUrl = null,
+                        logoUrl = null,
+                        dateText = "July 21 - 27, 2026",
+                        accentColorHex = "#00A86B"
                 )
         }
 }

@@ -1,28 +1,30 @@
-@file:OptIn(ExperimentalFoundationApi::class)
-
 package com.faster.festival.ui.onboarding
 
-import androidx.compose.foundation.ExperimentalFoundationApi
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PagerState
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -30,94 +32,105 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.faster.festival.data.local.EncryptedSessionManager
 import com.faster.festival.data.repository.OnboardingRepository
 import com.faster.festival.di.NetworkModule
-import com.faster.festival.data.local.EncryptedSessionManager
+import com.faster.festival.ui.components.StepIndicator
+import com.faster.festival.utils.PermissionUtils
 
 /**
- * Main onboarding activity composable using HorizontalPager for swipeable screens.
+ * Main onboarding coordinator composable.
+ *
+ * Manages the 6-step onboarding flow:
+ * 1. Profile Details (DOB, gender identity)
+ * 2. Emergency Contacts (contact info + device contacts toggle)
+ * 3. Confirm Account Details (legal name, phone, review)
+ * 4. Username (choose username)
+ * 5. Accept Terms (terms and conditions + privacy policy)
+ * 6. Wristband Pair (optional wristband code)
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OnboardingScreen(
     sessionManager: EncryptedSessionManager,
     onOnboardingComplete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Create repository and ViewModel
     val onboardingRepository = remember {
         OnboardingRepository(NetworkModule.onboardingApiService, sessionManager)
     }
     val viewModel: OnboardingViewModel = viewModel(
-        factory = OnboardingViewModel.createFactory(onboardingRepository)
+        factory = OnboardingViewModel.createFactory(onboardingRepository, sessionManager)
     )
 
     val uiState by viewModel.uiState.collectAsState()
-    val formState by viewModel.formState.collectAsState()
-
-    // Initialize pager state with dynamic page count
-    @Suppress("EXPERIMENTAL_IS_NOT_ENABLED")
-    val pagerState: PagerState = rememberPagerState(pageCount = { viewModel.getTotalSteps() })
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
-    // Initialize onboarding on first load
-    LaunchedEffect(Unit) {
-        viewModel.initializeOnboarding()
-    }
-
-
-    // Handle UI state changes
-    LaunchedEffect(uiState) {
-        when (uiState) {
-            is OnboardingUiState.Error -> {
-                snackbarHostState.showSnackbar((uiState as OnboardingUiState.Error).message)
-            }
-            is OnboardingUiState.Success -> {
-                snackbarHostState.showSnackbar((uiState as OnboardingUiState.Success).message)
-            }
-            OnboardingUiState.OnboardingComplete -> {
-                onOnboardingComplete()
-            }
-            else -> {}
+    // Permission launcher for READ_CONTACTS
+    val contactsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            viewModel.enableDeviceContacts()
+        } else {
+            viewModel.disableDeviceContacts()
         }
     }
 
-    // Update pager position when step index changes
-    LaunchedEffect(formState.currentStepIndex) {
-        @Suppress("EXPERIMENTAL_IS_NOT_ENABLED")
-        pagerState.animateScrollToPage(formState.currentStepIndex)
+    LaunchedEffect(uiState.isComplete) {
+        if (uiState.isComplete) {
+            onOnboardingComplete()
+        }
+    }
+
+    LaunchedEffect(uiState.error) {
+        val errorMsg = uiState.error
+        if (errorMsg != null) {
+            snackbarHostState.showSnackbar(errorMsg)
+            viewModel.clearError()
+        }
     }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            OnboardingTopBar(
-                currentStepIndex = formState.currentStepIndex,
-                totalSteps = formState.orderedSteps.size
-            )
-        },
-        bottomBar = {
-            OnboardingBottomBar(
-                currentStepIndex = formState.currentStepIndex,
-                totalSteps = formState.orderedSteps.size,
-                isLoading = uiState is OnboardingUiState.Loading,
-                onBackClick = { viewModel.goBack() },
-                onNextClick = {
-                    // Validate current step and proceed
-                    val currentStep = viewModel.getCurrentStep()
-                    if (currentStep == formState.orderedSteps.lastOrNull()) {
-                        // Last step - submit onboarding
-                        viewModel.submitOnboarding()
-                    } else {
-                        // Validate and proceed from current step
-                        viewModel.proceedFromCurrentStep()
-                    }
-                }
-            )
+            Column {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = "Step ${viewModel.currentStepIndex + 1} of ${viewModel.totalSteps}",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    },
+                    navigationIcon = {
+                        if (!viewModel.isFirstStep) {
+                            IconButton(onClick = { viewModel.previousStep() }) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                )
+                StepIndicator(
+                    currentStep = viewModel.currentStepIndex,
+                    totalSteps = viewModel.totalSteps,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surface)
+                )
+            }
         }
     ) { innerPadding ->
         Box(
@@ -126,169 +139,97 @@ fun OnboardingScreen(
                 .padding(innerPadding)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            if (uiState is OnboardingUiState.Loading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center),
-                    color = MaterialTheme.colorScheme.primary
-                )
-            } else {
-                HorizontalPager(state = pagerState, userScrollEnabled = false) { page ->
-                    val step = viewModel.getStepAtIndex(page)
+            Crossfade(
+                targetState = uiState.currentStep,
+                animationSpec = tween(durationMillis = 300),
+                label = "onboarding_step"
+            ) { step ->
+                when (step) {
+                    OnboardingStep.PROFILE_DETAILS -> ProfileDetailsScreen(
+                        dateOfBirth = uiState.dateOfBirth,
+                        genderIdentity = uiState.genderIdentity,
+                        dateOfBirthError = uiState.dateOfBirthError,
+                        onDateOfBirthChange = viewModel::updateDateOfBirth,
+                        onGenderIdentityChange = viewModel::updateGenderIdentity,
+                        onContinue = viewModel::saveProfileDetails
+                    )
 
-                    when (step) {
-                        OnboardingStep.USERNAME -> UsernameScreen(
-                            formState = formState,
-                            onUsernameChange = { viewModel.updateUsername(it) }
-                        )
-                        OnboardingStep.DATE_OF_BIRTH -> DateOfBirthScreen(
-                            formState = formState,
-                            onDateChange = { viewModel.updateDateOfBirth(it) }
-                        )
-                        OnboardingStep.RACE_ETHNICITY -> RaceEthnicityScreen(
-                            formState = formState,
-                            onRaceToggle = { viewModel.toggleRaceEthnicity(it) },
-                            onCustomTextChange = { viewModel.updateRaceEthnicityText(it) }
-                        )
-                        OnboardingStep.GENDER_IDENTITY -> GenderIdentityScreen(
-                            formState = formState,
-                            onGenderSelect = { viewModel.updateGenderIdentity(it) },
-                            onCustomTextChange = { viewModel.updateGenderIdentityText(it) }
-                        )
-                        OnboardingStep.EMERGENCY_CONTACT -> PrimaryEmergencyContactScreen(
-                            formState = formState,
-                            onNameChange = { viewModel.updateEmergencyContactName(it) },
-                            onPhoneChange = { viewModel.updateEmergencyContactPhone(it) },
-                            onRelationshipChange = { viewModel.updateEmergencyContactRelationship(it) }
-                        )
-                        OnboardingStep.WRISTBAND -> WristbandScreen(
-                            formState = formState,
-                            onSkipPairing = { viewModel.proceedFromCurrentStep() },
-                            onPairingReady = { viewModel.proceedFromCurrentStep() },
-                            onBackPressed = { viewModel.goBack() }
-                        )
-                        OnboardingStep.TERMS_ACCEPTANCE -> TermsAcceptanceScreen(
-                            formState = formState,
-                            onTermsAcceptanceChange = { viewModel.updateTermsAcceptance(it) }
-                        )
-                        else -> {
-                            // Fallback if step is unknown
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(16.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("Unknown step")
+                    OnboardingStep.EMERGENCY_CONTACT -> EmergencyContactScreen(
+                        emergencyName = uiState.emergencyName,
+                        emergencyPhone = uiState.emergencyPhone,
+                        emergencyRelationship = uiState.emergencyRelationship,
+                        emergencyNameError = uiState.emergencyNameError,
+                        emergencyPhoneError = uiState.emergencyPhoneError,
+                        deviceContactsEnabled = uiState.deviceContactsEnabled,
+                        contactSuggestions = uiState.contactSuggestions,
+                        onNameChange = { value ->
+                            viewModel.updateEmergencyNameWithSearch(value, context)
+                        },
+                        onPhoneChange = viewModel::updateEmergencyPhone,
+                        onRelationshipChange = viewModel::updateEmergencyRelationship,
+                        onToggleDeviceContacts = { enabled ->
+                            if (enabled) {
+                                if (PermissionUtils.hasContactsPermission(context)) {
+                                    viewModel.enableDeviceContacts()
+                                } else {
+                                    contactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+                                }
+                            } else {
+                                viewModel.disableDeviceContacts()
                             }
-                        }
-                    }
+                        },
+                        onContactSelected = viewModel::selectDeviceContact,
+                        onDismissSuggestions = viewModel::dismissContactSuggestions,
+                        onContinue = viewModel::saveEmergencyContact
+                    )
+
+                    OnboardingStep.CONFIRM_DETAILS -> ConfirmDetailsScreen(
+                        legalName = uiState.legalName,
+                        phoneNumber = uiState.phoneNumber,
+                        email = uiState.email,
+                        dateOfBirth = uiState.dateOfBirth,
+                        genderIdentity = uiState.genderIdentity,
+                        legalNameError = uiState.legalNameError,
+                        phoneNumberError = uiState.phoneNumberError,
+                        onLegalNameChange = viewModel::updateLegalName,
+                        onPhoneNumberChange = viewModel::updatePhoneNumber,
+                        onCreateAccount = viewModel::createAccount
+                    )
+
+                    OnboardingStep.USERNAME -> UsernameScreen(
+                        username = uiState.username,
+                        usernameError = uiState.usernameError,
+                        onUsernameChange = viewModel::updateUsername,
+                        onContinue = viewModel::saveUsername
+                    )
+
+                    OnboardingStep.ACCEPT_TERMS -> TermsAcceptanceScreen(
+                        termsAccepted = uiState.termsAccepted,
+                        onTermsAcceptedChange = viewModel::updateTermsAccepted,
+                        onAcceptTerms = viewModel::acceptTermsAndContinue
+                    )
+
+                    OnboardingStep.WRISTBAND -> WristbandScreen(
+                        wristbandCode = uiState.wristbandCode,
+                        onWristbandCodeChange = viewModel::updateWristbandCode,
+                        onPairWristband = viewModel::saveWristband,
+                        onSkip = viewModel::skipWristband
+                    )
                 }
             }
-        }
-    }
-}
 
-@Composable
-private fun OnboardingTopBar(currentStepIndex: Int, totalSteps: Int) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(16.dp)
-    ) {
-        // Step indicator text
-        Text(
-            text = "Step ${currentStepIndex + 1} of $totalSteps",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-
-        // Progress dots (dynamic)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
-        ) {
-            repeat(totalSteps) { index ->
+            if (uiState.isLoading) {
                 Box(
                     modifier = Modifier
-                        .width(if (index == currentStepIndex) 24.dp else 8.dp)
-                        .height(8.dp)
-                        .background(
-                            if (index <= currentStepIndex) {
-                                MaterialTheme.colorScheme.onPrimary// Green accent
-                            } else {
-                                MaterialTheme.colorScheme.outlineVariant
-                            },
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
-                        )
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun OnboardingBottomBar(
-    currentStepIndex: Int,
-    totalSteps: Int,
-    isLoading: Boolean,
-    onBackClick: () -> Unit,
-    onNextClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(16.dp),
-        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
-    ) {
-        // Back button (visible for steps after 0)
-        if (currentStepIndex > 0) {
-            Button(
-                onClick = onBackClick,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.outlineVariant
-                )
-            ) {
-                Text("Back")
-            }
-        }
-
-        // Next/Submit button
-        Button(
-            onClick = onNextClick,
-            modifier = if (currentStepIndex > 0) {
-                Modifier
-                    .weight(1f)
-                    .height(48.dp)
-            } else {
-                Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-            },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF081836),
-                contentColor = Color.White
-            ),
-            enabled = !isLoading
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier
-                        .width(20.dp)
-                        .height(20.dp),
-                    strokeWidth = 2.dp,
-                    color = Color.White
-                )
-            } else {
-                Text(
-                    if (currentStepIndex == totalSteps - 1) "Submit" else "Continue",
-                    fontWeight = FontWeight.Bold
-                )
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.3f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(48.dp),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
     }

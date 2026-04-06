@@ -4,21 +4,47 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -36,16 +62,20 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Force light mode globally - prevents app from following system dark mode
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            enableEdgeToEdge()
-        }
+        enableEdgeToEdge()
+
+        // Enable edge-to-edge with visible status bar
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        val insetsController = WindowInsetsControllerCompat(window, window.decorView)
+        insetsController.isAppearanceLightStatusBars = true
 
         val sessionManager = EncryptedSessionManager(applicationContext)
+        NetworkModule.initializeWithSessionManager(sessionManager)
         val authRepository = AuthRepository(NetworkModule.authApiService, sessionManager)
 
+        @Suppress("NewApi")
         setContent {
             FastERTheme {
                 FastERApp(
@@ -57,58 +87,107 @@ class MainActivity : FragmentActivity() {
     }
 }
 
+private sealed class BottomNavTab(
+    val route: String,
+    val label: String
+) {
+    class IconTab(
+        route: String,
+        label: String,
+        val icon: ImageVector
+    ) : BottomNavTab(route, label)
+
+    class ImageTab(
+        route: String,
+        label: String,
+        val drawableRes: Int,
+        val showBadge: Boolean
+    ) : BottomNavTab(route, label)
+}
+
+private val bottomNavTabs = listOf(
+    BottomNavTab.IconTab(
+        route = Routes.HOME,
+        label = "Home",
+        icon = Icons.Default.Home
+    ),
+    BottomNavTab.IconTab(
+        route = Routes.LINEUP,
+        label = "Lineup",
+        icon = Icons.Default.QueueMusic
+    ),
+    BottomNavTab.IconTab(
+        route = Routes.MAP,
+        label = "Map",
+        icon = Icons.Default.Map
+    ),
+    BottomNavTab.IconTab(
+        route = Routes.PROFILE,
+        label = "Profile",
+        icon = Icons.Default.Person
+    ),
+    BottomNavTab.ImageTab(
+        route = Routes.FASTER_SCREEN,
+        label = "FASTER",
+        drawableRes = R.drawable.faster_red,
+        showBadge = true
+    )
+)
+
+private val bottomNavRoutes = bottomNavTabs.map { it.route }.toSet()
+
 @Composable
+@RequiresApi(Build.VERSION_CODES.O)
 fun FastERApp(
     authRepository: AuthRepository,
     sessionManager: EncryptedSessionManager
 ) {
-    var showSplash by remember { mutableStateOf(true) }
     val navController = rememberNavController()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
 
-    val mainViewModel: MainViewModel = viewModel(factory = MainViewModel.Factory(sessionManager))
+    val mainViewModel: MainViewModel = viewModel(
+        factory = MainViewModel.Factory(sessionManager, NetworkModule.authApiService)
+    )
     val startDestination by mainViewModel.startDestination.collectAsState()
 
+    // Minimum splash display so logo + spinner are visible even when auth resolves instantly
+    var splashMinElapsed by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(1200)
+        splashMinElapsed = true
+    }
+
+    val showSplash = !splashMinElapsed || startDestination == null
+
     if (showSplash) {
-        SplashScreen(onSplashFinished = { showSplash = false })
-    } else if (startDestination == null) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
-        }
+        SplashScreen()
     } else {
-        // Determine if we should show bottom nav
-        val showBottomNav =
-                currentRoute?.let {
-                    it == Routes.HOME ||
-                            it == Routes.MAP ||
-                            it == Routes.SCHEDULE ||
-                            it == Routes.PROFILE
-                }
-                        ?: false
+        val showBottomNav = currentRoute in bottomNavRoutes
 
         Scaffold(
-                bottomBar = {
-                    if (showBottomNav) {
-                        FastERBottomNavBar(
-                                currentRoute = currentRoute,
-                                onNavigate = { route ->
-                                    navController.navigate(route) {
-                                        popUpTo(Routes.HOME) { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                }
-                        )
-                    }
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            bottomBar = {
+                if (showBottomNav) {
+                    FastERBottomNavBar(
+                        currentRoute = currentRoute,
+                        onNavigate = { route ->
+                            navController.navigate(route) {
+                                popUpTo(Routes.HOME) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    )
                 }
+            }
         ) { paddingValues ->
             Box(modifier = Modifier.padding(paddingValues)) {
                 NavGraph(
-                        navController = navController,
-                        startDestination = startDestination!!,
-                        authRepository = authRepository,
-                        sessionManager = sessionManager
+                    navController = navController,
+                    startDestination = startDestination!!,
+                    authRepository = authRepository,
+                    sessionManager = sessionManager
                 )
             }
         }
@@ -117,57 +196,64 @@ fun FastERApp(
 
 @Composable
 fun FastERBottomNavBar(
-        currentRoute: String?,
-        onNavigate: (String) -> Unit,
-        modifier: Modifier = Modifier
+    currentRoute: String?,
+    onNavigate: (String) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     NavigationBar(
-            modifier = modifier,
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface
+        modifier = modifier,
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface
     ) {
-        // Home
-        NavigationBarItem(
-                icon = { Icon(imageVector = Icons.Default.Home, contentDescription = stringResource(id = R.string.home)) },
-                label = { Text(stringResource(id = R.string.home)) },
-                selected = currentRoute == Routes.HOME,
-                onClick = { onNavigate(Routes.HOME) }
-        )
+        bottomNavTabs.forEach { tab ->
+            val selected = currentRoute == tab.route
 
-        // Map
-        NavigationBarItem(
-                icon = { Icon(imageVector = Icons.Default.Map, contentDescription = stringResource(id = R.string.map)) },
-                label = { Text(stringResource(id = R.string.map)) },
-                selected = currentRoute == Routes.MAP,
-                onClick = { onNavigate(Routes.MAP) }
-        )
-
-        // Schedule
-        NavigationBarItem(
+            NavigationBarItem(
                 icon = {
-                    Icon(imageVector = Icons.Default.DateRange, contentDescription = "Schedule")
+                    when (tab) {
+                        is BottomNavTab.IconTab -> {
+                            androidx.compose.material3.Icon(
+                                imageVector = tab.icon,
+                                contentDescription = tab.label
+                            )
+                        }
+                        is BottomNavTab.ImageTab -> {
+                            BadgedBox(
+                                badge = {
+                                    if (tab.showBadge) {
+                                        Badge(
+                                            containerColor = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                            ) {
+                                Image(
+                                    painter = painterResource(id = tab.drawableRes),
+                                    contentDescription = tab.label,
+                                    modifier = Modifier.size(24.dp),
+                                    contentScale = ContentScale.Fit
+                                )
+                            }
+                        }
+                    }
                 },
-                label = { Text(stringResource(id = R.string.schedule)) },
-                selected = currentRoute == Routes.SCHEDULE,
-                onClick = { onNavigate(Routes.SCHEDULE) }
-        )
-
-        // Profile
-        NavigationBarItem(
-                icon = { Icon(imageVector = Icons.Default.Person, contentDescription = "Profile") },
-                label = { Text(stringResource(id = R.string.profile)) },
-                selected = currentRoute == Routes.PROFILE,
-                onClick = { onNavigate(Routes.PROFILE) }
-        )
+                label = { Text(tab.label) },
+                selected = selected,
+                onClick = { onNavigate(tab.route) },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    indicatorColor = Color.Transparent
+                )
+            )
+        }
     }
 }
 
 @Composable
-fun SplashScreen(onSplashFinished: () -> Unit) {
-    LaunchedEffect(Unit) {
-        delay(1500) // Show splash for 1.5 seconds
-        onSplashFinished()
-    }
+fun SplashScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -185,7 +271,7 @@ fun SplashScreen(onSplashFinished: () -> Unit) {
             )
 
             CircularProgressIndicator(
-                color = MaterialTheme.colorScheme.onPrimary,
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = 32.dp)
             )
         }

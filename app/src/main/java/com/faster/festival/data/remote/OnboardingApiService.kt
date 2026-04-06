@@ -2,12 +2,15 @@ package com.faster.festival.data.remote
 
 import com.faster.festival.data.model.OnboardingResponse
 import com.faster.festival.data.model.SaveDemographicsRequest
+import com.faster.festival.data.model.SaveProfileNameRequest
 import com.faster.festival.data.model.SaveUsernameRequest
 import com.faster.festival.data.model.EnsureOnboardingResponse
 import com.faster.festival.data.model.SaveEmergencyContactRequest
 import com.faster.festival.data.model.EnsureFestivalOnboardingResponse
+import com.faster.festival.data.models.AccountProfileResponse
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
 
@@ -35,6 +38,16 @@ interface OnboardingApiService {
     suspend fun saveUsername(
         @Header("Authorization") authorization: String,
         @Body request: SaveUsernameRequest
+    ): Response<OnboardingResponse>
+
+    /**
+     * POST /functions/v1/save-profile-name
+     * Save legal first and last name via Edge Function.
+     */
+    @POST("functions/v1/save-profile-name")
+    suspend fun saveProfileName(
+        @Header("Authorization") authorization: String,
+        @Body request: SaveProfileNameRequest
     ): Response<OnboardingResponse>
 
     /**
@@ -66,4 +79,23 @@ interface OnboardingApiService {
         @Header("Authorization") authorization: String,
         @Body request: SaveEmergencyContactRequest
     ): Response<OnboardingResponse>
+
+    /**
+     * POST /functions/v1/accept-terms
+     * Accept terms and conditions.
+     */
+    @POST("functions/v1/accept-terms")
+    suspend fun acceptTerms(
+        @Header("Authorization") authorization: String,
+        @Body body: Map<String, Boolean> = mapOf("accepted" to true)
+    ): Response<OnboardingResponse>
+
+    /**
+     * GET /functions/v1/account-profile
+     * Get account profile for current user.
+     */
+    @GET("functions/v1/account-profile")
+    suspend fun getAccountProfile(
+        @Header("Authorization") authorization: String
+    ): Response<AccountProfileResponse>
 }

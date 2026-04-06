@@ -1,0 +1,1515 @@
+# API Contract (Feature-Wise, Frontend-Focused)
+
+This document is for frontend/UI teams.
+
+It only covers user-facing features and their API calls.
+
+Frontend env values used by client:
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `VITE_EVENT_A_ID` (event context for app features)
+
+The key and URL will be shared separately and securely.
+
+
+
+The link provided on this page points to the latest consolidated version, which may change as development is still in progress.
+Once the architecture is finalized, the updated and finalized details will be organized and published feature-wise in the left-side sections.
+
+
+SignUP & Login with Email/Phone & pwd Recovery
+
+Feature: User Signup With Email
+Endpoint: POST /auth/v1/signup
+Headers:
+apikey: <SUPABASE_ANON_KEY>
+Content-Type: application/json
+Request:
+json
+{
+ "email": "user@example.com",
+ "password": "securePassword123",
+ "data": {
+   "full_name": "John Doe"
+ }
+}
+Response (200 OK):
+json
+{
+ "id": "c743f81b-f457-4c18-80ef-2f8782def5c1",
+ "aud": "authenticated",
+ "role": "authenticated",
+ "email": "user@example.com",
+ "email_confirmed_at": null,
+ "confirmation_sent_at": "2026-02-10T12:00:00.000Z",
+ "app_metadata": {
+   "provider": "email",
+   "providers": ["email"]
+ },
+ "user_metadata": {
+   "full_name": "John Doe"
+ },
+ "created_at": "2026-02-10T12:00:00.000Z"
+}
+
+
+
+User Verify OTP (Email)
+Endpoint: POST /auth/v1/verify
+Headers:
+apikey: <SUPABASE_ANON_KEY>
+Content-Type: application/json
+Request:
+json
+{
+"email": "user@example.com",
+"token": "123456",
+"type": "signup"
+}
+Response (200 OK):
+(This returns the same session object as a successful login)
+json
+{
+"access_token": "eyJhbGciOiJIUzI1Ni...",
+"token_type": "bearer",
+"expires_in": 3600,
+"refresh_token": "d743f81b-...",
+"user": {
+  "id": "c743f81b-f457-4c18-80ef-2f8782def5c1",
+  "aud": "authenticated",
+  "role": "authenticated",
+  "email": "user@example.com",
+  "email_confirmed_at": "2026-02-19T20:25:00.000Z",
+  "user_metadata": {
+    "full_name": "John Doe"
+  },
+  "created_at": "2026-02-19T20:22:00.000Z"
+}
+}
+
+Important Notes:
+Verification Type: For the initial signup verification, the type must be "signup".
+Session Transition: Once this call returns a 200 OK, the user is officially confirmed and logged in. You should save the access_token for future requests.
+
+User Login (Email)
+Endpoint: POST /auth/v1/token?grant_type=password
+Headers:
+apikey: <SUPABASE_ANON_KEY>
+Content-Type: application/json
+Request:
+json
+{
+"email": "user@example.com",
+"password": "securePassword123"
+}
+Response (200 OK):
+json
+{
+"access_token": "eyJhbGciOiJIUzI1Ni...",
+"token_type": "bearer",
+"expires_in": 3600,
+"refresh_token": "d743f81b-...",
+"user": {
+  "id": "c743f81b-f457-4c18-80ef-2f8782def5c1",
+  "aud": "authenticated",
+  "role": "authenticated",
+  "email": "user@example.com",
+  "email_confirmed_at": "2026-02-10T12:05:00.000Z",
+  "user_metadata": {
+    "full_name": "John Doe"
+  }
+}
+}
+
+Request Password Reset (Email)
+
+
+Endpoint: POST /auth/v1/recover
+Headers:
+apikey: <SUPABASE_ANON_KEY>
+Content-Type: application/json
+Request:
+json
+{
+"email": "user@example.com"
+}
+Verify Reset OTP and Update Password
+
+
+Once the user receives the 6-digit code, you verify it using the
+verify endpoint with type recovery.
+Endpoint: POST /auth/v1/verify
+Request:
+json
+{
+"email": "user@example.com",
+"token": "654321",
+"type": "recovery"
+}
+
+After this call returns a session, you can then call PUT /auth/v1/user with the new password
+
+
+Endpoint: PUT auth/v1/user
+Headers:
+apikey: <YOUR_ANON_KEY>
+Authorization: Bearer <ACCESS_TOKEN_FROM_VERIFY_RESPONSE>
+Content-Type: application/json
+
+Body (raw JSON)
+{
+  "password": "NewSecurePass123!"
+}
+What success looks like
+Status: 200
+Response: user object (and sometimes updated session)
+
+
+Feature: User Signup/Login With Phone
+
+
+Endpoint: POST /auth/v1/verify
+Headers:
+apikey: <SUPABASE_ANON_KEY>
+Content-Type: application/json
+Request:
+json
+{
+"phone": "+19014283182",
+"token": "123456",
+"type": "sms"
+}
+Response (200 OK):
+json
+{
+"access_token": "eyJhbGciOiJIUzI1Ni...",
+"token_type": "bearer",
+"expires_in": 3600,
+"refresh_token": "k843f82c-...",
+"user": {
+  "id": "f843f81b-f457-4c18-80ef-2f8782def5c9",
+  "aud": "authenticated",
+  "role": "authenticated",
+  "phone": "+19014283182",
+  "phone_confirmed_at": "2026-02-10T12:10:00.000Z",
+  "app_metadata": {
+    "provider": "phone",
+    "providers": ["phone"]
+  }
+}
+}
+
+
+Feature: User Signout
+
+POST /auth/v1/logout
+Use headers:
+apikey: <anon_key>
+Authorization: Bearer <access_token>
+Body:
+{}
+
+
+
+Error Cases
+Duplicate Email (422)
+Request:
+json
+{
+ "email": "existing@example.com",
+ "password": "SecurePass123!"
+}
+Response:
+json
+{
+ "msg": "User already registered",
+ "error": "email_exists",
+ "error_description": "User already registered"
+}
+Invalid Email Format (400)
+
+Request:
+json
+{
+ "email": "not-an-email",
+ "password": "SecurePass123!"
+}
+Response:
+json
+{
+ "msg": "Unable to validate email address: invalid format",
+ "error": "invalid_email"
+}
+Password Too Short (400)
+Request:
+json
+{
+ "email": "test@example.com",
+ "password": "123"
+}
+Response:
+json
+{
+ "msg": "Password should be at least 6 characters",
+ "error": "weak_password"
+}
+
+
+
+When a user is created and verified, rows are automatically managed across three main tables via database triggers. Here is the breakdown:
+1. auth.users (Managed by Supabase)
+This is the core identity table.
+When created: A new row is inserted as soon as the signup request is sent.
+When verified: The email_confirmed_at (for email) or phone_confirmed_at (for phone) column is updated from NULL to the current timestamp.
+2. public.profiles
+This table holds user-specific public information (like usernames).
+When created: A row is automatically created via a trigger (on_auth_user_created) as soon as the user signs up.
+Data: Initially, it only contains the user_id linked to the auth user.
+3. public.user_verifications
+This table is used by the application logic to quickly check verification status without querying the internal auth schema.
+When created: A row is inserted automatically upon signup.
+When verified: A trigger (trg_sync_user_verifications_auth_update) detects the change in auth.users and automatically updates email_verified or phone_verified to true in this table.
+
+                                                                      Phase: Updated(As of 21st feb)
+
+0) Prerequisite (must run after login)
+Endpoint
+POST /rest/v1/rpc/ensure_festival_onboarding
+Headers
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <ACCESS_TOKEN>
+Content-Type: application/json
+Request
+{}
+
+
+What it does
+Ensures festival_memberships row exists (onboarding if new).
+Ensures onboarding_state row exists (festival-scoped).
+Safe to call every login (idempotent).
+
+1) Save Username
+Endpoint
+POST /functions/v1/save-username
+Headers
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <ACCESS_TOKEN>
+Content-Type: application/json
+Request
+{
+  "username": "JohnDoe99"
+}
+
+
+Notes for frontend
+Do not send user_id.
+Backend derives user from JWT.
+Username length enforced: 3..30.
+What happens on save
+Upserts public.profiles for current user.
+Calls public.maybe_activate_membership().
+Returns activation state.
+Response (example)
+{
+  "saved": true,
+  "username": "JohnDoe99",
+  "activated": false,
+  "status": "onboarding",
+  "missing": ["demographics", "primary_emergency_contact", "terms_acceptance"]
+}
+
+
+
+
+
+
+SAVE FULL LEGAL NAME
+
+POST /functions/v1/save-profile-name
+Headers:
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <access_token>
+Content-Type: application/json
+Body (send one or both):
+{
+  "legal_first_name": "John",
+  "legal_last_name": "Doe"
+}
+
+
+Rules:
+At least one of legal_first_name, legal_last_name is required
+Empty string becomes null
+Max length: 80 chars each
+User is derived from JWT (no user_id in body)
+Success 200:
+{
+  "saved": true,
+  "legal_first_name": "John",
+  "legal_last_name": "Doe",
+  "activated": false,
+  "status": "onboarding",
+  "missing": []
+}
+
+
+(activated/status/missing come from maybe_activate_membership and depend on current onboarding state.)
+Errors:
+400 invalid/missing input
+401 missing/invalid token
+405 method not allowed
+500 server/db error
+
+
+
+Avatar for Profile
+POST /functions/v1/upload-avatar
+Headers:
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <access_token>
+Body (multipart/form-data):
+file: image file (required)
+
+
+Success 200:
+{
+  "saved": true,
+  "avatar_path": "avatars/<user_id>/avatar_<timestamp>_<random>.<ext>",
+  "signed_avatar_url": "<signed_url>",
+  "signed_avatar_url_expires_in_seconds": 60
+}
+
+
+Validation:
+Allowed: image/jpeg, image/png, image/webp
+Max size: 5MB
+Auth required (401 if missing/invalid token)
+
+
+GET /functions/v1/avatar-url
+Headers:
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <access_token>
+Body:
+none
+Behavior:
+Uses JWT user only (no user_id input)
+Reads profiles.avatar_path
+Returns short-lived signed URL for private avatars bucket (TTL 60s)
+Response 200 (avatar exists):
+{
+  "ok": true,
+  "avatar_path": "avatars/<user_id>/avatar_<timestamp>_<random>.<ext>",
+  "signed_avatar_url": "https://<project>.supabase.co/storage/v1/object/sign/avatars/...",
+  "signed_avatar_url_expires_in_seconds": 60
+}
+
+Response 200 (no avatar):
+{
+  "ok": true,
+  "avatar_path": null,
+  "signed_avatar_url": null,
+  "signed_avatar_url_expires_in_seconds": null
+}
+
+Errors:
+401 missing/invalid bearer token
+405 method not allowed
+500 profile lookup or signed URL generation failure
+
+
+
+
+2) Save Demographics
+Endpoint
+POST /functions/v1/save-demographics
+Headers
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <ACCESS_TOKEN>
+Content-Type: application/json
+Request
+{
+  "dob": "1990-01-01",
+  "gender_identity": "male",
+  "gender_identity_text": null,
+  "race_ethnicity": ["asian", "white"],
+  "race_ethnicity_text": null
+}
+
+
+Validation rules
+gender_identity enum:
+male, female, non_binary, prefer_not_to_say, self_describe
+gender_identity_text:
+required if gender_identity = self_describe
+otherwise null
+race_ethnicity allowed values only
+race_ethnicity_text:
+required if array contains self_describe
+otherwise null
+dob:
+format YYYY-MM-DD
+not future
+within last 120 years
+What happens on save
+Upserts public.profile_demographics.
+Backend computes/sets is_minor.
+Calls public.maybe_activate_membership().
+Returns activation state + missing gates.
+Response (example)
+{
+  "saved": true,
+  "activated": false,
+  "status": "onboarding",
+  "missing": ["primary_emergency_contact", "terms_acceptance"]
+}
+
+
+
+3) Save Emergency Contact (Festival-scoped)
+Endpoint
+POST /functions/v1/save-emergency-contact
+Headers
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <ACCESS_TOKEN>
+Content-Type: application/json
+Create request
+{
+  "festival_id": "297d5837-a7b6-49a4-873b-4e3b17b60657",
+  "external_name": "Jane Doe",
+  "external_phone_e164": "+15551234567",
+  "relationship": "Sister",
+  "is_primary": true
+}
+
+
+Update request
+{
+  "id": "<emergency_contact_id>",
+  "external_name": "Jane A. Doe",
+  "is_primary": true
+}
+
+
+Delete request
+{
+  "id": "<emergency_contact_id>",
+  "delete": true
+}
+
+
+Notes for frontend
+Do not send owner_user_id; backend derives from JWT.
+This is now festival-scoped (festival_id), not event_id.
+If is_primary=true, backend demotes previous primary first (same user + festival).
+What happens on save
+Inserts/updates/deletes public.emergency_contacts.
+Primary uniqueness maintained per (festival_id, owner_user_id).
+Calls public.maybe_activate_membership().
+Returns activation state.
+Response (example)
+{
+  "saved": true,
+  "activated": false,
+  "status": "onboarding",
+  "missing": ["terms_acceptance"]
+}
+
+
+
+
+
+Feature: Accept Terms & Conditions (Auto-Activation Aware)
+Endpoint
+POST /functions/v1/accept-terms
+Headers
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <ACCESS_TOKEN>
+Content-Type: application/json
+Request
+{}
+
+Notes for frontend
+Do not send user_id.
+Do not send version from client.
+Backend derives:
+user from JWT
+terms version from server config (app_runtime_config.required_terms_version, fallback v1.0)
+What happens on save
+Upserts into public.terms_acceptances for current user + required version.
+Calls public.maybe_activate_membership().
+Returns activation result and missing gates.
+Response (example: still onboarding)
+{
+  "saved": true,
+  "terms_version": "v1.0",
+  "activated": false,
+  "status": "onboarding",
+  "missing": ["primary_emergency_contact"]
+}
+
+Response (example: activated now)
+{
+  "saved": true,
+  "terms_version": "v1.0",
+  "activated": true,
+  "status": "active",
+  "missing": []
+}
+
+Common errors
+401 invalid/missing/expired JWT
+500 server config issue (if required config is broken)
+Frontend usage
+Call after user taps “I agree”.
+Use returned status and missing to decide whether onboarding is complete immediately.
+
+Activation behavior (important for frontend)
+All 4 endpoints above auto-run activation check via maybe_activate_membership().
+maybe_activate_membership() evaluates DB truth gates:
+username exists
+demographics complete
+if minor: guardian accepted + guardian consent
+primary emergency contact exists (festival-scoped)
+required terms accepted
+Status behavior
+onboarding -> active when all gates pass
+never downgrades active -> onboarding
+returns:
+{
+  "activated": true,
+  "status": "active",
+  "missing": []
+}
+
+
+
+To load Profile/demographics/emergency-contacts in a single call
+
+
+GET /functions/v1/profile-summary
+Headers:
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <access_token>
+Body:
+none
+Response 200:
+{
+  "ok": true,
+  "profile": {
+    "user_id": "<uuid>",
+    "username": "<string|null>",
+    "legal_first_name": "<string|null>",
+    "legal_last_name": "<string|null>",
+    "avatar_path": "<string|null>",
+    "is_minor": "<boolean|null>",
+    "updated_at": "<timestamp|null>"
+  },
+  "demographics": { "...profile_demographics row..." } | null,
+  "emergency_contacts": [ "...emergency contact rows..." ],
+  "signed_avatar_url": "<signed_url|null>",
+  "signed_avatar_url_expires_in_seconds": 60 | null,
+  "terms": {
+    "required_version": "<string>",
+    "accepted_version": "<string|null>",
+    "accepted_at": "<timestamp|null>",
+    "complete": true|false
+  },
+  "context": {
+    "festival_id": "<uuid|null>"
+  }
+}
+
+Errors:
+401 missing/invalid bearer token
+405 method not allowed (only GET)
+500 server/config/data lookup errors
+
+
+
+Useful frontend integration pattern
+For each step screen:
+Call step endpoint (save-username / save-demographics / save-emergency-contact)
+Use returned status + missing to drive next UI state
+No separate “Finish onboarding” button needed in normal flow
+
+Error patterns to handle
+401: missing/expired/invalid JWT
+400: payload validation error
+403: scope/policy mismatch
+409: uniqueness conflict (rare after backend primary demotion logic)
+500: server/config issue
+
+
+
+
+                                                                                Phase: Updated(As of 22nd feb)
+
+Feature: Friendships
+Base URL
+https://<project-ref>.supabase.co
+Required headers (all friendship calls)
+Authorization: Bearer <access_token>
+apikey: <anon_key>
+Content-Type: application/json
+Pre-step (must run after login)
+POST /rest/v1/rpc/ensure_festival_onboarding
+Body:
+{}
+
+Purpose:
+ensures festival_memberships + onboarding_state exist.
+Discover users
+2. POST /rest/v1/rpc/search_festival_members
+Body:
+{
+  "p_festival_id": "<festival_uuid>",
+  "p_query": "john",
+  "p_limit": 20
+}
+
+Returns:
+festival_member_id
+username
+friendship context with current user
+Send request
+3. POST /functions/v1/request-friendship
+Preferred body:
+{
+  "festival_id": "<festival_uuid>",
+  "target_festival_member_id": "<festival_memberships.id>"
+}
+
+Alternate body:
+{
+  "festival_id": "<festival_uuid>",
+  "addressee_user_id": "<auth_user_uuid>"
+}
+
+Notes:
+requester and addressee must have username
+both must be festival members
+blocked returns 409
+Respond to request
+4. POST /functions/v1/respond-friendship
+Accept:
+{
+  "friendship_id": "<friendship_uuid>",
+  "action": "accept"
+}
+
+Reject:
+{
+  "friendship_id": "<friendship_uuid>",
+  "action": "reject"
+}
+
+Block:
+{
+  "friendship_id": "<friendship_uuid>",
+  "action": "block"
+}
+
+Unblock:
+{
+  "friendship_id": "<friendship_uuid>",
+  "action": "unblock"
+}
+
+Rules:
+only addressee can accept/reject pending
+either side can block
+only blocker can unblock
+Read my friendships
+5. friendships?select=*&festival_id=eq.<festival_uuid>&or=(requester_id.eq.<my_user_id>,addressee_id.eq.<my_user_id>)&order=created_at.desc
+Realtime subscription (frontend)
+subscribe to public.friendships changes filtered by festival_id
+on event, process row only if requester_id==me || addressee_id==me
+events observed:
+send request -> INSERT
+accept/reject/block/unblock -> UPDATE
+Status behavior summary
+pending: waiting for addressee
+accepted: friends
+rejected: can be re-requested (reopened)
+blocked: request attempts return 409 until unblock
+
+
+App-facing Content Read
+1) Festival Header
+Endpoint
+GET /functions/v1/festival-header?festival_slug=<slug>
+Headers
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <access_token> (optional)
+Query Params
+festival_slug (required)
+Body
+none (GET request)
+Response 200
+{
+  "schema_version": "1",
+  "festival": {
+    "id": "<festival_uuid>",
+    "slug": "floydfest-26",
+    "name": "FloydFest 26",
+    "timezone": "America/New_York",
+    "starts_at": "2026-07-22T16:00:00+00:00",
+    "ends_at": "2026-07-27T03:00:00+00:00",
+    "logo_url": "https://<project>.supabase.co/storage/v1/object/public/festival-branding/<path>",
+    "banner_url": "https://<project>.supabase.co/storage/v1/object/public/festival-branding/<path>",
+    "accent_color_hex": "#00A86B",
+    "context_state": "PRE"
+  }
+}
+
+Errors
+400 missing festival_slug
+404 festival not found/not visible
+500 server/db error
+
+2) Home Content Bundle
+Endpoint
+GET /functions/v1/content-home?festival_slug=<slug>
+Headers
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <access_token> (optional)
+Query Params
+festival_slug (required)
+Body
+none (GET request)
+Response 200
+{
+  "ok": true,
+  "festival": {
+    "id": "<festival_uuid>",
+    "slug": "floydfest-26",
+    "name": "FloydFest 26",
+    "timezone": "America/New_York",
+    "starts_at": "2026-07-22T16:00:00+00:00",
+    "ends_at": "2026-07-27T03:00:00+00:00",
+    "description": "...",
+    "status": "published",
+    "visibility": "public"
+  },
+  "announcements": [],
+  "hero_carousel_items": [],
+  "upcoming_events": []
+}
+
+Errors
+400 missing festival_slug
+404 festival not found/not visible
+500 festival/module lookup failure
+
+3) Lineup Content
+Endpoint
+GET /functions/v1/content-lineup?festival_slug=<slug>
+Headers
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <access_token> (optional)
+Query Params
+festival_slug (required)
+Body
+none (GET request)
+Response 200 (shape)
+{
+  "ok": true,
+  "festival": { "id": "<festival_uuid>", "slug": "floydfest-26", "name": "FloydFest 26" },
+  "artists": [
+    {
+      "id": "<artist_uuid>",
+      "name": "Artist Name",
+      "slug": "artist-name",
+      "image_url": "https://...",
+      "genre": ["rock"]
+    }
+  ]
+}
+
+Errors
+400 missing festival_slug
+404 festival not found/not visible
+500 lookup failure
+
+4) Artist Detail Content
+Endpoint
+GET /functions/v1/content-artist-detail?festival_slug=<slug>&artist_slug=<artist_slug>
+Headers
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <access_token> (optional)
+Query Params
+festival_slug (required)
+artist_slug (required)
+Body
+none (GET request)
+Response 200 (shape)
+{
+  "ok": true,
+  "festival": { "id": "<festival_uuid>", "slug": "floydfest-26" },
+  "artist": {
+    "id": "<artist_uuid>",
+    "name": "Artist Name",
+    "slug": "artist-name",
+    "bio": "...",
+    "image_url": "https://..."
+  },
+  "events": []
+}
+
+Errors
+400 missing params
+404 festival/artist not found/not visible
+500 lookup failure
+
+5) Stage Schedule Content
+Endpoint
+GET /functions/v1/content-stage-schedule?festival_slug=<slug>
+Headers
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <access_token> (optional)
+Query Params
+festival_slug (required)
+Body
+none (GET request)
+Response 200 (shape)
+{
+  "ok": true,
+  "festival": { "id": "<festival_uuid>", "slug": "floydfest-26" },
+  "stages": [],
+  "events": []
+}
+
+Errors
+400 missing festival_slug
+404 festival not found/not visible
+500 lookup failure
+
+6) Map Content
+Endpoint
+GET /functions/v1/content-map?festival_slug=<slug>
+Headers
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <access_token> (optional)
+Query Params
+festival_slug (required)
+Body
+none (GET request)
+Response 200 (shape)
+{
+  "ok": true,
+  "festival": { "id": "<festival_uuid>", "slug": "floydfest-26" },
+  "venues": []
+}
+
+Errors
+400 missing festival_slug
+404 festival not found/not visible
+500 lookup failure
+
+Content Admin / Write Endpoints
+7) List Canonical Rows
+Endpoint
+GET /functions/v1/content-admin-list?entity=<entity>&festival_slug=<slug>
+Headers
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <access_token>
+Query Params
+entity (required)
+festival_slug (required)
+Body
+none (GET request)
+Response 200
+{
+  "ok": true,
+  "entity": "artists",
+  "festival_id": "<festival_uuid>",
+  "rows": []
+}
+
+Allowed entities
+festivals (read only), venues, events, artists, announcements, event_artists, hero_carousel_items (read only)
+Errors
+400 invalid entity/missing params
+401 missing/invalid token
+404 festival not found
+500 db/server failure
+
+8) Save Canonical Row (create/update)
+Endpoint
+POST /functions/v1/content-admin-save
+Headers
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <access_token>
+Content-Type: application/json
+Body (create)
+{
+  "entity": "artists",
+  "festival_slug": "floydfest-26",
+  "payload": {
+    "name": "Larkin Poe",
+    "slug": "larkin-poe",
+    "bio": "Roots rock duo",
+    "image_url": "https://example.com/artist.jpg",
+    "genre": ["roots_rock"],
+    "visibility": "public",
+    "is_active": true
+  }
+}
+
+Body (update)
+{
+  "entity": "artists",
+  "festival_slug": "floydfest-26",
+  "item_id": "<row_uuid>",
+  "payload": {
+    "bio": "Updated bio"
+  }
+}
+
+Response 200 (shape)
+{
+  "ok": true,
+  "entity": "artists",
+  "saved": true,
+  "item_id": "<row_uuid>"
+}
+
+Special rules
+event_artists requires event_id + artist_id
+events.venue_id must belong to same festival
+writes for festivals and hero_carousel_items are blocked here (use dedicated endpoints below)
+Errors
+400 invalid entity/payload
+401 missing/invalid token
+404 festival/row not found
+500 db/server failure
+
+9) Delete Canonical Row
+Endpoint
+POST /functions/v1/content-admin-delete
+Headers
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <access_token>
+Content-Type: application/json
+Body (normal entities)
+{
+  "entity": "announcements",
+  "festival_slug": "floydfest-26",
+  "item_id": "<row_uuid>"
+}
+
+Body (event_artists composite delete)
+{
+  "entity": "event_artists",
+  "festival_slug": "floydfest-26",
+  "event_id": "<event_uuid>",
+  "artist_id": "<artist_uuid>"
+}
+
+Response 200 (shape)
+{
+  "ok": true,
+  "entity": "announcements",
+  "deleted": true
+}
+
+Errors
+400 invalid payload
+401 missing/invalid token
+404 row not found
+500 db/server failure
+
+Dedicated Media/Curation Write Endpoints
+10) Upload Festival Branding
+Endpoint
+POST /functions/v1/upload-festival-branding
+Headers
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <access_token>
+Body (multipart/form-data)
+festival_slug (text, required)
+asset_type (text, required): logo or banner
+file (file, required): image/jpeg|image/png|image/webp|image/svg+xml (max 10MB)
+Response 200
+{
+  "saved": true,
+  "festival_id": "<festival_uuid>",
+  "festival_slug": "floydfest-26",
+  "asset_type": "logo",
+  "public_url": "https://<project>.supabase.co/storage/v1/object/public/festival-branding/<festival_id>/logo_....png"
+}
+
+Errors
+400 invalid payload
+401 missing/invalid token
+404 festival not found
+413 file too large
+415 unsupported type
+500 upload/update error
+Note
+Current: any authenticated user can upload (testing mode)
+Later: restrict to organization/festival admins
+
+11) Save Hero Carousel Item (create/update + image upload)
+Endpoint
+POST /functions/v1/save-hero-carousel-item
+Headers
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <access_token>
+Body (multipart/form-data)
+Required:
+festival_slug (Text)
+kind (Text): artist|event|announcement|custom
+file (File)
+Optional:
+item_id (Text, for update)
+title (Text)
+subtitle (Text)
+cta_label (Text)
+cta_url (Text)
+ref_id (Text UUID)
+sort_order (Text integer, default 100)
+starts_at (Text ISO datetime)
+ends_at (Text ISO datetime)
+visibility (Text): public|authenticated (default public)
+is_published (Text): true|false (default true)
+Create response 200
+{
+  "saved": true,
+  "created": true,
+  "hero_item_id": "<uuid>",
+  "festival_id": "<festival_uuid>",
+  "festival_slug": "floydfest-26",
+  "image_url": "https://<project>.supabase.co/storage/v1/object/public/festival-hero/<festival_id>/hero_....png"
+}
+
+Update response 200
+{
+  "saved": true,
+  "updated": true,
+  "hero_item_id": "<uuid>",
+  "festival_id": "<festival_uuid>",
+  "festival_slug": "floydfest-26",
+  "image_url": "https://<project>.supabase.co/storage/v1/object/public/festival-hero/<festival_id>/hero_....png"
+}
+
+Errors
+400 invalid payload
+401 missing/invalid token
+404 festival/item not found
+413 file too large
+415 unsupported type
+500 upload/save error
+Note
+Current: any authenticated user can upload/save (testing mode)
+Later: restrict to organization/festival admins
+
+
+
+12) App Home Bundle Endpoint
+Endpoint
+GET /functions/v1/app-home-bundle?festival_slug=<slug>
+Purpose
+Single Home-screen payload:
+festival header
+home modules
+server-driven UI config
+Headers
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <access_token> (optional)
+If-None-Match: <etag> (optional, for cache revalidation)
+Query Params
+festival_slug (required)
+Body
+None (GET request)
+Response 200
+{
+  "schema_version": "1",
+  "generated_at": "2026-02-27T12:30:00.000Z",
+  "festival": {
+    "id": "<festival_uuid>",
+    "slug": "floydfest-26",
+    "name": "FloydFest 26",
+    "timezone": "America/New_York",
+    "starts_at": "2026-07-22T16:00:00+00:00",
+    "ends_at": "2026-07-27T03:00:00+00:00",
+    "logo_url": "https://<project>.supabase.co/storage/v1/object/public/festival-branding/<path>",
+    "banner_url": "https://<project>.supabase.co/storage/v1/object/public/festival-branding/<path>",
+    "accent_color_hex": "#00A86B",
+    "context_state": "PRE"
+  },
+  "modules": [
+    {
+      "key": "hero_carousel",
+      "enabled": true,
+      "ttl_seconds": 30,
+      "updated_at": "2026-02-27T12:30:00.000Z",
+      "data": []
+    },
+    {
+      "key": "announcements",
+      "enabled": true,
+      "ttl_seconds": 30,
+      "updated_at": "2026-02-27T12:30:00.000Z",
+      "data": []
+    },
+    {
+      "key": "upcoming_events",
+      "enabled": true,
+      "ttl_seconds": 30,
+      "updated_at": "2026-02-27T12:30:00.000Z",
+      "data": []
+    },
+    {
+      "key": "sponsors",
+      "enabled": false,
+      "ttl_seconds": 180,
+      "updated_at": "2026-02-27T12:30:00.000Z",
+      "data": []
+    },
+    {
+      "key": "perks",
+      "enabled": false,
+      "ttl_seconds": 180,
+      "updated_at": "2026-02-27T12:30:00.000Z",
+      "data": []
+    },
+    {
+      "key": "alerts",
+      "enabled": false,
+      "ttl_seconds": 180,
+      "updated_at": "2026-02-27T12:30:00.000Z",
+      "data": []
+    }
+  ],
+  "ui_config": {
+    "tiles": [
+      { "key": "festival_experience", "enabled": true, "order": 1 },
+      { "key": "lineup_schedule", "enabled": true, "order": 2 },
+      { "key": "event_safety", "enabled": true, "order": 3 },
+      { "key": "faq", "enabled": true, "order": 4 }
+    ],
+    "module_order": [
+      "hero_carousel",
+      "announcements",
+      "upcoming_events",
+      "sponsors",
+      "perks",
+      "alerts"
+    ]
+  }
+}
+
+Response 304
+If If-None-Match matches current ETag:
+Status: 304 Not Modified
+Empty body
+Response headers
+"..."
+Cache-Control: public, max-age=<ttl>
+PRE: 180
+LIVE: 30
+POST: 120
+Errors
+400 missing festival_slug
+404 festival not found/not visible
+500 server/db/module error
+UI config source order
+festivals.metadata.ui_config
+festivals.metadata.home_ui_config
+festival_ui_config.config_json
+hardcoded defaults
+Notes
+Auth optional for public festivals.
+For authenticated/private visibility scenarios, pass bearer token.
+This endpoint is app-facing BFF and should be the primary Home call.
+
+
+
+
+
+
+13) Festival Experience Core
+Get Experience Categories
+Endpoint
+GET /functions/v1/festival-experience-categories?festival_slug=<slug>
+Headers
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <access_token> (optional)
+Query Params
+festival_slug (required)
+Body
+none (GET request)
+Response 200
+{
+  "schema_version": "1",
+  "festival_id": "<festival_uuid>",
+  "categories": [
+    {
+      "key": "medical",
+      "label": "Medical",
+      "sort_order": 1,
+      "icon": "medical",
+      "preload_priority": 1
+    },
+    {
+      "key": "water",
+      "label": "Water",
+      "sort_order": 2,
+      "icon": "water",
+      "preload_priority": 1
+    }
+  ]
+}
+
+Errors
+400 missing festival_slug
+404 festival not found/not visible
+500 server/db error
+
+Get Experience Locations by Category
+Endpoint
+GET /functions/v1/festival-experience-locations?festival_slug=<slug>&category=<key>
+Headers
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <access_token> (optional)
+Query Params
+festival_slug (required)
+category (required)
+Examples: medical, water, restrooms, stages, food, merch
+Body
+none (GET request)
+Response 200
+{
+  "schema_version": "1",
+  "festival_id": "<festival_uuid>",
+  "category": "medical",
+  "locations": [
+    {
+      "id": "<location_uuid>",
+      "title": "Main Medical Tent",
+      "category_key": "medical",
+      "lat": 36.91234,
+      "lng": -80.32123,
+      "icon": "medical",
+      "tags": ["first-aid", "24x7"],
+      "hours_text": "Open 24 hours",
+      "description": "Primary medical support point",
+      "phone": "555-111-2222",
+      "website": "https://example.com/medical",
+      "menu_url": null,
+      "is_sponsored": false,
+      "detail_image_url": "https://<project>.supabase.co/storage/v1/object/public/festival-hero/...",
+      "updated_at": "2026-02-27T12:00:00.000Z"
+    }
+  ]
+}
+
+Errors
+400 missing festival_slug/category
+404 festival or category not found/not visible
+500 server/db error
+
+Get Single Experience Location Detail
+Endpoint
+GET /functions/v1/festival-experience-location?id=<location_id>
+Headers
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <access_token> (optional)
+Query Params
+id (required, UUID of experience_locations.id)
+Body
+none (GET request)
+Response 200
+{
+  "schema_version": "1",
+  "festival_id": "<festival_uuid>",
+  "location": {
+    "id": "<location_uuid>",
+    "festival_id": "<festival_uuid>",
+    "title": "Main Medical Tent",
+    "category_key": "medical",
+    "lat": 36.91234,
+    "lng": -80.32123,
+    "icon": "medical",
+    "tags": ["first-aid", "24x7"],
+    "hours_text": "Open 24 hours",
+    "description": "Primary medical support point",
+    "phone": "555-111-2222",
+    "website": "https://example.com/medical",
+    "menu_url": null,
+    "is_sponsored": false,
+    "detail_image_url": "https://<project>.supabase.co/storage/v1/object/public/festival-hero/...",
+    "updated_at": "2026-02-27T12:00:00.000Z"
+  }
+}
+
+Errors
+400 missing id
+404 location not found/not visible
+500 server/db error
+
+14) Experience Bundle + Offline Bundle
+Get App Experience Bundle
+Endpoint
+GET /functions/v1/app-experience-bundle?festival_slug=<slug>
+Headers
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <access_token> (optional)
+Query Params
+festival_slug (required)
+Body
+none (GET request)
+Response 200
+{
+  "schema_version": "1",
+  "generated_at": "2026-02-27T12:45:00.000Z",
+  "festival_id": "<festival_uuid>",
+  "categories": [
+    {
+      "key": "medical",
+      "label": "Medical",
+      "sort_order": 1,
+      "icon": "medical",
+      "preload_priority": 1
+    },
+    {
+      "key": "water",
+      "label": "Water",
+      "sort_order": 2,
+      "icon": "water",
+      "preload_priority": 1
+    }
+  ],
+  "critical_sets": {
+    "medical": [
+      {
+        "id": "<location_uuid>",
+        "festival_id": "<festival_uuid>",
+        "category_key": "medical",
+        "title": "Main Medical Tent",
+        "lat": 36.91234,
+        "lng": -80.32123,
+        "icon": "medical",
+        "tags": ["first-aid", "24x7"],
+        "hours_text": "Open 24 hours",
+        "description": "Primary medical support point",
+        "phone": "555-111-2222",
+        "website": "https://example.com/medical",
+        "menu_url": null,
+        "is_sponsored": false,
+        "detail_image_url": null,
+        "updated_at": "2026-02-27T12:00:00.000Z",
+        "sort_order": 1
+      }
+    ],
+    "water": [],
+    "restrooms": [],
+    "stages": []
+  }
+}
+
+Errors
+400 missing festival_slug
+404 festival not found/not visible
+500 server/db error
+
+Get Offline Bundle
+Endpoint
+GET /functions/v1/offline-bundle?festival_slug=<slug>
+Headers
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <access_token> (optional)
+Query Params
+festival_slug (required)
+Body
+none (GET request)
+Response 200
+{
+  "schema_version": "1",
+  "generated_at": "2026-02-27T12:50:00.000Z",
+  "festival_id": "<festival_uuid>",
+  "header": {
+    "id": "<festival_uuid>",
+    "slug": "floydfest-26",
+    "name": "FloydFest 26",
+    "timezone": "America/New_York",
+    "starts_at": "2026-07-22T16:00:00+00:00",
+    "ends_at": "2026-07-27T03:00:00+00:00",
+    "logo_url": "https://<project>.supabase.co/storage/v1/object/public/festival-branding/<path>",
+    "banner_url": "https://<project>.supabase.co/storage/v1/object/public/festival-branding/<path>",
+    "accent_color_hex": "#00A86B",
+    "context_state": "PRE"
+  },
+  "categories": [
+    {
+      "key": "medical",
+      "label": "Medical",
+      "sort_order": 1,
+      "icon": "medical",
+      "preload_priority": 1
+    }
+  ],
+  "critical_sets": {
+    "medical": [
+      {
+        "id": "<location_uuid>",
+        "title": "Main Medical Tent",
+        "category_key": "medical",
+        "lat": 36.91234,
+        "lng": -80.32123,
+        "icon": "medical",
+        "tags": ["first-aid", "24x7"],
+        "updated_at": "2026-02-27T12:00:00.000Z"
+      }
+    ],
+    "water": [],
+    "restrooms": [],
+    "stages": []
+  },
+  "cache_hints": {
+    "ttl_seconds": 3600,
+    "recommended_refresh_seconds": 900
+  }
+}
+
+Errors
+400 missing festival_slug
+404 festival not found/not visible
+500 server/db error
+
+critical_sets keys are fixed: medical, water, restrooms, stages.
+If a category exists but has no locations, array is empty.
+Auth is optional for public festivals; keep bearer token for authenticated/private scenarios.
+Data source tables:
+experience_categories
+experience_locations
+festivals (for header fields in offline-bundle)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

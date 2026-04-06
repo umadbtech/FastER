@@ -1,592 +1,643 @@
 package com.faster.festival.ui.screens
 
-import androidx.compose.foundation.Image
+import android.util.Log
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.faster.festival.R
-import com.faster.festival.data.models.AccountProfile
-import com.faster.festival.data.repository.FakeFestivalRepository
+import coil.compose.AsyncImage
+import coil.request.CachePolicy
+import coil.request.ImageRequest
 import com.faster.festival.ui.theme.FastERTheme
-import com.faster.festival.ui.theme.NavyBlue
-import com.faster.festival.ui.theme.SuccessGreen
-import com.faster.festival.ui.viewmodel.ProfileViewModel
-import com.faster.festival.ui.viewmodel.UiState
+import kotlinx.coroutines.delay
 
 // ============================================================================
-// REUSABLE COMPOSABLES
+// SECTION 1: PROFILE CARD
 // ============================================================================
 
-/**
- * Badge/Chip component for displaying user status badges like "Carrying Narcan", "Minor"
- */
 @Composable
-fun BadgeChip(
-    label: String,
-    modifier: Modifier = Modifier,
-    backgroundColor: Color = NavyBlue,
-    textColor: Color = Color.White
-) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = backgroundColor,
-        modifier = modifier.padding(4.dp)
-    ) {
-        Text(
-            text = label,
-            color = textColor,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-        )
-    }
-}
-
-/**
- * User handle pill component (e.g., "#xyz123")
- */
-@Composable
-fun UserHandlePill(
-    handle: String,
+fun ProfileCardSection(
+    name: String = "First Last",
+    username: String? = null,
+    onPersonalInfoClick: () -> Unit = {},
+    onEmergencyContactsClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    Surface(
+    OutlinedCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
         shape = RoundedCornerShape(16.dp),
-        color = NavyBlue,
-        modifier = modifier
-    ) {
-        Text(
-            text = handle,
-            color = Color.White,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        elevation = CardDefaults.outlinedCardElevation(defaultElevation = 1.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = Color(0xFFD6D6D6)
         )
-    }
-}
-
-/**
- * Top app bar with logo, user handle pill, and action buttons
- */
-@Composable
-fun AccountTopAppBar(
-    userHandle: String,
-    onSearch: () -> Unit,
-    onSend: () -> Unit,
-    onProfileClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(Color.White)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Logo
-        Image(
-            painter = painterResource(id = R.drawable.faster_logo),
-            contentDescription = "Festival Logo",
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(4.dp)),
-            contentScale = ContentScale.Crop
-        )
-
-        // User handle pill
-        UserHandlePill(handle = userHandle)
-
-        // Action buttons
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onSearch, modifier = Modifier.size(40.dp)) {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = "Search",
-                    tint = NavyBlue,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            IconButton(onClick = onSend, modifier = Modifier.size(40.dp)) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Send,
-                    contentDescription = "Send",
-                    tint = NavyBlue,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            Surface(
-                shape = CircleShape,
-                color = Color(0xFFFFA500),
-                modifier = Modifier
-                    .size(40.dp)
-                    .clickable(onClick = onProfileClick)
-            ) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "Profile",
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * Green header bar with back button and title
- */
-@Composable
-fun AccountHeaderBar(
-    title: String = "Account",
-    onBackClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(SuccessGreen)
-            .padding(horizontal = 12.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(onClick = onBackClick, modifier = Modifier.size(40.dp)) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back",
-                tint = Color.White,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-
-        Text(
-            text = title,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
-
-/**
- * Profile card with badges, avatar, name, and contact info
- */
-@Composable
-fun ProfileInfoCard(
-    badges: List<String>,
-    name: String,
-    subtitle: String,
-    phone: String,
-    email: String,
-    emergencyContact: String,
-    onEditClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Badge row with edit button
+            // Row 1: Name + Description + Chevron
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp),
+                    .clickable(onClick = onPersonalInfoClick)
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = name,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    username?.let {
+                        Text(
+                            text = "@$it",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                    Text(
+                        text = "Update your personal information",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = if (username != null) 4.dp else 0.dp)
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            HorizontalDivider()
+
+            // Row 2: Emergency Contacts + Icon + Chevron
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onEmergencyContactsClick)
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Group,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    text = "Emergency Contacts",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+// ============================================================================
+// SECTION 1.5: AVATAR DISPLAY (WITH SIGNED URL)
+// ============================================================================
+
+@Composable
+fun AvatarSection(
+    avatarUrl: String?,
+    displayName: String = "User",
+    onUploadAvatarClick: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Avatar Circle with fallback
+        Box(
+            modifier = Modifier
+                .size(100.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            if (!avatarUrl.isNullOrEmpty()) {
+                val context = LocalContext.current
+
+                // ✅ Display avatar with cache DISABLED (signed URLs expire in 60s)
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(avatarUrl)
+                        .crossfade(true)
+                        .diskCachePolicy(CachePolicy.DISABLED)    // ✅ Don't cache to disk
+                        .memoryCachePolicy(CachePolicy.DISABLED)  // ✅ Don't cache in memory
+                        .build(),
+                    contentDescription = "User Avatar",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop,
+                    placeholder = painterResource(android.R.drawable.ic_menu_gallery),
+                    error = painterResource(android.R.drawable.ic_menu_report_image),
+                    onError = { error ->
+                        Log.e("AvatarSection", "Failed to load avatar: ${error.result.throwable}")
+                    },
+                    onSuccess = {
+                        Log.d("AvatarSection", "✅ Avatar loaded from: $avatarUrl")
+                    }
+                )
+            } else {
+                // Fallback: Show icon
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Avatar Placeholder",
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        // Display Name
+        Text(
+            text = displayName,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+
+        // Upload Avatar Button
+        OutlinedButton(
+            onClick = onUploadAvatarClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(40.dp),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PhotoCamera,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text("Update Avatar", style = MaterialTheme.typography.labelMedium)
+            }
+        }
+    }
+}
+
+// ============================================================================
+// SECTION 1.8: EMERGENCY CONTACTS LIST
+// ============================================================================
+
+data class EmergencyContactInfo(
+    val id: String,
+    val name: String,
+    val phone: String,
+    val relationship: String,
+    val isPrimary: Boolean = false
+)
+
+@Composable
+fun EmergencyContactCard(
+    contact: EmergencyContactInfo,
+    onEditClick: () -> Unit = {},
+    onDeleteClick: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    ElevatedCard(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Header with name and primary badge
+            Row(
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.Start,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    badges.forEach { badge ->
-                        BadgeChip(label = badge)
-                    }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = contact.name,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = contact.relationship,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-
-                IconButton(onClick = onEditClick, modifier = Modifier.size(36.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit Profile",
-                        tint = NavyBlue,
-                        modifier = Modifier.size(18.dp)
+                if (contact.isPrimary) {
+                    AssistChip(
+                        onClick = { },
+                        label = { Text("Primary", style = MaterialTheme.typography.labelSmall) },
+                        modifier = Modifier.height(24.dp),
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
                     )
                 }
             }
 
-            HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
-
-            // Avatar and name
-            Column(
+            // Phone number
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    shape = CircleShape,
-                    color = Color(0xFFE0E0E0),
-                    modifier = Modifier.size(80.dp)
+                Icon(
+                    imageVector = Icons.Default.Phone,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = contact.phone,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            // Action buttons
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onEditClick,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(32.dp),
+                    shape = RoundedCornerShape(6.dp)
                 ) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Avatar",
-                            tint = NavyBlue,
-                            modifier = Modifier.size(40.dp)
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Edit", style = MaterialTheme.typography.labelSmall)
                 }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Text(
-                    text = name,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-
-                Text(
-                    text = subtitle,
-                    fontSize = 12.sp,
-                    color = Color.Gray,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
+                OutlinedButton(
+                    onClick = onDeleteClick,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(32.dp),
+                    shape = RoundedCornerShape(6.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Delete", style = MaterialTheme.typography.labelSmall)
+                }
             }
-
-            HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
-
-            // Contact info rows
-            ContactInfoRow(
-                icon = Icons.Default.Phone,
-                label = "Phone",
-                value = phone,
-                showDivider = true
-            )
-
-            ContactInfoRow(
-                icon = Icons.Default.Email,
-                label = "Email",
-                value = email,
-                showDivider = true
-            )
-
-            ContactInfoRow(
-                icon = Icons.Default.Warning,
-                label = "Emergency Contact",
-                value = emergencyContact,
-                showDivider = false
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
         }
     }
 }
 
-/**
- * Single contact info row with icon, label, and value
- */
 @Composable
-fun ContactInfoRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    value: String,
-    showDivider: Boolean = false,
+fun EmergencyContactsSection(
+    contacts: List<EmergencyContactInfo> = emptyList(),
+    onAddContactClick: () -> Unit = {},
+    onEditContact: (EmergencyContactInfo) -> Unit = {},
+    onDeleteContact: (EmergencyContactInfo) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = NavyBlue,
-                modifier = Modifier.size(20.dp)
-            )
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = label,
-                    fontSize = 12.sp,
-                    color = Color.Gray,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    text = value,
-                    fontSize = 14.sp,
-                    color = Color.Black,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-        }
-
-        if (showDivider) {
-            HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
-        }
-    }
-}
-
-/**
- * Wristband status card (dark navy background)
- */
-@Composable
-fun WristbandStatusCard(
-    wristbandName: String,
-    userHandle: String,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = NavyBlue),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // Header
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Wristband icon
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = Color(0xFFFF6B6B),
-                modifier = Modifier.size(40.dp)
+            Text(
+                text = "Emergency Contacts",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            IconButton(
+                onClick = onAddContactClick,
+                modifier = Modifier.size(32.dp)
             ) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add Contact",
+                    modifier = Modifier.size(24.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+
+        // Contacts list
+        if (contacts.isEmpty()) {
+            OutlinedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Icon(
-                        imageVector = Icons.Default.Favorite,
-                        contentDescription = "Wristband",
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
+                        imageVector = Icons.Default.PersonAdd,
+                        contentDescription = null,
+                        modifier = Modifier.size(40.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "No emergency contacts",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Add at least one emergency contact",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
-
-            // Wristband name
-            Text(
-                text = wristbandName,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White,
-                modifier = Modifier.weight(1f)
-            )
-
-            // User handle pill
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = Color.White,
-                modifier = Modifier
-            ) {
-                Text(
-                    text = userHandle,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = NavyBlue,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+        } else {
+            contacts.forEach { contact ->
+                EmergencyContactCard(
+                    contact = contact,
+                    onEditClick = { onEditContact(contact) },
+                    onDeleteClick = { onDeleteContact(contact) }
                 )
             }
         }
     }
 }
 
-/**
- * Settings row component for quick action list
- */
+// ============================================================================
+// SECTION 2: DEVICE CARD (Dark Navy) — delegates to reusable DeviceCard component
+// ============================================================================
+
 @Composable
-fun SettingsRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+fun DeviceCardSection(
+    wristbandName: String = "FASTER Wristband",
+    batteryPercentage: Int = 82,
+    connectionStatus: String = "Strong Connection",
+    modifier: Modifier = Modifier
+) {
+    com.faster.festival.ui.components.DeviceCard(
+        wristbandName = wristbandName,
+        batteryPercentage = batteryPercentage,
+        connectionStatus = connectionStatus,
+        modifier = modifier.padding(horizontal = 16.dp)
+    )
+}
+
+// ============================================================================
+// SECTION 3: MY SETTINGS
+// ============================================================================
+
+@Composable
+fun SettingsMenuItem(
+    icon: ImageVector,
     label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    showDivider: Boolean = true
+    onClick: () -> Unit = {},
+    showDivider: Boolean = true,
+    modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onClick)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = icon,
-                contentDescription = label,
-                tint = NavyBlue,
-                modifier = Modifier.size(24.dp)
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                tint = MaterialTheme.colorScheme.onBackground
             )
-
             Text(
                 text = label,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color.Black,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.weight(1f)
             )
-
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = null,
-                tint = Color.Gray,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-
         if (showDivider) {
-            HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+            HorizontalDivider()
         }
     }
 }
 
-/**
- * Quick settings card with multiple action rows
- */
 @Composable
-fun QuickSettingsCard(
-    onNotificationsClick: () -> Unit,
-    onFriendsClick: () -> Unit,
-    onPaymentsClick: () -> Unit,
-    onHealthClick: () -> Unit,
+fun MySettingsSection(
+    onHealthClick: () -> Unit = {},
+    onNotificationsClick: () -> Unit = {},
+    onLocationClick: () -> Unit = {},
+    onPaymentsClick: () -> Unit = {},
+    onFriendsClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            SettingsRow(
-                icon = Icons.Default.Notifications,
-                label = "Notifications",
-                onClick = onNotificationsClick,
-                showDivider = true
-            )
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = "My Settings",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+        )
 
-            SettingsRow(
-                icon = Icons.Default.Group,
-                label = "Friends",
-                onClick = onFriendsClick,
-                showDivider = true
-            )
-
-            SettingsRow(
-                icon = Icons.Default.Payment,
-                label = "Payments",
-                onClick = onPaymentsClick,
-                showDivider = true
-            )
-
-            SettingsRow(
-                icon = Icons.Default.LocalHospital,
-                label = "Health",
-                onClick = onHealthClick,
-                showDivider = false
-            )
+        OutlinedCard(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                SettingsMenuItem(
+                    icon = Icons.Default.HealthAndSafety,
+                    label = "Health",
+                    onClick = onHealthClick,
+                    showDivider = true
+                )
+                SettingsMenuItem(
+                    icon = Icons.Default.Notifications,
+                    label = "Notifications",
+                    onClick = onNotificationsClick,
+                    showDivider = true
+                )
+                SettingsMenuItem(
+                    icon = Icons.Default.LocationOn,
+                    label = "Location",
+                    onClick = onLocationClick,
+                    showDivider = true
+                )
+                SettingsMenuItem(
+                    icon = Icons.Default.Payment,
+                    label = "Payments",
+                    onClick = onPaymentsClick,
+                    showDivider = true
+                )
+                SettingsMenuItem(
+                    icon = Icons.Default.Group,
+                    label = "Friends & Family",
+                    onClick = onFriendsClick,
+                    showDivider = false
+                )
+            }
         }
     }
 }
 
-/**
- * Promo banner with icon, title, and subtitle
- */
+// ============================================================================
+// SECTION 4: SUPPORT
+// ============================================================================
+
 @Composable
-fun PromoBanner(
-    onClick: () -> Unit,
+fun SupportMenuItem(
+    label: String,
+    onClick: () -> Unit = {},
+    showDivider: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFA500)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .clickable(onClick = onClick)
-    ) {
+    Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .clickable(onClick = onClick)
                 .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Spotify icon placeholder
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = Color(0xFF1DB954),
-                modifier = Modifier.size(40.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    Icon(
-                        imageVector = Icons.Default.MusicNote,
-                        contentDescription = "Music",
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (showDivider) {
+            HorizontalDivider()
+        }
+    }
+}
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Connect Music Streaming",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
+@Composable
+fun SupportSection(
+    onAboutClick: () -> Unit = {},
+    onReportClick: () -> Unit = {},
+    onTermsClick: () -> Unit = {},
+    onPrivacyClick: () -> Unit = {},
+    onFaqClick: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = "Support",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+        )
+
+        OutlinedCard(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                SupportMenuItem(
+                    label = "About FASTER",
+                    onClick = onAboutClick,
+                    showDivider = true
                 )
-
-                Text(
-                    text = "For Exclusive Access to All Artist Setlists",
-                    fontSize = 12.sp,
-                    color = Color.White,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                SupportMenuItem(
+                    label = "Report an Issue",
+                    onClick = onReportClick,
+                    showDivider = true
+                )
+                SupportMenuItem(
+                    label = "Terms & Conditions",
+                    onClick = onTermsClick,
+                    showDivider = true
+                )
+                SupportMenuItem(
+                    label = "Privacy Policy",
+                    onClick = onPrivacyClick,
+                    showDivider = true
+                )
+                SupportMenuItem(
+                    label = "FAQ",
+                    onClick = onFaqClick,
+                    showDivider = false
                 )
             }
         }
@@ -594,210 +645,267 @@ fun PromoBanner(
 }
 
 // ============================================================================
-// MAIN ACCOUNT SCREEN
+// SECTION 5: BOTTOM ACTIONS
 // ============================================================================
 
-/**
- * Main Account/Profile screen with all sections
- *
- * Usage:
- * ```
- * AccountScreen(
- *     userHandle = "#xyz123",
- *     badges = listOf("Carrying Narcan", "Minor"),
- *     name = "First Last",
- *     subtitle = "Age | Demographics",
- *     phone = "123-456-7890",
- *     email = "first@website.com",
- *     emergencyContact = "123-456-7890",
- *     wristbandName = "FASTER Wristband",
- *     onBack = { navController.popBackStack() },
- *     onEdit = { /* Handle edit */ },
- *     onSearch = { /* Handle search */ },
- *     onSend = { /* Handle send */ },
- *     onProfileClick = { /* Handle profile click */ },
- *     onNotifications = { /* Navigate to notifications */ },
- *     onFriends = { /* Navigate to friends */ },
- *     onPayments = { /* Navigate to payments */ },
- *     onHealth = { /* Navigate to health */ },
- *     onPromoClick = { /* Handle promo */ },
- *     onManageAccount = { /* Navigate to manage account */ }
- * )
- * ```
- */
 @Composable
-fun AccountScreen(
-    userHandle: String,
-    badges: List<String> = emptyList(),
-    name: String,
-    subtitle: String,
-    phone: String,
-    email: String,
-    emergencyContact: String,
-    wristbandName: String = "FASTER Wristband",
-    onBack: () -> Unit,
-    onEdit: () -> Unit,
-    onSearch: () -> Unit,
-    onSend: () -> Unit,
-    onProfileClick: () -> Unit,
-    onNotifications: () -> Unit,
-    onFriends: () -> Unit,
-    onPayments: () -> Unit,
-    onHealth: () -> Unit,
-    onPromoClick: () -> Unit,
-    onManageAccount: () -> Unit,
+fun BottomActionsSection(
+    onManageAccountClick: () -> Unit = {},
+    onLogoutClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
-            .fillMaxSize()
-            .background(Color.White)
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        AccountTopAppBar(
-            userHandle = userHandle,
-            onSearch = onSearch,
-            onSend = onSend,
-            onProfileClick = onProfileClick
-        )
-
-        AccountHeaderBar(
-            title = "Account",
-            onBackClick = onBack
-        )
-
-        Column(
+        OutlinedButton(
+            onClick = onManageAccountClick,
             modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .background(Color.White)
+                .fillMaxWidth()
+                .height(48.dp),
+            shape = RoundedCornerShape(12.dp)
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
-
-            ProfileInfoCard(
-                badges = badges,
-                name = name,
-                subtitle = subtitle,
-                phone = phone,
-                email = email,
-                emergencyContact = emergencyContact,
-                onEditClick = onEdit
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            WristbandStatusCard(
-                wristbandName = wristbandName,
-                userHandle = userHandle
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            QuickSettingsCard(
-                onNotificationsClick = onNotifications,
-                onFriendsClick = onFriends,
-                onPaymentsClick = onPayments,
-                onHealthClick = onHealth
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            PromoBanner(onClick = onPromoClick)
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Button(
-                onClick = onManageAccount,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .height(48.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = NavyBlue),
-                shape = RoundedCornerShape(12.dp)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
             ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
                 Text(
                     text = "Manage Account",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
                 )
             }
-
-            Spacer(modifier = Modifier.height(40.dp))
         }
+
+        Text(
+            text = "Logout ›",
+            style = MaterialTheme.typography.bodyMedium.copy(
+                textDecoration = TextDecoration.Underline
+            ),
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.clickable(onClick = onLogoutClick)
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
     }
 }
 
 // ============================================================================
-// LEGACY WRAPPERS (backward compatibility)
+// MAIN PROFILE SCREEN (NEW DESIGN)
 // ============================================================================
 
 @Composable
-fun ProfileScreen(
-    onTicketsClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    viewModel: ProfileViewModel = viewModel(
-        factory = object : androidx.lifecycle.ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                return ProfileViewModel(FakeFestivalRepository()) as T
-            }
-        }
-    )
-) {
-    val profileState by viewModel.profileState.collectAsState()
-
-    Box(modifier = modifier.fillMaxSize()) {
-        when (profileState) {
-            is UiState.Loading -> {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            }
-            is UiState.Error -> {
-                Text(
-                    text = "Error loading profile",
-                    modifier = Modifier.align(Alignment.Center)
-                )
-            }
-            is UiState.Success -> {
-                val profile = (profileState as UiState.Success).data
-                ProfileScreenContent(
-                    profile = profile,
-                    onTicketsClick = onTicketsClick,
-                    onUpdateProfile = { viewModel.updateProfile(it) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun ProfileScreenContent(
-    profile: AccountProfile,
-    @Suppress("UNUSED_PARAMETER")
-    onTicketsClick: () -> Unit,
-    @Suppress("UNUSED_PARAMETER")
-    onUpdateProfile: (AccountProfile) -> Unit,
+fun ProfileScreenNew(
+    name: String = "First Last",
+    username: String? = null,
+    avatarUrl: String? = null,
+    emergencyContacts: List<EmergencyContactInfo> = emptyList(),
+    wristbandName: String = "FASTER Wristband",
+    batteryPercentage: Int = 82,
+    connectionStatus: String = "Strong Connection",
+    onPersonalInfoClick: () -> Unit = {},
+    onEmergencyContactsClick: () -> Unit = {},
+    onUploadAvatarClick: () -> Unit = {},
+    onAddEmergencyContactClick: () -> Unit = {},
+    onEditEmergencyContact: (EmergencyContactInfo) -> Unit = {},
+    onDeleteEmergencyContact: (EmergencyContactInfo) -> Unit = {},
+    onHealthClick: () -> Unit = {},
+    onNotificationsClick: () -> Unit = {},
+    onLocationClick: () -> Unit = {},
+    onPaymentsClick: () -> Unit = {},
+    onFriendsClick: () -> Unit = {},
+    onAboutClick: () -> Unit = {},
+    onReportClick: () -> Unit = {},
+    onTermsClick: () -> Unit = {},
+    onPrivacyClick: () -> Unit = {},
+    onFaqClick: () -> Unit = {},
+    onManageAccountClick: () -> Unit = {},
+    onLogoutClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    AccountScreen(
-        userHandle = "#xyz123",
-        badges = listOf("Carrying Narcan", "Minor"),
-        name = profile.name.ifEmpty { "First Last" },
-        subtitle = "Age | Demographics",
-        phone = profile.phone.ifEmpty { "123-456-7890" },
-        email = profile.email.ifEmpty { "first@website.com" },
-        emergencyContact = profile.emergencyContact.ifEmpty { "123-456-7890" },
+    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(top = statusBarTop + 16.dp, bottom = 16.dp)
+    ) {
+        // Section 0: Avatar
+        item {
+            AvatarSection(
+                avatarUrl = avatarUrl,
+                displayName = username ?: name,
+                onUploadAvatarClick = onUploadAvatarClick
+            )
+        }
+
+        // Section 1: Profile Card
+        item {
+            ProfileCardSection(
+                name = name,
+                username = username,
+                onPersonalInfoClick = onPersonalInfoClick,
+                onEmergencyContactsClick = onEmergencyContactsClick
+            )
+        }
+
+
+        // Section 2: Device Card
+        item {
+            DeviceCardSection(
+                wristbandName = wristbandName,
+                batteryPercentage = batteryPercentage,
+                connectionStatus = connectionStatus
+            )
+        }
+
+        // Section 3: My Settings
+        item {
+            MySettingsSection(
+                onHealthClick = onHealthClick,
+                onNotificationsClick = onNotificationsClick,
+                onLocationClick = onLocationClick,
+                onPaymentsClick = onPaymentsClick,
+                onFriendsClick = onFriendsClick
+            )
+        }
+
+        // Section 4: Support
+        item {
+            SupportSection(
+                onAboutClick = onAboutClick,
+                onReportClick = onReportClick,
+                onTermsClick = onTermsClick,
+                onPrivacyClick = onPrivacyClick,
+                onFaqClick = onFaqClick
+            )
+        }
+
+        // Section 5: Bottom Actions
+        item {
+            BottomActionsSection(
+                onManageAccountClick = onManageAccountClick,
+                onLogoutClick = onLogoutClick
+            )
+        }
+    }
+}
+
+// ============================================================================
+// ENHANCED PROFILE SCREEN WITH FULL NAVIGATION & LOGOUT CONFIRMATION
+// ============================================================================
+
+/**
+ * Enhanced ProfileScreen wrapper with logout confirmation dialog
+ * and full navigation support for all menu items
+ */
+@Composable
+fun EnhancedProfileScreenWithNavigation(
+    accessToken: String,
+    fullName: String = "First Last",
+    username: String? = null,
+    avatarUrl: String? = null,
+    emergencyContacts: List<EmergencyContactInfo> = emptyList(),
+    onNavigateToPersonalInfo: () -> Unit,
+    onNavigateToEmergencyContacts: () -> Unit,
+    onNavigateToUploadAvatar: () -> Unit = {},
+    onNavigateToAddContact: () -> Unit = {},
+    onNavigateToEditContact: (EmergencyContactInfo) -> Unit = {},
+    onNavigateToDeleteContact: (EmergencyContactInfo) -> Unit = {},
+    onNavigateToHealth: () -> Unit,
+    onNavigateToNotifications: () -> Unit,
+    onNavigateToLocation: () -> Unit,
+    onNavigateToPayments: () -> Unit,
+    onNavigateToFriends: () -> Unit = {},
+    onNavigateToReportIssue: () -> Unit,
+    onNavigateToTerms: () -> Unit,
+    onNavigateToPrivacy: () -> Unit,
+    onNavigateToFAQ: () -> Unit,
+    onNavigateToManageAccount: () -> Unit,
+    onNavigateToLogin: () -> Unit,
+    onRefreshProfile: () -> Unit = {},  // ✅ Called to refresh profile on screen appear
+    modifier: Modifier = Modifier
+) {
+    var showLogoutConfirm by remember { mutableStateOf(false) }
+
+    // ✅ Refresh profile when screen appears (signed URL expires in 60s)
+    // ✅ Also auto-refresh every 50s to keep URL fresh before expiry
+    LaunchedEffect(Unit) {
+        while (true) {
+            onRefreshProfile()
+            delay(50_000L)  // Refresh every 50 seconds (before 60s expiry)
+        }
+    }
+
+    // Logout Confirmation Dialog
+    if (showLogoutConfirm) {
+        AlertDialog(
+            onDismissRequest = { showLogoutConfirm = false },
+            title = { Text("Confirm Logout") },
+            text = { Text("Are you sure you want to logout? You will need to login again.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLogoutConfirm = false
+                        onNavigateToLogin()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Logout", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Main Profile Screen
+    ProfileScreenNew(
+        name = fullName,
+        username = username,
+        avatarUrl = avatarUrl,
+        emergencyContacts = emergencyContacts,
         wristbandName = "FASTER Wristband",
-        onBack = { /* TODO */ },
-        onEdit = { /* TODO */ },
-        onSearch = { /* TODO */ },
-        onSend = { /* TODO */ },
-        onProfileClick = { /* TODO */ },
-        onNotifications = { /* TODO */ },
-        onFriends = { /* TODO */ },
-        onPayments = { /* TODO */ },
-        onHealth = { /* TODO */ },
-        onPromoClick = { /* TODO */ },
-        onManageAccount = { /* TODO */ },
+        batteryPercentage = 82,
+        connectionStatus = "Strong Connection",
+        onPersonalInfoClick = onNavigateToPersonalInfo,
+        onEmergencyContactsClick = onNavigateToEmergencyContacts,
+        onUploadAvatarClick = onNavigateToUploadAvatar,
+        onAddEmergencyContactClick = onNavigateToAddContact,
+        onEditEmergencyContact = onNavigateToEditContact,
+        onDeleteEmergencyContact = onNavigateToDeleteContact,
+        onHealthClick = onNavigateToHealth,
+        onNotificationsClick = onNavigateToNotifications,
+        onLocationClick = onNavigateToLocation,
+        onPaymentsClick = onNavigateToPayments,
+        onFriendsClick = onNavigateToFriends,
+        onReportClick = onNavigateToReportIssue,
+        onTermsClick = onNavigateToTerms,
+        onPrivacyClick = onNavigateToPrivacy,
+        onFaqClick = onNavigateToFAQ,
+        onManageAccountClick = onNavigateToManageAccount,
+        onLogoutClick = { showLogoutConfirm = true },
         modifier = modifier
     )
 }
@@ -808,48 +916,8 @@ fun ProfileScreenContent(
 
 @Preview(showBackground = true, device = "spec:shape=Normal,width=412,height=915,unit=dp,dpi=420")
 @Composable
-fun PreviewAccountScreen() {
-    FastERTheme {
-        AccountScreen(
-            userHandle = "#xyz123",
-            badges = listOf("Carrying Narcan", "Minor"),
-            name = "First Last",
-            subtitle = "Age | Demographics",
-            phone = "123-456-7890",
-            email = "first@website.com",
-            emergencyContact = "123-456-7890",
-            wristbandName = "FASTER Wristband",
-            onBack = {},
-            onEdit = {},
-            onSearch = {},
-            onSend = {},
-            onProfileClick = {},
-            onNotifications = {},
-            onFriends = {},
-            onPayments = {},
-            onHealth = {},
-            onPromoClick = {},
-            onManageAccount = {}
-        )
-    }
-}
-
-@Preview
-@Composable
 fun PreviewProfileScreen() {
     FastERTheme {
-        ProfileScreenContent(
-            profile = AccountProfile(
-                id = "1",
-                name = "Alex Johnson",
-                email = "alex@example.com",
-                phone = "+1 (555) 123-4567",
-                emergencyContact = "+1 (555) 987-6543",
-                allergies = "Peanuts",
-                medications = "None"
-            ),
-            onTicketsClick = {},
-            onUpdateProfile = {}
-        )
+        PreviewProfileScreen()
     }
 }

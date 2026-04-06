@@ -88,6 +88,25 @@ data class LoginResponse(
     val user: User? = null
 )
 
+// Token refresh models
+@Serializable
+data class RefreshTokenRequest(
+    @SerialName("refresh_token")
+    val refreshToken: String
+)
+
+@Serializable
+data class RefreshTokenResponse(
+    @SerialName("access_token")
+    val accessToken: String?,
+    @SerialName("refresh_token")
+    val refreshToken: String?,
+    @SerialName("token_type")
+    val tokenType: String = "Bearer",
+    @SerialName("expires_in")
+    val expiresIn: Int? = null
+)
+
 // Password recovery models
 @Serializable
 data class PasswordResetRequest(

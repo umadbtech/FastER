@@ -7,8 +7,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -16,7 +18,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.ripple.rememberRipple
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -32,112 +35,138 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 /**
- * Terms of Use acceptance screen with checkboxes for Terms and Conditions and Privacy Policy.
- * BOTH checkboxes must be checked to enable the Submit button.
+ * Terms of Use acceptance screen (Step 5 of onboarding).
  *
- * When both are checked, formState.termsAccepted is set to true.
- * Submit button is only enabled when formState.termsAccepted is true.
- *
- * Flow:
- * 1. User unchecks (false) or checks (true) Terms checkbox
- * 2. onTermsAcceptanceChange() is called with: termsChecked AND privacyChecked
- * 3. formState.termsAccepted is updated
- * 4. Submit button enabled only when termsAccepted == true (both boxes checked)
+ * Displays scrollable terms content with two checkboxes:
+ * - Terms and Conditions
+ * - Privacy Policy
+ * Both must be checked to enable the Accept button.
  */
 @Composable
 fun TermsAcceptanceScreen(
-    formState: OnboardingFormState,
-    onTermsAcceptanceChange: (Boolean) -> Unit,
+    termsAccepted: Boolean,
+    onTermsAcceptedChange: (Boolean) -> Unit,
+    onAcceptTerms: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Track both checkboxes independently using local state
-    // These need to be separate to show the UI properly
-    var termsAndConditionsChecked by remember { mutableStateOf(false) }
-    var privacyPolicyChecked by remember { mutableStateOf(false) }
+    var termsChecked by remember { mutableStateOf(false) }
+    var privacyChecked by remember { mutableStateOf(false) }
+    val bothChecked = termsChecked && privacyChecked
+
+    // Sync with parent when both are checked/unchecked
+    if (bothChecked != termsAccepted) {
+        onTermsAcceptedChange(bothChecked)
+    }
+
+    val termsScrollState = rememberScrollState()
 
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 32.dp),
-        verticalArrangement = Arrangement.Top,
-        horizontalAlignment = Alignment.Start
+            .padding(horizontal = 24.dp)
     ) {
-        // Main Heading
-        Text(
-            text = "Terms of Use",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground,
+        // Scrollable content area
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(top = 24.dp)
+        ) {
+            // Heading
+            Text(
+                text = "Terms of Use",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            // Subtitle
+            Text(
+                text = "Please accept both terms to continue",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+
+            // Scrollable terms text
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    .padding(12.dp)
+            ) {
+                Text(
+                    text = TERMS_CONTENT,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(termsScrollState)
+                        .padding(end = 8.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Terms and Conditions checkbox
+            TermsCheckboxItem(
+                label = "I accept the Terms and Conditions",
+                isChecked = termsChecked,
+                onCheckedChange = { termsChecked = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+            )
+
+            // Privacy Policy checkbox
+            TermsCheckboxItem(
+                label = "I accept the Privacy Policy",
+                isChecked = privacyChecked,
+                onCheckedChange = { privacyChecked = it },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Status text
+            Text(
+                text = "Both boxes must be checked to continue.",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (bothChecked)
+                    MaterialTheme.colorScheme.primary
+                else
+                    MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 16.dp)
+            )
+        }
+
+        // Pinned bottom button
+        Button(
+            onClick = onAcceptTerms,
+            enabled = bothChecked,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 16.dp)
-        )
-
-        // Subtitle with requirement
-        Text(
-            text = "Please accept both terms to continue",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 32.dp)
-        )
-
-        // Terms and Conditions Checkbox
-        TermsCheckboxItem(
-            label = "I accept the Terms and Conditions",
-            isChecked = termsAndConditionsChecked,
-            onCheckedChange = { isChecked ->
-                termsAndConditionsChecked = isChecked
-                // Both must be true to enable submit
-                val bothChecked = isChecked && privacyPolicyChecked
-                onTermsAcceptanceChange(bothChecked)
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 24.dp)
-        )
-
-        // Privacy Policy Checkbox
-        TermsCheckboxItem(
-            label = "I accept the Privacy Policy",
-            isChecked = privacyPolicyChecked,
-            onCheckedChange = { isChecked ->
-                privacyPolicyChecked = isChecked
-                // Both must be true to enable submit
-                val bothChecked = termsAndConditionsChecked && isChecked
-                onTermsAcceptanceChange(bothChecked)
-            },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        // Info text - explains what happens
-        Text(
-            text = "You must check both boxes to continue with onboarding. This ensures you have accepted all our terms.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 32.dp)
-        )
-
-        // Flexible spacing to push content to top
-        Box(modifier = Modifier.weight(1f))
+                .padding(vertical = 16.dp)
+                .height(52.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
+        ) {
+            Text(
+                text = "Accept & Continue",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 
-/**
- * Individual checkbox item for terms acceptance.
- * Shows a custom checkbox with label text and ripple effect.
- * Click to toggle: checked (true) ↔ unchecked (false)
- *
- * Visual feedback:
- * - Checked: Primary color background with checkmark icon
- * - Unchecked: Light outline with no icon
- * - Clickable: Ripple effect on tap
- */
 @Composable
 private fun TermsCheckboxItem(
     label: String,
@@ -150,25 +179,24 @@ private fun TermsCheckboxItem(
             .clip(RoundedCornerShape(8.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = rememberRipple(bounded = true),
-                onClick = { onCheckedChange(!isChecked) }  // Toggle on click: true ↔ false
+                indication = null,
+                onClick = { onCheckedChange(!isChecked) }
             )
-            .padding(12.dp),
+            .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Custom Checkbox Box
+        // Checkbox
         Box(
             modifier = Modifier
                 .size(24.dp)
                 .background(
                     color = if (isChecked)
-                        MaterialTheme.colorScheme.primary  // Blue when checked
+                        MaterialTheme.colorScheme.primary
                     else
-                        MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),  // Gray outline when unchecked
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
                     shape = RoundedCornerShape(4.dp)
-                )
-                .clip(RoundedCornerShape(4.dp)),
+                ),
             contentAlignment = Alignment.Center
         ) {
             if (isChecked) {
@@ -181,13 +209,36 @@ private fun TermsCheckboxItem(
             }
         }
 
-        // Label Text
+        // Label
         Text(
             text = label,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onBackground,
-            fontWeight = FontWeight.Normal,
             modifier = Modifier.weight(1f)
         )
     }
 }
+
+private val TERMS_CONTENT = """
+By using the FASTER Festival application, you agree to abide by all festival rules and regulations. This includes but is not limited to:
+
+1. ACCEPTANCE OF TERMS
+By accessing and using this application, you accept and agree to be bound by the terms and conditions outlined herein.
+
+2. USER CONDUCT
+You agree to behave responsibly and respectfully at all festival events. Any violations may result in removal from the festival.
+
+3. PRIVACY
+Your personal information will be handled in accordance with our Privacy Policy. We collect only the data necessary to provide our services.
+
+4. WRISTBAND USAGE
+Festival wristbands are non-transferable and must be worn at all times during the event.
+
+5. LIABILITY
+FASTER Festival is not responsible for lost, stolen, or damaged personal property.
+
+6. CONTACT INFORMATION
+If you have any questions about these Terms and Conditions, please contact us at support@faster-festival.com
+
+By clicking "Accept," you acknowledge that you have read these Terms and Conditions and agree to be bound by them.
+""".trimIndent()

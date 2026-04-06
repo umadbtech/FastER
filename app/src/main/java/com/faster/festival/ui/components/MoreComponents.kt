@@ -22,8 +22,8 @@ import androidx.compose.ui.unit.dp
 import com.faster.festival.R
 import com.faster.festival.data.models.Poi
 import com.faster.festival.ui.theme.FastERTheme
-import com.faster.festival.ui.theme.NavyBlue
-import com.faster.festival.ui.theme.NavyBlueDark
+import com.faster.festival.ui.theme.FasterRed
+import com.faster.festival.ui.theme.FasterRedDark
 
 // Map Marker
 @Composable
@@ -139,8 +139,8 @@ fun MapPlaceholder(modifier: Modifier = Modifier) {
                                     Brush.verticalGradient(
                                             colors =
                                                     listOf(
-                                                            NavyBlue.copy(alpha = 0.6f),
-                                                            NavyBlueDark.copy(alpha = 0.6f)
+                                                            FasterRed.copy(alpha = 0.6f),
+                                                            FasterRedDark.copy(alpha = 0.6f)
                                                     )
                                     )
                             )

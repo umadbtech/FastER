@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew compileDebugKotlin 2>&1 | grep -E \"^e:\" | head -30)",
+      "Bash(./gradlew assembleDebug 2>&1 | tail -20)",
+      "Bash(./gradlew testDebugUnitTest 2>&1 | tail -20)",
+      "Bash(./gradlew testDebugUnitTest 2>&1 | tail -15)",
+      "Bash(./gradlew compileDebugKotlin)",
+      "Bash(./gradlew compileDebugUnitTestKotlin)",
+      "Bash(./gradlew testDebugUnitTest --tests \"com.faster.festival.ui.onboarding.*\")",
+      "Bash(./gradlew testDebugUnitTest --tests \"com.faster.festival.ui.onboarding.OnboardingViewModelTest.test saveProfileDetails succeeds and advances to EMERGENCY_CONTACT\" --info)",
+      "Bash(./gradlew testDebugUnitTest)",
+      "Bash(./gradlew assembleDebug)",
+      "Bash(grep -n \"class HeroCarouselItem\\\\|data class HeroCarouselItem\" /Users/umasenthil/FastER/app/src/main/java/com/faster/festival/data/models/*.kt)",
+      "Bash(grep -n \"heroCarouselItems\\\\|hero_carousel\" /Users/umasenthil/FastER/app/src/main/java/com/faster/festival/data/models/*.kt)",
+      "Bash(grep -n \"class HomeModule\\\\|data class HomeModule\" /Users/umasenthil/FastER/app/src/main/java/com/faster/festival/data/models/*.kt)",
+      "Bash(ls /Users/umasenthil/FastER/app/src/main/res/drawable*)"
+    ]
+  }
+}

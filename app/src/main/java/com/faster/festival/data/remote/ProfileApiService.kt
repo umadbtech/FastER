@@ -1,0 +1,93 @@
+package com.faster.festival.data.remote
+
+import com.faster.festival.data.models.AccountProfileResponse
+import okhttp3.MultipartBody
+import retrofit2.Response
+import retrofit2.http.*
+
+/** Retrofit API service for Profile endpoints */
+interface ProfileApiService {
+
+    /** GET /functions/v1/account-profile Load user account profile with all related data */
+    @GET("functions/v1/account-profile")
+    suspend fun getAccountProfile(
+            @Header("Authorization") authorization: String
+    ): AccountProfileResponse
+
+    /** POST /functions/v1/save-profile-name Save user's legal first and last name */
+    @POST("functions/v1/save-profile-name")
+    suspend fun saveLegalName(
+            @Header("Authorization") authorization: String,
+            @Body request: SaveLegalNameRequest
+    ): Response<com.faster.festival.data.model.OnboardingResponse>
+
+    /** POST /functions/v1/save-demographics Save user's demographics */
+    @POST("functions/v1/save-demographics")
+    suspend fun saveDemographics(
+            @Header("Authorization") authorization: String,
+            @Body request: com.faster.festival.data.model.SaveDemographicsRequest
+    ): Response<com.faster.festival.data.model.OnboardingResponse>
+
+    /** POST /functions/v1/upload-avatar Upload profile avatar image (multipart/form-data) */
+    @Multipart
+    @POST("functions/v1/upload-avatar")
+    suspend fun uploadAvatar(
+            @Header("Authorization") authorization: String,
+            @Part file: MultipartBody.Part
+    ): Response<UploadAvatarResponse>
+
+    /** GET /functions/v1/avatar-url Get signed avatar URL for current user */
+    @GET("functions/v1/avatar-url")
+    suspend fun getAvatarUrl(
+            @Header("Authorization") authorization: String
+    ): Response<AvatarUrlResponse>
+
+    /** POST /functions/v1/save-emergency-contact Create, update, or delete emergency contact */
+    @POST("functions/v1/save-emergency-contact")
+    suspend fun saveEmergencyContact(
+            @Header("Authorization") authorization: String,
+            @Body request: SaveEmergencyContactRequest
+    ): Response<SaveEmergencyContactResponse>
+}
+
+/** Request/Response models for profile endpoints */
+@kotlinx.serialization.Serializable
+data class SaveLegalNameRequest(
+        @kotlinx.serialization.SerialName("legal_first_name") val legalFirstName: String,
+        @kotlinx.serialization.SerialName("legal_last_name") val legalLastName: String
+)
+
+@kotlinx.serialization.Serializable
+data class UploadAvatarResponse(
+        @kotlinx.serialization.SerialName("saved") val saved: Boolean,
+        @kotlinx.serialization.SerialName("avatar_path") val avatarPath: String? = null,
+        @kotlinx.serialization.SerialName("signed_avatar_url") val signedAvatarUrl: String? = null,
+        @kotlinx.serialization.SerialName("signed_avatar_url_expires_in_seconds") val signedAvatarUrlExpiresInSeconds: Int? = null
+)
+
+@kotlinx.serialization.Serializable
+data class AvatarUrlResponse(
+        @kotlinx.serialization.SerialName("ok") val ok: Boolean,
+        @kotlinx.serialization.SerialName("avatar_path") val avatarPath: String? = null,
+        @kotlinx.serialization.SerialName("signed_avatar_url") val signedAvatarUrl: String? = null,
+        @kotlinx.serialization.SerialName("signed_avatar_url_expires_in_seconds") val signedAvatarUrlExpiresInSeconds: Int? = null
+)
+
+@kotlinx.serialization.Serializable
+data class SaveEmergencyContactResponse(
+        @kotlinx.serialization.SerialName("saved") val saved: Boolean = false,
+        @kotlinx.serialization.SerialName("activated") val activated: Boolean = false,
+        @kotlinx.serialization.SerialName("status") val status: String? = null,
+        @kotlinx.serialization.SerialName("missing") val missing: List<String> = emptyList()
+)
+
+@kotlinx.serialization.Serializable
+data class SaveEmergencyContactRequest(
+        @kotlinx.serialization.SerialName("festival_id") val festivalId: String? = null,
+        @kotlinx.serialization.SerialName("id") val id: String? = null,
+        @kotlinx.serialization.SerialName("external_name") val name: String? = null,
+        @kotlinx.serialization.SerialName("external_phone_e164") val phone: String? = null,
+        @kotlinx.serialization.SerialName("relationship") val relationship: String? = null,
+        @kotlinx.serialization.SerialName("is_primary") val isPrimary: Boolean? = null,
+        @kotlinx.serialization.SerialName("delete") val delete: Boolean? = null
+)

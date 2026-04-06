@@ -4,6 +4,7 @@ import java.io.File
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
 
@@ -37,12 +38,12 @@ val useRealSupabase: Boolean = project.hasProperty("useRealSupabase") && project
 
 android {
     namespace = "com.faster.festival"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.faster.festival"
         minSdk = 24
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
         vectorDrawables.useSupportLibrary = true
@@ -76,8 +77,8 @@ android {
         buildConfig = true
     }
 
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
+    testOptions {
+        unitTests.isReturnDefaultValues = true
     }
 
     packaging {
@@ -133,12 +134,30 @@ dependencies {
     // Phone number parsing/validation
     implementation("com.googlecode.libphonenumber:libphonenumber:8.13.28")
 
+    // Image Loading
+    implementation(libs.coil)
+
     // Add the real Supabase client artifacts only when requested.
     if (useRealSupabase) {
         // Use version catalog entries instead of hard-coded coordinates.
         implementation(libs.supabase.kt.android)
         implementation(libs.supabase.kt.realtime)
     }
+
+    // === TEST DEPENDENCIES ===
+    // JUnit 4
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("androidx.test.ext:junit:1.1.5")
+
+    // Kotlin Test
+    testImplementation(kotlin("test"))
+
+    // Coroutines Testing
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.1")
+
+    // MockK (Kotlin Mocking)
+    testImplementation("io.mockk:mockk:1.13.5")
+    testImplementation("io.mockk:mockk-agent:1.13.5")
 }
 
     /*
