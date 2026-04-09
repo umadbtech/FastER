@@ -136,6 +136,7 @@ dependencies {
 
     // Image Loading
     implementation(libs.coil)
+    implementation(libs.coil.gif)
 
     // Add the real Supabase client artifacts only when requested.
     if (useRealSupabase) {

@@ -59,7 +59,8 @@ import com.faster.festival.R
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FasterScreen(
-    onPinchHelp: () -> Unit = {}
+    onPinchHelp: () -> Unit = {},
+    onPairWristband: () -> Unit = {}
 ) {
     // Stubbed wristband data since BLE SDK is not available
     val isConnected = true
@@ -402,7 +403,7 @@ fun FasterScreen(
 
             item {
                 Button(
-                    onClick = {},
+                    onClick = onPairWristband,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp),
@@ -418,7 +419,7 @@ fun FasterScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Sync Now",
+                        text = "Pair your Wristband",
                         style = MaterialTheme.typography.labelLarge
                     )
                 }

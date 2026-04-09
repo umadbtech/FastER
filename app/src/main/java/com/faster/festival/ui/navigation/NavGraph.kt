@@ -75,7 +75,10 @@ import com.faster.festival.ui.screens.TermsScreen
 import com.faster.festival.ui.screens.TicketsScreen
 import com.faster.festival.ui.screens.InAppWebViewScreen
 import com.faster.festival.ui.screens.PinchHelpScreen
+import com.faster.festival.ui.screens.ProvisionFlowScreen
 import com.faster.festival.ui.viewmodel.PinchHelpViewModel
+import com.faster.festival.ui.viewmodel.ProvisionViewModel
+import com.faster.festival.di.PinchModule
 import com.faster.festival.ui.screens.WebPlaceholderScreen
 import com.faster.festival.ui.viewmodel.EnhancedProfileViewModel
 import com.faster.festival.ui.viewmodel.ProfileState
@@ -125,6 +128,7 @@ object Routes {
     const val STAGE_SCHEDULE = "stage_schedule"
     const val IN_APP_WEB = "in_app_web/{url}/{title}"
     const val PINCH_HELP = "pinch_help"
+    const val PROVISION_FLOW = "provision_flow"
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -395,15 +399,34 @@ fun NavGraph(
 
         composable(Routes.FASTER_SCREEN) {
             FasterScreen(
-                onPinchHelp = { navController.navigate(Routes.PINCH_HELP) }
+                onPinchHelp = { navController.navigate(Routes.PINCH_HELP) },
+                onPairWristband = { navController.navigate(Routes.PROVISION_FLOW) }
             )
         }
 
         composable(Routes.PINCH_HELP) {
-            val pinchViewModel: PinchHelpViewModel = viewModel()
+            val pinchViewModel: PinchHelpViewModel = viewModel(
+                factory = PinchHelpViewModel.Factory(
+                    emergencyRepository = PinchModule.emergencyRepository,
+                    feedbackRepository = PinchModule.feedbackRepository
+                )
+            )
             PinchHelpScreen(
                 viewModel = pinchViewModel,
                 onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.PROVISION_FLOW) {
+            val provisionViewModel: ProvisionViewModel = viewModel()
+            ProvisionFlowScreen(
+                viewModel = provisionViewModel,
+                onBackClick = { navController.popBackStack() },
+                onComplete = {
+                    navController.popBackStack()
+                },
+                showBackOnSplash = true,
+                completeButtonText = "Go Home"
             )
         }
 

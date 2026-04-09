@@ -1,0 +1,49 @@
+{
+  "statuses": [
+    {
+      "id": "alert_sent",
+      "label": "Alert Sent",
+      "icon": "notifications_active",
+      "order": 1
+    },
+    {
+      "id": "call_connected",
+      "label": "Call Connected",
+      "icon": "phone_in_talk",
+      "order": 2
+    },
+    {
+      "id": "info_received",
+      "label": "Info Received",
+      "icon": "assignment_turned_in",
+      "order": 3
+    },
+    {
+      "id": "help_dispatched",
+      "label": "Help Dispatched",
+      "icon": "directions_run",
+      "order": 4
+    },
+    {
+      "id": "help_arrived",
+      "label": "Help Arrived",
+      "icon": "location_on",
+      "order": 5
+    },
+    {
+      "id": "in_progress",
+      "label": "In Progress",
+      "icon": "medical_services",
+      "order": 6
+    },
+    {
+      "id": "resolved",
+      "label": "Resolved",
+      "icon": "check_circle",
+      "order": 7
+    }
+  ],
+  "eta_format": "Arrives between {start_time}-{end_time}",
+  "default_eta_minutes": 5,
+  "nearest_location": "near medical tent 1"
+}

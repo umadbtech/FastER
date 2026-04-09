@@ -39,6 +39,8 @@ import com.faster.festival.data.local.EncryptedSessionManager
 import com.faster.festival.data.repository.OnboardingRepository
 import com.faster.festival.di.NetworkModule
 import com.faster.festival.ui.components.StepIndicator
+import com.faster.festival.ui.screens.ProvisionFlowScreen
+import com.faster.festival.ui.viewmodel.ProvisionViewModel
 import com.faster.festival.utils.PermissionUtils
 
 /**
@@ -209,12 +211,16 @@ fun OnboardingScreen(
                         onAcceptTerms = viewModel::acceptTermsAndContinue
                     )
 
-                    OnboardingStep.WRISTBAND -> WristbandScreen(
-                        wristbandCode = uiState.wristbandCode,
-                        onWristbandCodeChange = viewModel::updateWristbandCode,
-                        onPairWristband = viewModel::saveWristband,
-                        onSkip = viewModel::skipWristband
-                    )
+                    OnboardingStep.WRISTBAND -> {
+                        val provisionViewModel: ProvisionViewModel = viewModel()
+                        ProvisionFlowScreen(
+                            viewModel = provisionViewModel,
+                            onBackClick = { viewModel.previousStep() },
+                            onComplete = { viewModel.skipWristband() },
+                            showBackOnSplash = false,
+                            completeButtonText = "Continue"
+                        )
+                    }
                 }
             }
 
