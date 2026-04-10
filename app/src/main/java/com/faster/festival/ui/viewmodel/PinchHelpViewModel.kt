@@ -3,6 +3,7 @@ package com.faster.festival.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import android.content.Context
 import com.faster.festival.data.pinch.model.EmergencyCategory
 import com.faster.festival.data.pinch.model.EmergencyRequest
 import com.faster.festival.data.pinch.model.FeedbackConfig
@@ -12,6 +13,10 @@ import com.faster.festival.data.pinch.model.TimelineConfig
 import com.faster.festival.data.pinch.model.UserContext
 import com.faster.festival.data.pinch.repository.PinchEmergencyRepository
 import com.faster.festival.data.pinch.repository.PinchFeedbackRepository
+import com.faster.festival.ui.pinch.map.getCurrentLocation
+import com.faster.festival.ui.pinch.map.medicalStationPositions
+import com.faster.festival.ui.pinch.map.responderPosition
+import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,6 +40,7 @@ enum class PinchHelpState {
     FeedbackIntro,
     FeedbackSurvey,
     FeedbackComplete,
+    CancelSwipe,
     CancelConfirm,
     Cancelled
 }
@@ -89,7 +95,14 @@ data class PinchHelpUiState(
     val feedbackComment: String = "",
 
     // Previous state before cancel
-    val previousState: PinchHelpState = PinchHelpState.Landing
+    val previousState: PinchHelpState = PinchHelpState.Landing,
+
+    // Real map location
+    val userLatLng: LatLng? = null,
+    val responderLatLng: LatLng? = null,
+    val medicalStations: List<LatLng> = emptyList(),
+    val responderDistanceMeters: Double = 250.0,
+    val mapLocationLoaded: Boolean = false
 )
 
 class PinchHelpViewModel(
@@ -365,11 +378,41 @@ class PinchHelpViewModel(
         _uiState.value = _uiState.value.copy(error = null)
     }
 
+    // Map location — called once from PinchHelpScreen with app context
+
+    fun initLocationIfNeeded(context: Context) {
+        if (_uiState.value.mapLocationLoaded) return
+        viewModelScope.launch {
+            val userLoc = getCurrentLocation(context)
+            val distance = _uiState.value.responderDistanceMeters
+            _uiState.value = _uiState.value.copy(
+                userLatLng = userLoc,
+                responderLatLng = responderPosition(userLoc, distance),
+                medicalStations = medicalStationPositions(userLoc),
+                mapLocationLoaded = true
+            )
+        }
+    }
+
+    fun setResponderDistance(meters: Double) {
+        val userLoc = _uiState.value.userLatLng ?: return
+        _uiState.value = _uiState.value.copy(
+            responderDistanceMeters = meters,
+            responderLatLng = responderPosition(userLoc, meters)
+        )
+    }
+
     // Cancel flow
 
     fun requestCancel() {
         _uiState.value = _uiState.value.copy(
             previousState = _uiState.value.currentState,
+            currentState = PinchHelpState.CancelSwipe
+        )
+    }
+
+    fun showCancelConfirmDialog() {
+        _uiState.value = _uiState.value.copy(
             currentState = PinchHelpState.CancelConfirm
         )
     }
@@ -379,6 +422,10 @@ class PinchHelpViewModel(
     }
 
     fun dismissCancel() {
+        _uiState.value = _uiState.value.copy(currentState = _uiState.value.previousState)
+    }
+
+    fun cancelSwipeBack() {
         _uiState.value = _uiState.value.copy(currentState = _uiState.value.previousState)
     }
 

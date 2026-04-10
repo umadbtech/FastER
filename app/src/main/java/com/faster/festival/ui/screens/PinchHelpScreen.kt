@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Check
@@ -39,9 +40,10 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.SwipeRight
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -54,6 +56,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -76,6 +79,7 @@ import com.faster.festival.data.pinch.model.FeedbackQuestion
 import com.faster.festival.ui.pinch.components.BackButton
 import com.faster.festival.ui.pinch.components.BottomCard
 import com.faster.festival.ui.pinch.components.MapBackground
+import com.faster.festival.ui.pinch.map.LiveMapBackground
 import com.faster.festival.ui.pinch.components.PinchDarkRed
 import com.faster.festival.ui.pinch.components.PinchGray
 import com.faster.festival.ui.pinch.components.PinchGreen
@@ -106,6 +110,12 @@ fun PinchHelpScreen(
     onBackClick: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Load real device location once for all map screens
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        viewModel.initLocationIfNeeded(context)
+    }
 
     if (state.isLoading && state.currentState == PinchHelpState.Landing) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -120,10 +130,12 @@ fun PinchHelpScreen(
             onBackClick = onBackClick
         )
         PinchHelpState.SwipeForHelp -> SwipeForHelpScreen(
+            state = state,
             onAlertSent = { viewModel.swipeToAlert() },
             onCancel = onBackClick
         )
         PinchHelpState.AlertSent -> AlertSentScreen(
+            state = state,
             onAnswerCall = { viewModel.proceedToAnswerCall() },
             onCancel = { viewModel.requestCancel() }
         )
@@ -182,16 +194,14 @@ fun PinchHelpScreen(
         )
         PinchHelpState.Resolved -> EmergencyResolvedScreen(
             state = state,
-            onProvideFeedback = { viewModel.showFeedbackIntro() },
-            onDone = onBackClick
+            onRatingChange = { viewModel.setOverallRating(it) },
+            onSubmitFeedback = { viewModel.showFeedbackIntro() },
+            onFeedbackSurvey = { viewModel.startFeedbackSurvey() }
         )
         PinchHelpState.FeedbackIntro -> FeedbackIntroScreen(
+            state = state,
             config = state.feedbackConfig,
-            overallRating = state.overallRating,
-            onRatingChange = { viewModel.setOverallRating(it) },
-            onStartSurvey = { viewModel.startFeedbackSurvey() },
-            onSubmitBasic = { viewModel.submitFeedback() },
-            isLoading = state.isLoading
+            onStartSurvey = { viewModel.startFeedbackSurvey() }
         )
         PinchHelpState.FeedbackSurvey -> FeedbackSurveyScreen(
             state = state,
@@ -201,15 +211,20 @@ fun PinchHelpScreen(
             onNext = { viewModel.nextQuestion() }
         )
         PinchHelpState.FeedbackComplete -> FeedbackCompleteScreen(
+            state = state,
             config = state.feedbackConfig,
             onDone = {
                 viewModel.reset()
                 onBackClick()
             }
         )
+        PinchHelpState.CancelSwipe -> CancelSwipeScreen(
+            onSwipeCancel = { viewModel.showCancelConfirmDialog() },
+            onBack = { viewModel.cancelSwipeBack() }
+        )
         PinchHelpState.CancelConfirm -> CancelConfirmScreen(
             onConfirmCancel = { viewModel.confirmCancel() },
-            onDismiss = { viewModel.dismissCancel() }
+            onGoBack = { viewModel.dismissCancel() }
         )
         PinchHelpState.Cancelled -> HelpCancelledScreen(
             onDone = {
@@ -353,6 +368,7 @@ private fun LandingScreen(
 
 @Composable
 private fun SwipeForHelpScreen(
+    state: PinchHelpUiState,
     onAlertSent: () -> Unit,
     onCancel: () -> Unit
 ) {
@@ -365,7 +381,10 @@ private fun SwipeForHelpScreen(
         label = "swipe_offset"
     )
 
-    MapBackground {
+    LiveMapBackground(
+        userLatLng = state.userLatLng,
+        medicalStations = state.medicalStations
+    ) {
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Bottom
@@ -459,10 +478,14 @@ private fun SwipeForHelpScreen(
 
 @Composable
 private fun AlertSentScreen(
+    state: PinchHelpUiState,
     onAnswerCall: () -> Unit,
     onCancel: () -> Unit
 ) {
-    MapBackground {
+    LiveMapBackground(
+        userLatLng = state.userLatLng,
+        medicalStations = state.medicalStations
+    ) {
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Bottom
@@ -470,12 +493,12 @@ private fun AlertSentScreen(
             BottomCard {
                 Text(
                     text = "Help Alert Sent",
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = PinchTextDark
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
                     text = "Medical staff have received your alert.",
@@ -484,14 +507,14 @@ private fun AlertSentScreen(
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 TimelineIndicator(
                     steps = listOf("1", "2", "3", "4", "5"),
                     activeStep = 0
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
                     text = "Once your alert is received, medical staff will\ncall your phone number to get more details\nabout your emergency",
@@ -500,16 +523,15 @@ private fun AlertSentScreen(
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 PinchSecondaryButton(
                     text = "Cancel Help Alert",
                     onClick = onCancel
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
-                // Simulated incoming call
                 PinchPrimaryButton(
                     text = "Answer Call",
                     onClick = onAnswerCall
@@ -528,7 +550,10 @@ private fun AnswerCallScreen(
     state: PinchHelpUiState,
     onProvideMoreInfo: () -> Unit
 ) {
-    MapBackground {
+    LiveMapBackground(
+        userLatLng = state.userLatLng,
+        medicalStations = state.medicalStations
+    ) {
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Bottom
@@ -536,12 +561,12 @@ private fun AnswerCallScreen(
             BottomCard {
                 Text(
                     text = "Answer Call",
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = PinchTextDark
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
                     text = "Answer the call from the medical staff to\nconfirm your emergency and provide\nmore details.",
@@ -550,14 +575,14 @@ private fun AnswerCallScreen(
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 TimelineIndicator(
                     steps = listOf("1", "2", "3", "4", "5"),
                     activeStep = 1
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
                     text = "If you cannot answer the phone call, confirm\nyour emergency using the button below",
@@ -566,7 +591,7 @@ private fun AnswerCallScreen(
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 PinchPrimaryButton(
                     text = "Provide More Information",
@@ -1102,67 +1127,97 @@ private fun AdditionalInfoFormScreen(
     onSubmit: () -> Unit,
     isLoading: Boolean
 ) {
-    MapBackground {
+    LiveMapBackground(
+        userLatLng = state.userLatLng,
+        medicalStations = state.medicalStations
+    ) {
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Bottom
         ) {
-            BottomCard {
-                TimelineIndicator(
-                    steps = listOf("1", "2", "3", "4", "5"),
-                    activeStep = 3
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = "Provide more information about\nyour emergency",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = PinchTextDark,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "Please describe what is happening, the\nmore you describe, the faster we can\nfind help. Use as many descriptors as\npossible. If help is for you, try to stay as\nstationary as possible.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = PinchTextMedium,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                OutlinedTextField(
-                    value = state.additionalInfo,
-                    onValueChange = onInfoChange,
-                    label = { Text("Provide more information here. Please be as detailed as possible.") },
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
+            ) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(120.dp)
-                        .windowInsetsPadding(WindowInsets.ime),
-                    shape = RoundedCornerShape(12.dp),
-                    maxLines = 5,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = PinchRed,
-                        cursorColor = PinchRed
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                        .windowInsetsPadding(WindowInsets.ime)
+                        .windowInsetsPadding(WindowInsets.navigationBars),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Drag handle
+                    Box(
+                        modifier = Modifier
+                            .width(36.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Color(0xFFBBBBBB))
                     )
-                )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        color = PinchRed,
-                        modifier = Modifier.size(32.dp)
+                    TimelineIndicator(
+                        steps = listOf("1", "2", "3", "4", "5"),
+                        activeStep = 3
                     )
-                } else {
-                    PinchPrimaryButton(
-                        text = "Submit",
-                        onClick = onSubmit,
-                        enabled = state.additionalInfo.isNotBlank()
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "Provide more information about\nyour emergency",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = PinchTextDark,
+                        textAlign = TextAlign.Center
                     )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "Please describe what is happening, the\nmore you describe, the faster we can\nfind help. Use as many descriptors as\npossible. If help is for you, try to stay as\nstationary as possible.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = PinchTextMedium,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = state.additionalInfo,
+                        onValueChange = onInfoChange,
+                        label = { Text("Provide more information here. Please be as detailed as possible.") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(140.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        maxLines = 6,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = PinchRed,
+                            cursorColor = PinchRed
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            color = PinchRed,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    } else {
+                        PinchPrimaryButton(
+                            text = "Submit",
+                            onClick = onSubmit,
+                            enabled = state.additionalInfo.isNotBlank()
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
         }
@@ -1229,7 +1284,23 @@ private fun HelpOnTheWayScreen(
     state: PinchHelpUiState,
     onArrived: () -> Unit
 ) {
-    MapBackground {
+    // Auto-advance countdown: 20 seconds → HelpArrived
+    var secondsLeft by remember { mutableIntStateOf(20) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (secondsLeft > 0) {
+            kotlinx.coroutines.delay(1000L)
+            secondsLeft--
+        }
+        onArrived()
+    }
+
+    LiveMapBackground(
+        userLatLng = state.userLatLng,
+        medicalStations = state.medicalStations,
+        responderLatLng = state.responderLatLng,
+        showRoute = true
+    ) {
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Bottom
@@ -1237,12 +1308,12 @@ private fun HelpOnTheWayScreen(
             BottomCard {
                 Text(
                     text = "Help is On the Way",
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = PinchTextDark
                 )
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
 
                 Text(
                     text = "Arrives between ${state.etaStartTime}-${state.etaEndTime}",
@@ -1250,14 +1321,14 @@ private fun HelpOnTheWayScreen(
                     color = PinchTextMedium
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 TimelineIndicator(
                     steps = listOf("1", "2", "3", "4", "5"),
                     activeStep = 3
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
                     text = "Medical staff are ${state.nearestStation}",
@@ -1266,7 +1337,7 @@ private fun HelpOnTheWayScreen(
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
                     text = "Remain in your location unless it is unsafe",
@@ -1275,13 +1346,22 @@ private fun HelpOnTheWayScreen(
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // Simulate arrival for demo
-                PinchPrimaryButton(
-                    text = "Help Arrived",
-                    onClick = onArrived
-                )
+                // Countdown timer
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(PinchRed.copy(alpha = 0.1f))
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "Arriving in ${secondsLeft}s",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = PinchRed
+                    )
+                }
             }
         }
     }
@@ -1296,7 +1376,11 @@ private fun HelpArrivedScreen(
     state: PinchHelpUiState,
     onInProgress: () -> Unit
 ) {
-    MapBackground {
+    LiveMapBackground(
+        userLatLng = state.userLatLng,
+        medicalStations = state.medicalStations,
+        responderLatLng = state.userLatLng
+    ) {
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Bottom
@@ -1304,12 +1388,12 @@ private fun HelpArrivedScreen(
             BottomCard {
                 Text(
                     text = "Help Arrived",
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = PinchTextDark
                 )
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
 
                 Text(
                     text = "Identify yourself to the medical staff.",
@@ -1317,14 +1401,14 @@ private fun HelpArrivedScreen(
                     color = PinchTextMedium
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 TimelineIndicator(
                     steps = listOf("1", "2", "3", "4", "5"),
                     activeStep = 4
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
                     text = "Medical staff are at your location",
@@ -1333,7 +1417,7 @@ private fun HelpArrivedScreen(
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
                     text = "Remain in your location unless it is unsafe",
@@ -1342,12 +1426,15 @@ private fun HelpArrivedScreen(
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                PinchPrimaryButton(
-                    text = "Help In Progress",
-                    onClick = onInProgress
-                )
+                TextButton(onClick = onInProgress) {
+                    Text(
+                        text = "Continue →",
+                        color = PinchTextLight,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
     }
@@ -1362,29 +1449,23 @@ private fun HelpInProgressScreen(
     state: PinchHelpUiState,
     onResolved: () -> Unit
 ) {
-    MapBackground {
+    LiveMapBackground(
+        userLatLng = state.userLatLng,
+        medicalStations = state.medicalStations
+    ) {
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Bottom
         ) {
             BottomCard {
-                Icon(
-                    imageVector = Icons.Default.MedicalServices,
-                    contentDescription = null,
-                    modifier = Modifier.size(40.dp),
-                    tint = PinchGreen
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
                 Text(
                     text = "Help in Progress",
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = PinchTextDark
                 )
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
 
                 Text(
                     text = "Medical staff are responding to your help\nalert.",
@@ -1393,14 +1474,14 @@ private fun HelpInProgressScreen(
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 TimelineIndicator(
                     steps = listOf("1", "2", "3", "4", "5"),
                     activeStep = 4
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
                     text = "Medical staff are at your location",
@@ -1408,7 +1489,7 @@ private fun HelpInProgressScreen(
                     color = PinchTextMedium
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
                     text = "Remain in your location unless it is unsafe",
@@ -1416,12 +1497,15 @@ private fun HelpInProgressScreen(
                     color = PinchTextLight
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                PinchPrimaryButton(
-                    text = "Emergency Resolved",
-                    onClick = onResolved
-                )
+                TextButton(onClick = onResolved) {
+                    Text(
+                        text = "Continue →",
+                        color = PinchTextLight,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
     }
@@ -1434,108 +1518,137 @@ private fun HelpInProgressScreen(
 @Composable
 private fun EmergencyResolvedScreen(
     state: PinchHelpUiState,
-    onProvideFeedback: () -> Unit,
-    onDone: () -> Unit
+    onRatingChange: (Int) -> Unit,
+    onSubmitFeedback: () -> Unit,
+    onFeedbackSurvey: () -> Unit
 ) {
-    MapBackground {
+    LiveMapBackground(
+        userLatLng = state.userLatLng,
+        medicalStations = state.medicalStations
+    ) {
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Bottom
         ) {
-            BottomCard {
-                Text(
-                    text = "Emergency Resolved",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = PinchTextDark
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = "Medical staff have responded to your\nhelp alert.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = PinchTextMedium,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                TimelineIndicator(
-                    steps = listOf("1", "2", "3", "4", "5"),
-                    activeStep = 4
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = "Follow the next steps suggested by the\nmedical staff.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = PinchTextMedium,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                // Provide Feedback section
-                Text(
-                    text = "Provide Feedback",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = PinchTextDark
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = "FASTER successfully connected me\nwith the help I needed.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = PinchTextMedium,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                RatingSelector(
-                    maxRating = 5,
-                    currentRating = state.overallRating,
-                    onRatingSelected = { /* handled through viewmodel */ }
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                        .windowInsetsPadding(WindowInsets.navigationBars),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = "Strongly\nDisagree",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = PinchTextLight
+                    // Drag handle
+                    Box(
+                        modifier = Modifier
+                            .width(36.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Color(0xFFBBBBBB))
                     )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
                     Text(
-                        text = "Strongly\nAgree",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = PinchTextLight,
-                        textAlign = TextAlign.End
+                        text = "Emergency Resolved",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = PinchTextDark
                     )
-                }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
 
-                PinchPrimaryButton(
-                    text = "Submit Feedback",
-                    onClick = onProvideFeedback
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                TextButton(onClick = onDone) {
                     Text(
-                        text = "Feedback Survey",
-                        color = PinchTextLight,
-                        fontWeight = FontWeight.SemiBold
+                        text = "Medical staff have responded to your\nhelp alert.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = PinchTextMedium,
+                        textAlign = TextAlign.Center
                     )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    TimelineIndicator(
+                        steps = listOf("1", "2", "3", "4", "5"),
+                        activeStep = 4
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "Follow the next steps suggested by the\nmedical staff.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = PinchTextMedium,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Provide Feedback section
+                    Text(
+                        text = "Provide Feedback",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = PinchTextDark
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = "FASTER successfully connected me\nwith the help I needed.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = PinchTextMedium,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    RatingSelector(
+                        maxRating = 5,
+                        currentRating = state.overallRating,
+                        onRatingSelected = onRatingChange
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Strongly\nDisagree",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = PinchTextLight
+                        )
+                        Text(
+                            text = "Strongly\nAgree",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = PinchTextLight,
+                            textAlign = TextAlign.End
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    PinchPrimaryButton(
+                        text = "Submit Feedback",
+                        onClick = onSubmitFeedback
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    TextButton(onClick = onFeedbackSurvey) {
+                        Text(
+                            text = "Feedback Survey",
+                            color = PinchTextLight,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
             }
         }
@@ -1548,14 +1661,14 @@ private fun EmergencyResolvedScreen(
 
 @Composable
 private fun FeedbackIntroScreen(
+    state: PinchHelpUiState,
     config: FeedbackConfig?,
-    overallRating: Int,
-    onRatingChange: (Int) -> Unit,
-    onStartSurvey: () -> Unit,
-    onSubmitBasic: () -> Unit,
-    isLoading: Boolean
+    onStartSurvey: () -> Unit
 ) {
-    MapBackground {
+    LiveMapBackground(
+        userLatLng = state.userLatLng,
+        medicalStations = state.medicalStations
+    ) {
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Bottom
@@ -1563,13 +1676,13 @@ private fun FeedbackIntroScreen(
             BottomCard {
                 Text(
                     text = config?.introTitle ?: "Thank You for Your Feedback",
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = PinchTextDark,
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
                     text = config?.introMessage ?: "Your response will help us improve our emergency response technology.",
@@ -1578,7 +1691,7 @@ private fun FeedbackIntroScreen(
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
                     text = config?.introCta ?: "If you have a few more minutes, complete our quick 3 question survey.",
@@ -1587,7 +1700,7 @@ private fun FeedbackIntroScreen(
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 PinchPrimaryButton(
                     text = "Feedback Survey",
@@ -1614,7 +1727,10 @@ private fun FeedbackSurveyScreen(
 
     val currentRating = state.questionRatings[currentQuestion.id] ?: 0
 
-    MapBackground {
+    LiveMapBackground(
+        userLatLng = state.userLatLng,
+        medicalStations = state.medicalStations
+    ) {
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Bottom
@@ -1627,7 +1743,7 @@ private fun FeedbackSurveyScreen(
                     color = PinchTextDark
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
                     text = currentQuestion.text,
@@ -1637,7 +1753,7 @@ private fun FeedbackSurveyScreen(
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 RatingSelector(
                     maxRating = currentQuestion.scaleMax,
@@ -1664,7 +1780,7 @@ private fun FeedbackSurveyScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 PinchPrimaryButton(
                     text = if (isLast) "Submit Feedback Survey" else "Next Question",
@@ -1682,10 +1798,14 @@ private fun FeedbackSurveyScreen(
 
 @Composable
 private fun FeedbackCompleteScreen(
+    state: PinchHelpUiState,
     config: FeedbackConfig?,
     onDone: () -> Unit
 ) {
-    MapBackground {
+    LiveMapBackground(
+        userLatLng = state.userLatLng,
+        medicalStations = state.medicalStations
+    ) {
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Bottom
@@ -1732,42 +1852,213 @@ private fun FeedbackCompleteScreen(
 // CANCEL CONFIRM DIALOG
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// CANCEL SWIPE — Swipe to cancel with "I do not need help"
+// ═══════════════════════════════════════════════════════════════════════════════
+
 @Composable
-private fun CancelConfirmScreen(
-    onConfirmCancel: () -> Unit,
-    onDismiss: () -> Unit
+private fun CancelSwipeScreen(
+    onSwipeCancel: () -> Unit,
+    onBack: () -> Unit
 ) {
+    val density = LocalDensity.current
+    val maxSwipePx = with(density) { 200.dp.toPx() }
+    var swipeOffset by remember { mutableFloatStateOf(0f) }
+    val animatedOffset by animateFloatAsState(
+        targetValue = swipeOffset,
+        animationSpec = tween(100),
+        label = "cancel_swipe"
+    )
+
     MapBackground {
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            title = {
-                Text(
-                    text = "Cancel Help Alert?",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text("Are you sure you want to cancel your emergency help request?")
-            },
-            confirmButton = {
-                Button(
-                    onClick = onConfirmCancel,
-                    colors = ButtonDefaults.buttonColors(containerColor = PinchRed)
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Bottom
+        ) {
+            BottomCard {
+                // Back arrow + title row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Yes, Cancel")
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = PinchTextDark,
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clickable { onBack() }
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Cancel Help Alert",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = PinchTextDark
+                    )
                 }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = onDismiss) {
-                    Text("No, Keep Alert")
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "If you are not in need of help, swipe to\ncancel the alert.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = PinchTextMedium
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Swipe track
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(Color(0xFFF0F0F0))
+                        .border(1.dp, PinchGray, RoundedCornerShape(28.dp))
+                ) {
+                    // Label
+                    Text(
+                        text = "I do not need help",
+                        modifier = Modifier.align(Alignment.Center),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = PinchTextMedium
+                    )
+
+                    // Swipe thumb
+                    Box(
+                        modifier = Modifier
+                            .offset { IntOffset(animatedOffset.roundToInt(), 0) }
+                            .size(52.dp)
+                            .padding(2.dp)
+                            .clip(CircleShape)
+                            .background(PinchTextDark)
+                            .align(Alignment.CenterStart)
+                            .pointerInput(Unit) {
+                                detectHorizontalDragGestures(
+                                    onDragEnd = {
+                                        if (swipeOffset > maxSwipePx * 0.7f) {
+                                            onSwipeCancel()
+                                        }
+                                        swipeOffset = 0f
+                                    },
+                                    onHorizontalDrag = { _, dragAmount ->
+                                        swipeOffset =
+                                            (swipeOffset + dragAmount).coerceIn(0f, maxSwipePx)
+                                    }
+                                )
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = "Swipe to cancel",
+                            tint = PinchWhite,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
             }
-        )
+        }
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// HELP CANCELLED
+// CANCEL CONFIRM — Modal dialog over map
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun CancelConfirmScreen(
+    onConfirmCancel: () -> Unit,
+    onGoBack: () -> Unit
+) {
+    MapBackground {
+        // Dim overlay
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.4f)),
+            contentAlignment = Alignment.Center
+        ) {
+            // Modal card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 40.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = PinchWhite),
+                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Cancel Help Alert",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = PinchTextDark,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "You will not receive medical help if you cancel the emergency.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = PinchTextMedium,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Cancel (destructive, red)
+                        Button(
+                            onClick = onConfirmCancel,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp),
+                            shape = RoundedCornerShape(24.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = PinchRed)
+                        ) {
+                            Text(
+                                text = "Cancel",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        // Go Back (neutral)
+                        OutlinedButton(
+                            onClick = onGoBack,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp),
+                            shape = RoundedCornerShape(24.dp)
+                        ) {
+                            Text(
+                                text = "Go Back",
+                                fontWeight = FontWeight.Bold,
+                                color = PinchTextDark
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// HELP CANCELLED — Confirmation screen
 // ═══════════════════════════════════════════════════════════════════════════════
 
 @Composable
@@ -1775,42 +2066,63 @@ private fun HelpCancelledScreen(
     onDone: () -> Unit
 ) {
     MapBackground {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.Bottom
+        // Dim overlay
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.4f)),
+            contentAlignment = Alignment.Center
         ) {
-            BottomCard {
-                Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = null,
-                    modifier = Modifier.size(48.dp),
-                    tint = PinchAmber
-                )
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 40.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = PinchWhite),
+                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Help Alert Cancelled",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = PinchTextDark,
+                        textAlign = TextAlign.Center
+                    )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                Text(
-                    text = "Help Alert Cancelled",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = PinchTextDark
-                )
+                    Text(
+                        text = "If you still need medical help, call 911\nor locate medical staff",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = PinchTextMedium,
+                        textAlign = TextAlign.Center
+                    )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
 
-                Text(
-                    text = "Your emergency help request has been cancelled.\nIf you need help again, you can start a new request.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = PinchTextMedium,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                PinchPrimaryButton(
-                    text = "Done",
-                    onClick = onDone
-                )
+                    // Blue "Ok" button per wireframe
+                    Button(
+                        onClick = onDone,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF1976D2)
+                        )
+                    ) {
+                        Text(
+                            text = "Ok",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         }
     }

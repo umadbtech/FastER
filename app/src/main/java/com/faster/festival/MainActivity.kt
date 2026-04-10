@@ -17,6 +17,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -82,6 +83,7 @@ import androidx.navigation.compose.rememberNavController
 import com.faster.festival.data.local.EncryptedSessionManager
 import com.faster.festival.data.repository.AuthRepository
 import com.faster.festival.di.NetworkModule
+import com.faster.festival.di.NotificationModule
 import com.faster.festival.di.PinchModule
 import com.faster.festival.ui.navigation.NavGraph
 import com.faster.festival.ui.navigation.Routes
@@ -104,6 +106,7 @@ class MainActivity : FragmentActivity() {
         val sessionManager = EncryptedSessionManager(applicationContext)
         NetworkModule.initializeWithSessionManager(sessionManager)
         PinchModule.initialize(applicationContext)
+        NotificationModule.initialize(applicationContext)
         val authRepository = AuthRepository(NetworkModule.authApiService, sessionManager)
 
         @Suppress("NewApi")
@@ -293,11 +296,12 @@ fun FastERBottomNavBar(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Splash colors
+// Splash colors — matching wireframe deep navy
 // ═══════════════════════════════════════════════════════════════════════════════
-private val SplashNavy = Color(0xFF0B1A4A)
-private val SplashNavyDark = Color(0xFF050D25)
-private val SplashNavyLight = Color(0xFF1A3A8A)
+private val SplashNavyDeep = Color(0xFF050B26)
+private val SplashNavy = Color(0xFF0A1A4D)
+private val SplashNavyMid = Color(0xFF112B6E)
+private val SplashGlow = Color(0xFF1E4FA8)
 private val SplashRed = Color(0xFFD11818)
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -307,7 +311,6 @@ private val SplashRed = Color(0xFFD11818)
 @Composable
 fun SplashScreen(phase: Int) {
     Box(modifier = Modifier.fillMaxSize()) {
-        // Phase 0: Logo on navy
         AnimatedVisibility(
             visible = phase == 0,
             enter = fadeIn(tween(300)),
@@ -316,7 +319,6 @@ fun SplashScreen(phase: Int) {
             SplashPhaseOne()
         }
 
-        // Phase 1: Tagline on gradient
         AnimatedVisibility(
             visible = phase == 1,
             enter = fadeIn(tween(500)),
@@ -327,22 +329,65 @@ fun SplashScreen(phase: Int) {
     }
 }
 
+/**
+ * Reusable navy splash background with radial glow.
+ * Matches the FigJam wireframe — deep navy core with brighter blue edge glow.
+ */
 @Composable
-private fun SplashPhaseOne() {
+private fun SplashBackground(content: @Composable BoxScope.() -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
+            // Base vertical gradient: navy → deep navy
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(SplashNavy, SplashNavyDark)
+                    colors = listOf(SplashNavy, SplashNavyDeep)
                 )
-            ),
-        contentAlignment = Alignment.Center
+            )
     ) {
+        // Radial glow overlay — soft blue light from center-bottom
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            SplashGlow.copy(alpha = 0.45f),
+                            SplashNavyMid.copy(alpha = 0.25f),
+                            Color.Transparent
+                        ),
+                        radius = 900f
+                    )
+                )
+        )
+        // Edge vignette for premium feel
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.Transparent,
+                            SplashNavyDeep.copy(alpha = 0.6f)
+                        ),
+                        radius = 1400f
+                    )
+                )
+        )
+        content()
+    }
+}
+
+@Composable
+private fun SplashPhaseOne() {
+    SplashBackground {
         Image(
-            painter = painterResource(id = R.drawable.faster_logo),
+            painter = painterResource(id = R.drawable.faster_logo_white),
             contentDescription = "FASTER Logo",
-            modifier = Modifier.size(180.dp),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth(0.55f),
             contentScale = ContentScale.Fit
         )
     }
@@ -350,23 +395,30 @@ private fun SplashPhaseOne() {
 
 @Composable
 private fun SplashPhaseTwo() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(SplashNavyLight, SplashNavy, SplashNavyDark)
-                )
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "Technology for faster,\nsafer events",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            textAlign = TextAlign.Center
-        )
+    // Animated fade-in for the tagline
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        visible = true
+    }
+
+    SplashBackground {
+        AnimatedVisibility(
+            visible = visible,
+            enter = fadeIn(tween(800)) +
+                    androidx.compose.animation.expandVertically(
+                        animationSpec = tween(800),
+                        expandFrom = Alignment.CenterVertically
+                    ),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Text(
+                text = "Technology for faster,\nsafer events",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 

@@ -78,7 +78,9 @@ import com.faster.festival.ui.screens.PinchHelpScreen
 import com.faster.festival.ui.screens.ProvisionFlowScreen
 import com.faster.festival.ui.viewmodel.PinchHelpViewModel
 import com.faster.festival.ui.viewmodel.ProvisionViewModel
+import com.faster.festival.di.NotificationModule
 import com.faster.festival.di.PinchModule
+import com.faster.festival.ui.viewmodel.NotificationSettingsViewModel
 import com.faster.festival.ui.screens.WebPlaceholderScreen
 import com.faster.festival.ui.viewmodel.EnhancedProfileViewModel
 import com.faster.festival.ui.viewmodel.ProfileState
@@ -532,7 +534,16 @@ fun NavGraph(
         }
 
         composable(Routes.NOTIFICATION_SETTINGS) {
-            NotificationSettingsScreen(onBackClick = { navController.popBackStack() })
+            val notifViewModel: NotificationSettingsViewModel = viewModel(
+                factory = NotificationSettingsViewModel.Factory(
+                    repository = NotificationModule.repository,
+                    fcmTokenRegistrar = NotificationModule.fcmTokenRegistrar
+                )
+            )
+            NotificationSettingsScreen(
+                viewModel = notifViewModel,
+                onBackClick = { navController.popBackStack() }
+            )
         }
 
         composable(Routes.LOCATION_SETTINGS) {

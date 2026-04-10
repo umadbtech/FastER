@@ -3,8 +3,10 @@ package com.faster.festival.ui.pinch.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,10 +22,21 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.LocalHospital
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MedicalServices
+import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material.icons.filled.SensorsOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -37,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,75 +73,11 @@ fun MapBackground(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    Box(modifier = modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(PinchMapGreen)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(2.dp)
-                    .align(Alignment.Center)
-                    .background(Color(0xFFAED581))
-            )
-            Box(
-                modifier = Modifier
-                    .width(2.dp)
-                    .fillMaxSize()
-                    .align(Alignment.Center)
-                    .background(Color(0xFFAED581))
-            )
-
-            Icon(
-                imageVector = Icons.Default.LocationOn,
-                contentDescription = null,
-                modifier = Modifier
-                    .size(32.dp)
-                    .align(Alignment.Center)
-                    .offset(y = (-20).dp),
-                tint = PinchRed
-            )
-            Icon(
-                imageVector = Icons.Default.LocalHospital,
-                contentDescription = null,
-                modifier = Modifier
-                    .size(28.dp)
-                    .align(Alignment.TopEnd)
-                    .padding(top = 80.dp, end = 40.dp)
-                    .clip(CircleShape)
-                    .background(PinchRed)
-                    .padding(4.dp),
-                tint = PinchWhite
-            )
-            Icon(
-                imageVector = Icons.Default.LocalHospital,
-                contentDescription = null,
-                modifier = Modifier
-                    .size(28.dp)
-                    .align(Alignment.TopStart)
-                    .padding(top = 120.dp, start = 30.dp)
-                    .clip(CircleShape)
-                    .background(PinchRed)
-                    .padding(4.dp),
-                tint = PinchWhite
-            )
-            Icon(
-                imageVector = Icons.Default.LocalHospital,
-                contentDescription = null,
-                modifier = Modifier
-                    .size(28.dp)
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 50.dp)
-                    .clip(CircleShape)
-                    .background(PinchRed)
-                    .padding(4.dp),
-                tint = PinchWhite
-            )
-        }
-        content()
-    }
+    com.faster.festival.ui.pinch.map.FakeEmergencyMapBackground(
+        mapState = com.faster.festival.ui.pinch.map.FakeMapState.DEFAULT,
+        modifier = modifier,
+        content = content
+    )
 }
 
 @Composable
@@ -145,32 +95,70 @@ fun BackButton(
     }
 }
 
+/**
+ * Draggable bottom card that can be swiped up/down.
+ * Swipe down to collapse (show only drag handle peek).
+ * Swipe up to expand (show full content).
+ * Starts in expanded state.
+ */
 @Composable
 fun BottomCard(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
+    val density = LocalDensity.current
+
+    // Drag range: negative = pull up, positive = push down
+    val maxUpPx = with(density) { 150.dp.toPx() }
+    val maxDownPx = with(density) { 200.dp.toPx() }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .offset { IntOffset(0, dragOffset.roundToInt()) },
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         colors = CardDefaults.cardColors(containerColor = PinchWhite),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 16.dp)
+                .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 12.dp)
                 .windowInsetsPadding(WindowInsets.navigationBars),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Drag handle — swipe target
             Box(
                 modifier = Modifier
-                    .width(40.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Color(0xFFDDDDDD))
-            )
-            Spacer(modifier = Modifier.height(16.dp))
+                    .fillMaxWidth()
+                    .pointerInput(Unit) {
+                        detectVerticalDragGestures(
+                            onDragEnd = {
+                                dragOffset = when {
+                                    dragOffset < -maxUpPx * 0.3f -> -maxUpPx   // snap up
+                                    dragOffset > maxDownPx * 0.3f -> maxDownPx  // snap down
+                                    else -> 0f                                   // snap to default
+                                }
+                            },
+                            onVerticalDrag = { _, amount ->
+                                dragOffset = (dragOffset + amount).coerceIn(-maxUpPx, maxDownPx)
+                            }
+                        )
+                    }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(36.dp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color(0xFFBBBBBB))
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
             content()
         }
     }
@@ -187,8 +175,8 @@ fun PinchPrimaryButton(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .height(52.dp),
-        shape = RoundedCornerShape(26.dp),
+            .height(46.dp),
+        shape = RoundedCornerShape(23.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = PinchRed,
             disabledContainerColor = PinchGray
@@ -198,7 +186,7 @@ fun PinchPrimaryButton(
         Text(
             text = text,
             fontWeight = FontWeight.Bold,
-            fontSize = 16.sp
+            fontSize = 15.sp
         )
     }
 }
@@ -213,8 +201,8 @@ fun PinchSecondaryButton(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .height(52.dp),
-        shape = RoundedCornerShape(26.dp),
+            .height(46.dp),
+        shape = RoundedCornerShape(23.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = PinchGray,
             contentColor = PinchTextDark
@@ -223,10 +211,18 @@ fun PinchSecondaryButton(
         Text(
             text = text,
             fontWeight = FontWeight.Bold,
-            fontSize = 16.sp
+            fontSize = 15.sp
         )
     }
 }
+
+private val timelineIcons = listOf(
+    Icons.Default.SensorsOff,      // Step 0: Alert/broadcast
+    Icons.Default.Call,             // Step 1: Phone call
+    Icons.Default.Navigation,      // Step 2: Dispatched/navigation
+    Icons.Default.LocationOn,      // Step 3: Location arrived
+    Icons.Default.MedicalServices  // Step 4: Medical help
+)
 
 @Composable
 fun TimelineIndicator(
@@ -240,30 +236,48 @@ fun TimelineIndicator(
         verticalAlignment = Alignment.CenterVertically
     ) {
         steps.forEachIndexed { index, _ ->
-            val isActive = index <= activeStep
+            val isCompleted = index < activeStep
             val isCurrent = index == activeStep
+            val icon = timelineIcons.getOrElse(index) { Icons.Default.LocationOn }
+
+            val bgColor = when {
+                isCurrent -> PinchRed
+                isCompleted -> PinchGreen
+                else -> Color.Transparent
+            }
+            val borderColor = when {
+                isCurrent -> PinchRed
+                isCompleted -> PinchGreen
+                else -> PinchGray
+            }
+            val iconTint = when {
+                isCurrent -> PinchWhite
+                isCompleted -> PinchWhite
+                else -> PinchGray
+            }
+
             Box(
                 modifier = Modifier
-                    .size(if (isCurrent) 14.dp else 10.dp)
+                    .size(36.dp)
                     .clip(CircleShape)
-                    .background(
-                        when {
-                            isCurrent -> PinchRed
-                            isActive -> PinchGreen
-                            else -> PinchGray
-                        }
-                    )
-                    .then(
-                        if (isCurrent) Modifier.border(2.dp, PinchDarkRed, CircleShape)
-                        else Modifier
-                    )
-            )
+                    .background(bgColor)
+                    .border(2.dp, borderColor, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = iconTint
+                )
+            }
+
             if (index < steps.size - 1) {
                 Box(
                     modifier = Modifier
-                        .width(20.dp)
+                        .width(16.dp)
                         .height(2.dp)
-                        .background(if (index < activeStep) PinchGreen else PinchGray)
+                        .background(if (isCompleted) PinchGreen else PinchGray)
                 )
             }
         }

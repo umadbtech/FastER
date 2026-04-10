@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    id("com.google.gms.google-services")
 }
 
 // Load .env file
@@ -32,6 +33,7 @@ val envConfig = loadEnvFile()
 // Simplify access to avoid nested string interpolation issues when Kotlin script compiles
 val viteSupabaseUrl: String = envConfig["VITE_SUPABASE_URL"] ?: ""
 val viteSupabaseAnonKey: String = envConfig["VITE_SUPABASE_ANON_KEY"] ?: ""
+val googleMapsApiKey: String = envConfig["GOOGLE_MAPS_API_KEY"] ?: ""
 
 // Detect whether the build should use the real Supabase client libraries
 val useRealSupabase: Boolean = project.hasProperty("useRealSupabase") && project.property("useRealSupabase") == "true"
@@ -51,6 +53,9 @@ android {
         // Expose credentials provided in .env file
         buildConfigField("String", "VITE_SUPABASE_URL", "\"$viteSupabaseUrl\"")
         buildConfigField("String", "VITE_SUPABASE_ANON_KEY", "\"$viteSupabaseAnonKey\"")
+
+        // Google Maps API key for map rendering
+        manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = googleMapsApiKey
     }
 
     buildTypes {
@@ -137,6 +142,19 @@ dependencies {
     // Image Loading
     implementation(libs.coil)
     implementation(libs.coil.gif)
+
+    // Firebase
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-messaging-ktx")
+    implementation("com.google.firebase:firebase-analytics-ktx")
+
+    // DataStore
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+
+    // Google Maps for Compose
+    implementation("com.google.maps.android:maps-compose:4.3.3")
+    implementation("com.google.android.gms:play-services-maps:19.0.0")
+    implementation("com.google.android.gms:play-services-location:21.3.0")
 
     // Add the real Supabase client artifacts only when requested.
     if (useRealSupabase) {
