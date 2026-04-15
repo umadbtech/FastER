@@ -14,7 +14,15 @@
       "Bash(grep -n \"class HeroCarouselItem\\\\|data class HeroCarouselItem\" /Users/umasenthil/FastER/app/src/main/java/com/faster/festival/data/models/*.kt)",
       "Bash(grep -n \"heroCarouselItems\\\\|hero_carousel\" /Users/umasenthil/FastER/app/src/main/java/com/faster/festival/data/models/*.kt)",
       "Bash(grep -n \"class HomeModule\\\\|data class HomeModule\" /Users/umasenthil/FastER/app/src/main/java/com/faster/festival/data/models/*.kt)",
-      "Bash(ls /Users/umasenthil/FastER/app/src/main/res/drawable*)"
+      "Bash(ls /Users/umasenthil/FastER/app/src/main/res/drawable*)",
+      "Bash(./gradlew :app:compileDebugKotlin)",
+      "Bash(./gradlew :app:processDebugManifest)",
+      "Bash(adb logcat:*)",
+      "Bash(grep -rn \"onClick = { /\\\\*\" /Users/umasenthil/FastER/app/src/main/java/com/faster/festival/ui/screens/*.kt)",
+      "Bash(grep -rn \"onClick.*{\\\\s*}\" /Users/umasenthil/FastER/app/src/main/java/com/faster/festival/ui/screens/*.kt)",
+      "Bash(grep -rn \"\\\\.clickable.*{.*}\" /Users/umasenthil/FastER/app/src/main/java/com/faster/festival/ui/screens/*.kt)",
+      "Bash(grep -rn \"Button.*onClick = {}\" /Users/umasenthil/FastER/app/src/main/java/com/faster/festival/ui/screens/*.kt)",
+      "Bash(grep -rn \"Card.*clickable\\\\|Row.*clickable\" /Users/umasenthil/FastER/app/src/main/java/com/faster/festival/ui/screens/*.kt)"
     ]
   }
 }

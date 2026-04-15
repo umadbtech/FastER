@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.FastER" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Theme.FASTER" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Primary Brand Color (Navy Blue) -->
         <item name="colorPrimary">@color/navy_blue</item>
         <item name="colorOnPrimary">@color/white</item>

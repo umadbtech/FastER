@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.faster.festival.data.model.AuthResponse
 import com.faster.festival.data.repository.AuthRepository
+import com.faster.festival.utils.PasswordValidator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,20 +43,34 @@ class ResetPasswordViewModel(private val repository: AuthRepository) : ViewModel
     }
 
     fun onPasswordChange(password: String) {
-        val error = if (password.length >= 6) null else "Password must be at least 6 characters"
-        _formState.update { it.copy(password = password, passwordError = error) }
+        val error = PasswordValidator.firstError(password)
+        val confirm = _formState.value.confirmPassword
+        val confirmError = if (confirm.isEmpty()) {
+            _formState.value.confirmPasswordError
+        } else {
+            PasswordValidator.confirmError(password, confirm)
+        }
+        _formState.update {
+            it.copy(
+                password = password,
+                passwordError = error,
+                confirmPasswordError = confirmError
+            )
+        }
         validate()
     }
 
     fun onConfirmPasswordChange(confirm: String) {
-        val error = if (confirm == _formState.value.password) null else "Passwords do not match"
+        val error = PasswordValidator.confirmError(_formState.value.password, confirm)
         _formState.update { it.copy(confirmPassword = confirm, confirmPasswordError = error) }
         validate()
     }
 
     private fun validate() {
         val s = _formState.value
-        val valid = s.otp.length == 6 && s.password.length >= 6 && s.password == s.confirmPassword
+        val valid = s.otp.length == 6 &&
+                PasswordValidator.isValid(s.password) &&
+                s.password == s.confirmPassword
         _formState.update { it.copy(isFormValid = valid) }
     }
 

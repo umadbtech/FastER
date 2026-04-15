@@ -56,7 +56,9 @@ class LoginViewModel(private val authRepository: AuthRepositoryContract) : ViewM
     }
 
     fun onPasswordChange(password: String) {
-        val error = if (password.length >= 6) null else "Password must be at least 6 characters"
+        // Login is permissive: existing users may have legacy passwords that predate
+        // the strong-password rules. Only require the field to be non-empty here.
+        val error = if (password.isNotEmpty()) null else "Password is required"
         _formState.update { it.copy(password = password, passwordError = error) }
         validateForm()
     }

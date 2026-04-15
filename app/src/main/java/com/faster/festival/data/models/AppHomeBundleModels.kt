@@ -210,6 +210,8 @@ data class AppHomeBundleResponse(
                                 address = (item["address"] as? JsonPrimitive)?.content,
                                 hoursText = (item["hours_text"] as? JsonPrimitive)?.content,
                                 menuUrl = (item["menu_url"] as? JsonPrimitive)?.content,
+                                ctaLabel = (item["cta_label"] as? JsonPrimitive)?.content,
+                                ctaUrl = (item["cta_url"] as? JsonPrimitive)?.content,
                                 mediaUrls = mediaList
                             )
                         } catch (e: Exception) {
@@ -403,6 +405,8 @@ data class PromotionItem(
     val hoursText: String? = null,
     @SerialName("menu_url")
     val menuUrl: String? = null,
+    @SerialName("cta_label")
+    val ctaLabel: String? = null,
     @SerialName("cta_url")
     val ctaUrl: String? = null,
     @SerialName("media_urls")
