@@ -24,7 +24,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
@@ -72,7 +71,8 @@ private val PromoCardBg = Color(0xFFF5F5F5)
 @Composable
 fun PromotionDetailScreen(
     promotion: PromotionItem,
-    onBackClick: () -> Unit = {}
+    onBackClick: () -> Unit = {},
+    onCtaClick: (url: String, title: String) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
 
@@ -90,7 +90,8 @@ fun PromotionDetailScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { /* TODO: share */ }) {
+                    val showComingSoon = com.faster.festival.utils.rememberComingSoonToast()
+                    IconButton(onClick = { showComingSoon() }) {
                         Icon(
                             imageVector = Icons.Default.Share,
                             contentDescription = "Share",
@@ -157,60 +158,63 @@ fun PromotionDetailScreen(
                 }
             }
 
-            // Image gallery
+            // Image gallery — shows actual images when available, otherwise a
+            // single fallback header tile with a promotion icon
             val allImages = buildList {
                 promotion.thumbnailUrl?.let { add(it) }
                 addAll(promotion.mediaUrls)
             }.distinct()
 
-            if (allImages.isNotEmpty()) {
-                item {
+            item {
+                if (allImages.isNotEmpty()) {
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         modifier = Modifier.padding(vertical = 12.dp)
                     ) {
                         items(allImages) { imageUrl ->
-                            AsyncImage(
-                                model = imageUrl,
+                            com.faster.festival.ui.components.PromotionImageOrFallback(
+                                imageUrl = imageUrl,
                                 contentDescription = "Promotion image",
                                 modifier = Modifier
-                                    .size(width = 160.dp, height = 120.dp)
-                                    .clip(RoundedCornerShape(12.dp)),
-                                contentScale = ContentScale.Crop
+                                    .size(width = 200.dp, height = 140.dp)
+                                    .clip(RoundedCornerShape(12.dp))
                             )
                         }
                     }
+                } else {
+                    // No images at all — show a centered fallback header tile
+                    com.faster.festival.ui.components.PromotionImageOrFallback(
+                        imageUrl = null,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                            .height(160.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                    )
                 }
             }
 
-            // Directions button (full width)
-            item {
-                Button(
-                    onClick = {
-                        val address = promotion.address ?: promotion.locationText ?: ""
-                        if (address.isNotBlank()) {
-                            try {
-                                val uri = Uri.parse("geo:0,0?q=${Uri.encode(address)}")
-                                context.startActivity(Intent(Intent.ACTION_VIEW, uri))
-                            } catch (_: Exception) { }
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = PromoCoralRed
-                    ),
-                    shape = RoundedCornerShape(24.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Directions,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Directions", fontWeight = FontWeight.SemiBold)
+            // Supabase-driven CTA: text from `cta_label`, click opens
+            // InAppWebViewScreen with `cta_url`. Hidden when no URL is provided.
+            val ctaUrl = promotion.ctaUrl?.takeIf { it.isNotBlank() }
+            if (ctaUrl != null) {
+                val ctaLabel = promotion.ctaLabel?.takeIf { it.isNotBlank() } ?: "Open"
+                val ctaTitle = promotion.title
+                item {
+                    Button(
+                        onClick = { onCtaClick(ctaUrl, ctaTitle) },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = PromoCoralRed
+                        ),
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text(ctaLabel, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
 

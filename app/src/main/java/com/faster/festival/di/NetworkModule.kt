@@ -18,7 +18,7 @@ import com.faster.festival.data.remote.FestivalExperienceApi
 import com.faster.festival.data.remote.FestivalHeaderApi
 import com.faster.festival.data.remote.OfflineBundleApi
 import com.faster.festival.data.remote.FriendshipApiService
-import com.faster.festival.data.remote.NotificationDeviceApi
+import com.faster.festival.data.remote.NotificationApi
 import com.faster.festival.data.remote.OnboardingApiService
 import com.faster.festival.data.remote.ProfileApiService
 import com.faster.festival.data.repository.FriendshipRepository
@@ -164,7 +164,7 @@ object NetworkModule {
 
     // ========== Notification Device API ==========
 
-    val notificationDeviceApi: NotificationDeviceApi by lazy { retrofit.create(NotificationDeviceApi::class.java) }
+    val notificationApi: NotificationApi by lazy { retrofit.create(NotificationApi::class.java) }
 
     // ========== Content API Services ==========
 

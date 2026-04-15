@@ -35,6 +35,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Phone
@@ -149,7 +150,7 @@ fun PinchHelpScreen(
             onTypedLocation = { viewModel.setUseCurrentLocation(false) },
             onCustomLocationChange = { viewModel.setCustomLocationText(it) },
             onNext = { viewModel.proceedToContactPhone() },
-            onBack = { viewModel.proceedToAnswerCall() }
+            onCancel = { viewModel.requestCancel() }
         )
         PinchHelpState.ContactPhone -> ContactPhoneScreen(
             state = state,
@@ -157,13 +158,12 @@ fun PinchHelpScreen(
             onUseDifferentPhone = { viewModel.setUseMyPhone(false) },
             onCustomPhoneChange = { viewModel.setCustomPhone(it) },
             onNext = { viewModel.proceedToCategorySelection() },
-            onBack = { viewModel.proceedToEmergencyLocation() }
+            onCancel = { viewModel.requestCancel() }
         )
         PinchHelpState.CategorySelection -> CategorySelectionScreen(
             state = state,
             onToggleCategory = { viewModel.toggleCategory(it) },
-            onNext = { viewModel.proceedToAdditionalInfoChoice() },
-            onBack = { viewModel.proceedToContactPhone() }
+            onNext = { viewModel.proceedToAdditionalInfoChoice() }
         )
         PinchHelpState.AdditionalInfoChoice -> AdditionalInfoChoiceScreen(
             onYes = { viewModel.proceedToAdditionalInfoForm() },
@@ -236,6 +236,33 @@ fun PinchHelpScreen(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Shared: Top-right Cancel button for emergency form screens
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun TopCancelButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .padding(end = 12.dp, top = 40.dp)
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(PinchWhite.copy(alpha = 0.95f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Close,
+            contentDescription = "Cancel",
+            tint = PinchRed,
+            modifier = Modifier.size(22.dp)
+        )
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // 1. LANDING SCREEN
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -244,27 +271,22 @@ private fun LandingScreen(
     onSwipeHelp: () -> Unit,
     onBackClick: () -> Unit
 ) {
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(PinchWhite)
-            .windowInsetsPadding(WindowInsets.navigationBars)
-            .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Row(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            BackButton(onClick = onBackClick)
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(80.dp))
 
         Image(
-            painter = painterResource(R.drawable.faster_red),
+            painter = painterResource(R.drawable.faster_logo),
             contentDescription = "FASTER Logo",
             modifier = Modifier.size(100.dp),
             contentScale = ContentScale.Fit
@@ -359,6 +381,13 @@ private fun LandingScreen(
         )
 
         Spacer(modifier = Modifier.height(32.dp))
+        }
+
+        // Top-right cancel button overlay
+        TopCancelButton(
+            onClick = onBackClick,
+            modifier = Modifier.align(Alignment.TopEnd)
+        )
     }
 }
 
@@ -613,14 +642,15 @@ private fun EmergencyLocationScreen(
     onTypedLocation: () -> Unit,
     onCustomLocationChange: (String) -> Unit,
     onNext: () -> Unit,
-    onBack: () -> Unit
+    onCancel: () -> Unit
 ) {
     MapBackground {
-        BackButton(
-            onClick = onBack,
-            modifier = Modifier.padding(start = 4.dp, top = 40.dp),
-            tint = PinchTextDark
-        )
+        Box(modifier = Modifier.fillMaxSize()) {
+            TopCancelButton(
+                onClick = onCancel,
+                modifier = Modifier.align(Alignment.TopEnd)
+            )
+        }
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Bottom
@@ -734,14 +764,15 @@ private fun ContactPhoneScreen(
     onUseDifferentPhone: () -> Unit,
     onCustomPhoneChange: (String) -> Unit,
     onNext: () -> Unit,
-    onBack: () -> Unit
+    onCancel: () -> Unit
 ) {
     MapBackground {
-        BackButton(
-            onClick = onBack,
-            modifier = Modifier.padding(start = 4.dp, top = 40.dp),
-            tint = PinchTextDark
-        )
+        Box(modifier = Modifier.fillMaxSize()) {
+            TopCancelButton(
+                onClick = onCancel,
+                modifier = Modifier.align(Alignment.TopEnd)
+            )
+        }
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Bottom
@@ -846,8 +877,7 @@ private fun ContactPhoneScreen(
 private fun CategorySelectionScreen(
     state: PinchHelpUiState,
     onToggleCategory: (String) -> Unit,
-    onNext: () -> Unit,
-    onBack: () -> Unit
+    onNext: () -> Unit
 ) {
     Column(
         modifier = Modifier

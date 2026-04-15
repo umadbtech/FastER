@@ -180,14 +180,12 @@ fun PersonalInfoEditScreen(
             // Phone Number
             FormFieldLabel("Phone Number")
             Spacer(modifier = Modifier.height(6.dp))
-            OutlinedTextField(
-                    value = phone,
-                    onValueChange = { phone = it },
-                    placeholder = { Text("111-111-1111", color = Color(0xFFB0B0B0)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = formFieldColors()
+            com.faster.festival.ui.components.PhoneNumberField(
+                value = phone,
+                onValueChange = { phone = it },
+                label = "",
+                placeholder = "+1 234 567 8900",
+                showLeadingIcon = false
             )
 
             Spacer(modifier = Modifier.height(20.dp))

@@ -47,7 +47,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import com.faster.festival.data.model.GenderIdentity
+import com.faster.festival.data.model.RaceEthnicity
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -64,14 +69,28 @@ import java.util.TimeZone
 fun ProfileDetailsScreen(
     dateOfBirth: String,
     genderIdentity: String,
+    genderIdentityText: String,
+    raceEthnicity: Set<String>,
+    raceEthnicityText: String,
     dateOfBirthError: String?,
+    genderIdentityTextError: String?,
+    raceEthnicityTextError: String?,
     onDateOfBirthChange: (String) -> Unit,
     onGenderIdentityChange: (String) -> Unit,
+    onGenderIdentityTextChange: (String) -> Unit,
+    onRaceEthnicityToggle: (String) -> Unit,
+    onRaceEthnicityTextChange: (String) -> Unit,
     onContinue: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
     val genderOptions = GenderIdentity.displayLabels
+    val raceOptions = RaceEthnicity.displayLabels
+
+    val isGenderSelfDescribe = GenderIdentity.toApiValue(genderIdentity) == "self_describe"
+    val isRaceSelfDescribe = raceEthnicity.any {
+        RaceEthnicity.toApiValue(it) == "self_describe"
+    }
 
     Column(
         modifier = modifier
@@ -80,17 +99,14 @@ fun ProfileDetailsScreen(
             .verticalScroll(scrollState)
             .padding(horizontal = 16.dp, vertical = 24.dp)
     ) {
-        // Section header with info icon
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "Profile Details",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
-            IconButton(onClick = { /* TODO: show info tooltip */ }) {
+            IconButton(onClick = { }) {
                 Icon(
                     imageVector = Icons.Default.Info,
                     contentDescription = "Info",
@@ -100,7 +116,7 @@ fun ProfileDetailsScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         // ---- Date of Birth ----
         Text(
@@ -117,7 +133,7 @@ fun ProfileDetailsScreen(
             onDateSelected = onDateOfBirthChange
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         // ---- Gender Identity ----
         Text(
@@ -133,10 +149,63 @@ fun ProfileDetailsScreen(
             onGenderSelected = onGenderIdentityChange
         )
 
-        Spacer(modifier = Modifier.weight(1f))
-        Spacer(modifier = Modifier.height(32.dp))
+        // Conditional self-describe text field
+        if (isGenderSelfDescribe) {
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = genderIdentityText,
+                onValueChange = onGenderIdentityTextChange,
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Please describe") },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                isError = genderIdentityTextError != null,
+                supportingText = if (genderIdentityTextError != null) {
+                    { Text(genderIdentityTextError) }
+                } else null
+            )
+        }
 
-        // ---- Continue Button ----
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // ---- Race / Ethnicity ----
+        Text(
+            text = "Race / Ethnicity",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "Select all that apply",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        RaceEthnicityChips(
+            options = raceOptions,
+            selected = raceEthnicity,
+            onToggle = onRaceEthnicityToggle
+        )
+
+        if (isRaceSelfDescribe) {
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = raceEthnicityText,
+                onValueChange = onRaceEthnicityTextChange,
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Please describe") },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                isError = raceEthnicityTextError != null,
+                supportingText = if (raceEthnicityTextError != null) {
+                    { Text(raceEthnicityTextError) }
+                } else null
+            )
+        }
+
+        Spacer(modifier = Modifier.height(28.dp))
+
         Button(
             onClick = onContinue,
             modifier = Modifier
@@ -156,6 +225,47 @@ fun ProfileDetailsScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+// ============================================================
+// Race / Ethnicity multi-select chips
+// ============================================================
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun RaceEthnicityChips(
+    options: List<String>,
+    selected: Set<String>,
+    onToggle: (String) -> Unit
+) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        options.forEach { option ->
+            val isSelected = selected.contains(option)
+            FilterChip(
+                selected = isSelected,
+                onClick = { onToggle(option) },
+                label = { Text(option) },
+                leadingIcon = if (isSelected) {
+                    {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                } else null,
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                    selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary
+                )
+            )
+        }
     }
 }
 

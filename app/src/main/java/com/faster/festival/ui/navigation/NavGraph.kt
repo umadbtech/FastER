@@ -131,6 +131,8 @@ object Routes {
     const val IN_APP_WEB = "in_app_web/{url}/{title}"
     const val PINCH_HELP = "pinch_help"
     const val PROVISION_FLOW = "provision_flow"
+    const val SOS_HISTORY = "sos_history"
+    const val SOS_HISTORY_DETAIL = "sos_history_detail/{recordId}"
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -139,7 +141,8 @@ fun NavGraph(
     navController: NavHostController = rememberNavController(),
     startDestination: String = Routes.LOGIN,
     authRepository: AuthRepository,
-    sessionManager: EncryptedSessionManager
+    sessionManager: EncryptedSessionManager,
+    onNavigateToTab: (String) -> Unit = { route -> navController.navigate(route) }
 ) {
     NavHost(navController = navController, startDestination = startDestination) {
 
@@ -368,8 +371,9 @@ fun NavGraph(
                     navController.navigate("announcement/$encoded")
                 },
                 onNavigateToSchedule = { navController.navigate(Routes.STAGE_SCHEDULE) },
-                onNavigateToMap = { navController.navigate(Routes.MAP) },
+                onNavigateToMap = { onNavigateToTab(Routes.MAP) },
                 onNavigateToFAQ = { navController.navigate(Routes.FAQ) },
+                onNavigateToFaster = { onNavigateToTab(Routes.FASTER_SCREEN) },
                 onFestivalBannerClick = { festivalSlug ->
                     val encoded = android.net.Uri.encode(festivalSlug)
                     navController.navigate("festival_details/$encoded")
@@ -377,6 +381,11 @@ fun NavGraph(
                 onUpcomingEventClick = { eventId ->
                     val encoded = android.net.Uri.encode(eventId)
                     navController.navigate("upcoming_event/$encoded")
+                },
+                onCtaClick = { url, title ->
+                    val encodedUrl = android.net.Uri.encode(url)
+                    val encodedTitle = android.net.Uri.encode(title.ifBlank { "Website" })
+                    navController.navigate("in_app_web/$encodedUrl/$encodedTitle")
                 },
                 sessionManager = sessionManager
             )
@@ -392,17 +401,34 @@ fun NavGraph(
         }
 
         composable(Routes.MAP) {
-            MapScreen()
+            MapScreen(
+                onSponsorClick = { sponsorId ->
+                    val encoded = android.net.Uri.encode(sponsorId)
+                    navController.navigate("sponsor/$encoded")
+                },
+                onPromotionClick = { promotionId ->
+                    val encoded = android.net.Uri.encode(promotionId)
+                    navController.navigate("promotion/$encoded")
+                },
+                onCtaClick = { url, title ->
+                    val encodedUrl = android.net.Uri.encode(url)
+                    val encodedTitle = android.net.Uri.encode(title.ifBlank { "Website" })
+                    navController.navigate("in_app_web/$encodedUrl/$encodedTitle")
+                }
+            )
         }
 
         composable(Routes.FRIENDS) {
-            FriendsScreen()
+            FriendsScreen(
+                onBackClick = { navController.popBackStack() }
+            )
         }
 
         composable(Routes.FASTER_SCREEN) {
             FasterScreen(
                 onPinchHelp = { navController.navigate(Routes.PINCH_HELP) },
-                onPairWristband = { navController.navigate(Routes.PROVISION_FLOW) }
+                onPairWristband = { navController.navigate(Routes.PROVISION_FLOW) },
+                onSosHistory = { navController.navigate(Routes.SOS_HISTORY) }
             )
         }
 
@@ -410,7 +436,8 @@ fun NavGraph(
             val pinchViewModel: PinchHelpViewModel = viewModel(
                 factory = PinchHelpViewModel.Factory(
                     emergencyRepository = PinchModule.emergencyRepository,
-                    feedbackRepository = PinchModule.feedbackRepository
+                    feedbackRepository = PinchModule.feedbackRepository,
+                    sosHistoryRepository = com.faster.festival.di.DatabaseModule.sosHistoryRepository
                 )
             )
             PinchHelpScreen(
@@ -420,15 +447,53 @@ fun NavGraph(
         }
 
         composable(Routes.PROVISION_FLOW) {
-            val provisionViewModel: ProvisionViewModel = viewModel()
+            val provisionViewModel: ProvisionViewModel = viewModel(
+                factory = ProvisionViewModel.Factory(
+                    wristbandRepository = com.faster.festival.di.DatabaseModule.wristbandRepository
+                )
+            )
             ProvisionFlowScreen(
                 viewModel = provisionViewModel,
                 onBackClick = { navController.popBackStack() },
                 onComplete = {
                     navController.popBackStack()
                 },
-                showBackOnSplash = true,
+                mode = com.faster.festival.ui.screens.PairWristbandMode.Manage,
                 completeButtonText = "Go Home"
+            )
+        }
+
+        composable(Routes.SOS_HISTORY) {
+            val sosViewModel: com.faster.festival.ui.viewmodel.SosHistoryViewModel = viewModel(
+                factory = com.faster.festival.ui.viewmodel.SosHistoryViewModel.Factory(
+                    repository = com.faster.festival.di.DatabaseModule.sosHistoryRepository
+                )
+            )
+            com.faster.festival.ui.screens.SosHistoryListScreen(
+                viewModel = sosViewModel,
+                onBackClick = { navController.popBackStack() },
+                onItemClick = { id ->
+                    navController.navigate("sos_history_detail/$id")
+                }
+            )
+        }
+
+        composable(
+            route = Routes.SOS_HISTORY_DETAIL,
+            arguments = listOf(
+                navArgument("recordId") { type = NavType.LongType }
+            )
+        ) { backStackEntry ->
+            val recordId = backStackEntry.arguments?.getLong("recordId") ?: return@composable
+            val sosViewModel: com.faster.festival.ui.viewmodel.SosHistoryViewModel = viewModel(
+                factory = com.faster.festival.ui.viewmodel.SosHistoryViewModel.Factory(
+                    repository = com.faster.festival.di.DatabaseModule.sosHistoryRepository
+                )
+            )
+            com.faster.festival.ui.screens.SosHistoryDetailScreen(
+                recordId = recordId,
+                viewModel = sosViewModel,
+                onBackClick = { navController.popBackStack() }
             )
         }
 
@@ -466,6 +531,7 @@ fun NavGraph(
                 onNavigateToLocation = { navController.navigate(Routes.LOCATION_SETTINGS) },
                 onNavigateToPayments = { navController.navigate(Routes.PAYMENT_SETTINGS) },
                 onNavigateToFriends = { navController.navigate(Routes.FRIENDS) },
+                onNavigateToFaster = { onNavigateToTab(Routes.FASTER_SCREEN) },
                 onNavigateToReportIssue = { navController.navigate(Routes.REPORT_ISSUE) },
                 onNavigateToTerms = { navController.navigate(Routes.TERMS_CONDITIONS) },
                 onNavigateToPrivacy = { navController.navigate(Routes.PRIVACY_POLICY) },
@@ -679,7 +745,12 @@ fun NavGraph(
                 is com.faster.festival.ui.viewmodel.PromotionDetailState.Success -> {
                     PromotionDetailScreen(
                         promotion = s.promotion,
-                        onBackClick = { navController.popBackStack() }
+                        onBackClick = { navController.popBackStack() },
+                        onCtaClick = { url, title ->
+                            val encodedUrl = android.net.Uri.encode(url)
+                            val encodedTitle = android.net.Uri.encode(title.ifBlank { "Website" })
+                            navController.navigate("in_app_web/$encodedUrl/$encodedTitle")
+                        }
                     )
                 }
                 is com.faster.festival.ui.viewmodel.PromotionDetailState.Error -> {
@@ -723,7 +794,12 @@ fun NavGraph(
                 is com.faster.festival.ui.viewmodel.SponsorDetailState.Success -> {
                     SponsorDetailScreen(
                         sponsor = s.sponsor,
-                        onBackClick = { navController.popBackStack() }
+                        onBackClick = { navController.popBackStack() },
+                        onCtaClick = { url, title ->
+                            val encodedUrl = android.net.Uri.encode(url)
+                            val encodedTitle = android.net.Uri.encode(title.ifBlank { "Website" })
+                            navController.navigate("in_app_web/$encodedUrl/$encodedTitle")
+                        }
                     )
                 }
                 is com.faster.festival.ui.viewmodel.SponsorDetailState.Error -> {

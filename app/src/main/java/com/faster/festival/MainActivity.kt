@@ -83,11 +83,9 @@ import androidx.navigation.compose.rememberNavController
 import com.faster.festival.data.local.EncryptedSessionManager
 import com.faster.festival.data.repository.AuthRepository
 import com.faster.festival.di.NetworkModule
-import com.faster.festival.di.NotificationModule
-import com.faster.festival.di.PinchModule
 import com.faster.festival.ui.navigation.NavGraph
 import com.faster.festival.ui.navigation.Routes
-import com.faster.festival.ui.theme.FastERTheme
+import com.faster.festival.ui.theme.FASTERTheme
 import kotlinx.coroutines.delay
 
 class MainActivity : FragmentActivity() {
@@ -103,16 +101,15 @@ class MainActivity : FragmentActivity() {
         val insetsController = WindowInsetsControllerCompat(window, window.decorView)
         insetsController.isAppearanceLightStatusBars = true
 
+        // DI modules are initialized eagerly in FASTERApplication.onCreate().
+        // We still construct a SessionManager instance here for AuthRepository.
         val sessionManager = EncryptedSessionManager(applicationContext)
-        NetworkModule.initializeWithSessionManager(sessionManager)
-        PinchModule.initialize(applicationContext)
-        NotificationModule.initialize(applicationContext)
         val authRepository = AuthRepository(NetworkModule.authApiService, sessionManager)
 
         @Suppress("NewApi")
         setContent {
-            FastERTheme {
-                FastERApp(
+            FASTERTheme {
+                FASTERApp(
                     authRepository = authRepository,
                     sessionManager = sessionManager
                 )
@@ -172,7 +169,7 @@ private val bottomNavRoutes = bottomNavTabs.map { it.route }.toSet()
 
 @Composable
 @RequiresApi(Build.VERSION_CODES.O)
-fun FastERApp(
+fun FASTERApp(
     authRepository: AuthRepository,
     sessionManager: EncryptedSessionManager
 ) {
@@ -208,19 +205,28 @@ fun FastERApp(
     } else {
         val showBottomNav = currentRoute in bottomNavRoutes
 
+        val navigateToTab: (String) -> Unit = navigateToTab@{ route ->
+            // No-op when the user taps the tab they are already on.
+            // Without this guard, the popUpTo + restoreState combo can leave
+            // the current destination's composable in a stale state.
+            if (route == currentRoute) return@navigateToTab
+            navController.navigate(route) {
+                popUpTo(Routes.HOME) {
+                    inclusive = false
+                    saveState = true
+                }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+
         Scaffold(
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             bottomBar = {
                 if (showBottomNav) {
-                    FastERBottomNavBar(
+                    FASTERBottomNavBar(
                         currentRoute = currentRoute,
-                        onNavigate = { route ->
-                            navController.navigate(route) {
-                                popUpTo(Routes.HOME) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        }
+                        onNavigate = navigateToTab
                     )
                 }
             }
@@ -230,7 +236,8 @@ fun FastERApp(
                     navController = navController,
                     startDestination = startDestination!!,
                     authRepository = authRepository,
-                    sessionManager = sessionManager
+                    sessionManager = sessionManager,
+                    onNavigateToTab = navigateToTab
                 )
             }
         }
@@ -238,7 +245,7 @@ fun FastERApp(
 }
 
 @Composable
-fun FastERBottomNavBar(
+fun FASTERBottomNavBar(
     currentRoute: String?,
     onNavigate: (String) -> Unit,
     modifier: Modifier = Modifier

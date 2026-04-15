@@ -67,4 +67,16 @@ class NotificationPreferencesManager(private val context: Context) {
     suspend fun setEmailNotifications(enabled: Boolean) {
         context.notificationDataStore.edit { it[Keys.EMAIL_NOTIFICATIONS] = enabled }
     }
+
+    /** Persist a complete preferences snapshot in a single transaction. */
+    suspend fun saveAll(prefs: NotificationPreferences) {
+        context.notificationDataStore.edit {
+            it[Keys.PUSH_ENABLED] = prefs.pushEnabled
+            it[Keys.EMERGENCY_ALERTS] = prefs.emergencyAlerts
+            it[Keys.FESTIVAL_UPDATES] = prefs.festivalUpdates
+            it[Keys.EXCLUSIVE_PROMOTIONS] = prefs.exclusivePromotions
+            it[Keys.SMS_NOTIFICATIONS] = prefs.smsNotifications
+            it[Keys.EMAIL_NOTIFICATIONS] = prefs.emailNotifications
+        }
+    }
 }

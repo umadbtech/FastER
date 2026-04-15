@@ -1,6 +1,7 @@
 package com.faster.festival.ui.screens
 
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -77,13 +78,25 @@ private val ProvBg = Color(0xFFF5F5F5)
 private val ProvCardBg = Color(0xFF2A2A2A)
 
 /**
+ * Entry-point mode for the Pair Wristband flow.
+ *
+ * - [Onboarding]: hosted inside the onboarding Scaffold which already has its own
+ *   app bar. This mode suppresses every internal [ProvisionTopBar] so only one bar
+ *   is ever visible, and shows a Skip button on the splash step.
+ * - [Manage]: standalone in-app destination (from FasterScreen). Shows the internal
+ *   top bar + title on every step and hides Skip.
+ */
+enum class PairWristbandMode { Onboarding, Manage }
+
+/**
  * Reusable Provision Flow screen.
  *
  * @param viewModel The ProvisionViewModel driving the state machine
  * @param onBackClick Called when user presses back on the first screen
  * @param onComplete Called when the entire flow is done (Go Home / continue onboarding)
+ * @param onSkip Called when the user taps Skip on the splash during onboarding
  * @param onLocationPermissionRequest Called to trigger the system location permission dialog
- * @param showBackOnSplash Whether to show back button on splash (true from FasterScreen, false during onboarding)
+ * @param mode Hosting context — see [PairWristbandMode]
  * @param completeButtonText Text for the final button ("Go Home" vs "Continue")
  */
 @Composable
@@ -91,18 +104,34 @@ fun ProvisionFlowScreen(
     viewModel: ProvisionViewModel,
     onBackClick: () -> Unit = {},
     onComplete: () -> Unit = {},
+    onSkip: () -> Unit = {},
     onLocationPermissionRequest: () -> Unit = {},
-    showBackOnSplash: Boolean = true,
+    mode: PairWristbandMode = PairWristbandMode.Manage,
     completeButtonText: String = "Go Home"
 ) {
     val state by viewModel.uiState.collectAsState()
+    val showInternalTopBar = mode == PairWristbandMode.Manage
+
+    // In onboarding mode the internal top bars are hidden, so hardware back would
+    // otherwise pop the onboarding destination entirely. Route it through the
+    // provision state machine instead.
+    BackHandler(enabled = mode == PairWristbandMode.Onboarding) {
+        if (state.currentStep == ProvisionStep.Splash) {
+            onBackClick()
+        } else {
+            viewModel.goBack()
+        }
+    }
 
     when (state.currentStep) {
         ProvisionStep.Splash -> ProvisionSplashScreen(
+            mode = mode,
             onPairWristband = { viewModel.proceedToLocationPermission() },
-            onBack = if (showBackOnSplash) onBackClick else null
+            onSkip = onSkip,
+            onBack = if (mode == PairWristbandMode.Manage) onBackClick else null
         )
         ProvisionStep.LocationPermission -> ProvisionLocationScreen(
+            showTopBar = showInternalTopBar,
             onAlwaysAllow = {
                 viewModel.onLocationPermissionResult(true)
                 onLocationPermissionRequest()
@@ -117,26 +146,32 @@ fun ProvisionFlowScreen(
             onBack = { viewModel.goBack() }
         )
         ProvisionStep.PowerOn -> ProvisionPowerOnScreen(
+            showTopBar = showInternalTopBar,
             onActivate = { viewModel.activatePairingMode() },
             onBack = { viewModel.goBack() }
         )
         ProvisionStep.Connecting -> ProvisionConnectingScreen(
+            showTopBar = showInternalTopBar,
             onBack = { viewModel.goBack() }
         )
         ProvisionStep.Detected -> ProvisionDetectedScreen(
+            showTopBar = showInternalTopBar,
             onPair = { viewModel.pairWristband() },
             onBack = { viewModel.goBack() }
         )
         ProvisionStep.Confirm -> ProvisionConfirmScreen(
+            showTopBar = showInternalTopBar,
             isLoading = state.isLoading,
             onFinishPairing = { viewModel.finishPairing() },
             onBack = { viewModel.goBack() }
         )
         ProvisionStep.Complete -> ProvisionCompleteScreen(
+            showTopBar = showInternalTopBar,
             onQuickGuide = { viewModel.showQuickGuide() },
             onBack = { viewModel.goBack() }
         )
         ProvisionStep.QuickGuide -> WristbandQuickGuideScreen(
+            showTopBar = showInternalTopBar,
             onDone = {
                 viewModel.reset()
                 onComplete()
@@ -266,7 +301,9 @@ private fun WristbandGif(
 
 @Composable
 private fun ProvisionSplashScreen(
+    mode: PairWristbandMode,
     onPairWristband: () -> Unit,
+    onSkip: () -> Unit,
     onBack: (() -> Unit)?
 ) {
     Column(
@@ -274,21 +311,54 @@ private fun ProvisionSplashScreen(
             .fillMaxSize()
             .background(Color.White)
     ) {
-        if (onBack != null) {
-            ProvisionTopBar(title = "About FASTER", onBack = onBack)
-        } else {
-            Spacer(
-                modifier = Modifier
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .height(16.dp)
-            )
-            Text(
-                text = "About FASTER",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = ProvTextDark,
-                modifier = Modifier.padding(horizontal = 24.dp)
-            )
+        when (mode) {
+            PairWristbandMode.Manage -> {
+                if (onBack != null) {
+                    ProvisionTopBar(title = "About FASTER", onBack = onBack)
+                } else {
+                    Spacer(
+                        modifier = Modifier
+                            .windowInsetsPadding(WindowInsets.statusBars)
+                            .height(16.dp)
+                    )
+                    Text(
+                        text = "About FASTER",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = ProvTextDark,
+                        modifier = Modifier.padding(horizontal = 24.dp)
+                    )
+                }
+            }
+            PairWristbandMode.Onboarding -> {
+                Spacer(
+                    modifier = Modifier
+                        .windowInsetsPadding(WindowInsets.statusBars)
+                        .height(8.dp)
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "About FASTER",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = ProvTextDark,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = onSkip) {
+                        Text(
+                            text = "Skip",
+                            color = ProvRed,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.sp
+                        )
+                    }
+                }
+            }
         }
 
         Column(
@@ -379,6 +449,7 @@ private fun BulletPoint(text: String) {
 
 @Composable
 private fun ProvisionLocationScreen(
+    showTopBar: Boolean,
     onAlwaysAllow: () -> Unit,
     onAllowWhileUsing: () -> Unit,
     onDoNotAllow: () -> Unit,
@@ -389,7 +460,8 @@ private fun ProvisionLocationScreen(
             .fillMaxSize()
             .background(Color.White)
     ) {
-        ProvisionTopBar(onBack = onBack)
+        if (showTopBar) ProvisionTopBar(onBack = onBack)
+        else Spacer(modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars))
 
         Spacer(modifier = Modifier.weight(1f))
 
@@ -482,6 +554,7 @@ private fun ProvisionLocationScreen(
 
 @Composable
 private fun ProvisionPowerOnScreen(
+    showTopBar: Boolean,
     onActivate: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -491,7 +564,8 @@ private fun ProvisionPowerOnScreen(
             .background(Color.White),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        ProvisionTopBar(title = "Turn on Your Wristband", onBack = onBack)
+        if (showTopBar) ProvisionTopBar(title = "Turn on Your Wristband", onBack = onBack)
+        else Spacer(modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars))
 
         Spacer(modifier = Modifier.weight(1f))
 
@@ -525,6 +599,7 @@ private fun ProvisionPowerOnScreen(
 
 @Composable
 private fun ProvisionConnectingScreen(
+    showTopBar: Boolean,
     onBack: () -> Unit
 ) {
     Column(
@@ -533,7 +608,8 @@ private fun ProvisionConnectingScreen(
             .background(Color.White),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        ProvisionTopBar(title = "Pair Your Wristband", onBack = onBack)
+        if (showTopBar) ProvisionTopBar(title = "Pair Your Wristband", onBack = onBack)
+        else Spacer(modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars))
 
         Spacer(modifier = Modifier.weight(1f))
 
@@ -582,6 +658,7 @@ private fun ProvisionConnectingScreen(
 
 @Composable
 private fun ProvisionDetectedScreen(
+    showTopBar: Boolean,
     onPair: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -591,7 +668,8 @@ private fun ProvisionDetectedScreen(
             .background(Color.White),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        ProvisionTopBar(title = "Wristband Detected", onBack = onBack)
+        if (showTopBar) ProvisionTopBar(title = "Wristband Detected", onBack = onBack)
+        else Spacer(modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars))
 
         Spacer(modifier = Modifier.weight(1f))
 
@@ -625,6 +703,7 @@ private fun ProvisionDetectedScreen(
 
 @Composable
 private fun ProvisionConfirmScreen(
+    showTopBar: Boolean,
     isLoading: Boolean,
     onFinishPairing: () -> Unit,
     onBack: () -> Unit
@@ -635,7 +714,8 @@ private fun ProvisionConfirmScreen(
             .background(Color.White),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        ProvisionTopBar(title = "Finish Pairing Your Wristband", onBack = onBack)
+        if (showTopBar) ProvisionTopBar(title = "Finish Pairing Your Wristband", onBack = onBack)
+        else Spacer(modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars))
 
         Spacer(modifier = Modifier.weight(1f))
 
@@ -681,6 +761,7 @@ private fun ProvisionConfirmScreen(
 
 @Composable
 private fun ProvisionCompleteScreen(
+    showTopBar: Boolean,
     onQuickGuide: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -690,7 +771,8 @@ private fun ProvisionCompleteScreen(
             .background(Color.White),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        ProvisionTopBar(onBack = onBack)
+        if (showTopBar) ProvisionTopBar(onBack = onBack)
+        else Spacer(modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars))
 
         Spacer(modifier = Modifier.weight(1f))
 
@@ -745,6 +827,7 @@ private fun ProvisionCompleteScreen(
 
 @Composable
 private fun WristbandQuickGuideScreen(
+    showTopBar: Boolean,
     onDone: () -> Unit,
     completeButtonText: String,
     onBack: () -> Unit
@@ -754,7 +837,8 @@ private fun WristbandQuickGuideScreen(
             .fillMaxSize()
             .background(Color.White)
     ) {
-        ProvisionTopBar(title = "FASTER Wristband Quick Guide", onBack = onBack)
+        if (showTopBar) ProvisionTopBar(title = "FASTER Wristband Quick Guide", onBack = onBack)
+        else Spacer(modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars))
 
         Column(
             modifier = Modifier

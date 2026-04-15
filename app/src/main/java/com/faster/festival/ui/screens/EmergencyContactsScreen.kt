@@ -309,19 +309,10 @@ private fun EmergencyContactCard(
             Spacer(modifier = Modifier.height(10.dp))
 
             // Phone field
-            OutlinedTextField(
-                    value = form.phone,
-                    onValueChange = { onFormChange(form.copy(phone = it)) },
-                    label = { Text("Phone Number") },
-                    placeholder = { Text("+1 234 567 8900") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors =
-                            OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = CoralRed,
-                                    cursorColor = CoralRed
-                            )
+            com.faster.festival.ui.components.PhoneNumberField(
+                value = form.phone,
+                onValueChange = { onFormChange(form.copy(phone = it)) },
+                showLeadingIcon = false
             )
 
             Spacer(modifier = Modifier.height(10.dp))

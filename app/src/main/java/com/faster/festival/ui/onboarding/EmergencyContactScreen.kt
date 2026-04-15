@@ -258,32 +258,10 @@ fun EmergencyContactScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         // ---- Phone Number ----
-        OutlinedTextField(
+        com.faster.festival.ui.components.PhoneNumberField(
             value = emergencyPhone,
             onValueChange = onPhoneChange,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Phone Number") },
-            placeholder = { Text("+1 234 567 8900") },
-            singleLine = true,
-            isError = emergencyPhoneError != null,
-            supportingText = if (emergencyPhoneError != null) {
-                { Text(text = emergencyPhoneError, color = MaterialTheme.colorScheme.error) }
-            } else null,
-            shape = RoundedCornerShape(12.dp),
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Phone,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp)
-                )
-            },
-            keyboardOptions = KeyboardOptions(
-                imeAction = ImeAction.Done,
-                keyboardType = KeyboardType.Phone
-            ),
-            keyboardActions = KeyboardActions(
-                onDone = { focusManager.clearFocus() }
-            )
+            errorMessage = emergencyPhoneError
         )
 
         Spacer(modifier = Modifier.height(12.dp))

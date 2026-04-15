@@ -3,6 +3,7 @@ package com.faster.festival.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.faster.festival.data.repository.local.WristbandRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,7 +29,9 @@ data class ProvisionUiState(
     val error: String? = null
 )
 
-class ProvisionViewModel : ViewModel() {
+class ProvisionViewModel(
+    private val wristbandRepository: WristbandRepository? = null
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ProvisionUiState())
     val uiState: StateFlow<ProvisionUiState> = _uiState.asStateFlow()
@@ -67,6 +70,18 @@ class ProvisionViewModel : ViewModel() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
             delay(1200)
+
+            // Persist the paired wristband to SQLite so the Faster/Home/Profile
+            // screens can reflect it and it survives app restarts.
+            val id = _uiState.value.wristbandId.ifBlank { "FSTR-2026-A7B3" }
+            wristbandRepository?.savePairedWristband(
+                wristbandId = id,
+                deviceName = "FASTER Wristband",
+                firmwareVersion = "2.1.4",
+                batteryLevel = 82,
+                connectionStatus = "Strong Connection"
+            )
+
             _uiState.value = _uiState.value.copy(
                 currentStep = ProvisionStep.Complete,
                 isLoading = false
@@ -98,10 +113,12 @@ class ProvisionViewModel : ViewModel() {
         _uiState.value = ProvisionUiState()
     }
 
-    class Factory : ViewModelProvider.Factory {
+    class Factory(
+        private val wristbandRepository: WristbandRepository? = null
+    ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return ProvisionViewModel() as T
+            return ProvisionViewModel(wristbandRepository) as T
         }
     }
 }

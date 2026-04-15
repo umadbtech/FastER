@@ -30,6 +30,30 @@ enum class GenderIdentity(val apiValue: String, val displayLabel: String) {
 }
 
 /**
+ * Race / Ethnicity enum matching PostgreSQL race_ethnicity allowed values.
+ */
+enum class RaceEthnicity(val apiValue: String, val displayLabel: String) {
+    AMERICAN_INDIAN("american_indian_or_alaska_native", "American Indian or Alaska Native"),
+    ASIAN("asian", "Asian"),
+    BLACK("black_or_african_american", "Black or African American"),
+    HISPANIC("hispanic_or_latino", "Hispanic or Latino"),
+    PACIFIC_ISLANDER("native_hawaiian_or_pacific_islander", "Native Hawaiian or Pacific Islander"),
+    WHITE("white", "White"),
+    PREFER_NOT_TO_SAY("prefer_not_to_say", "Prefer not to say"),
+    SELF_DESCRIBE("self_describe", "Self-describe");
+
+    companion object {
+        fun toApiValue(displayLabel: String): String? =
+            entries.find { it.displayLabel.equals(displayLabel, ignoreCase = true) }?.apiValue
+
+        fun toDisplayLabel(apiValue: String): String? =
+            entries.find { it.apiValue.equals(apiValue, ignoreCase = true) }?.displayLabel
+
+        val displayLabels: List<String> get() = entries.map { it.displayLabel }
+    }
+}
+
+/**
  * Request for saving username via Supabase Edge Function.
  */
 @Serializable

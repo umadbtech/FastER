@@ -101,6 +101,7 @@ fun LineupScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
+        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
         topBar = { LineupTopBar() },
         containerColor = LineupBg
     ) { innerPadding ->
@@ -327,7 +328,7 @@ private fun LineupSuccessContent(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 140.dp)
+        contentPadding = PaddingValues(bottom = 24.dp)
     ) {
         // Search bar
         item {

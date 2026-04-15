@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
-import com.faster.festival.ui.theme.FastERTheme
+import com.faster.festival.ui.theme.FASTERTheme
 import kotlinx.coroutines.delay
 
 // ============================================================================
@@ -429,20 +429,29 @@ fun EmergencyContactsSection(
 }
 
 // ============================================================================
-// SECTION 2: DEVICE CARD (Dark Navy) — delegates to reusable DeviceCard component
+// SECTION 2: DEVICE CARD (Dark Navy) — live-synced with local wristband DB
 // ============================================================================
 
+/**
+ * Live wristband card backed by the same SQLite source as the Home screen's
+ * DeviceCard. Collects the active wristband row from DatabaseModule and falls
+ * back to an unpaired "Connect your FASTER Wristband" state when none exists.
+ */
 @Composable
 fun DeviceCardSection(
-    wristbandName: String = "FASTER Wristband",
-    batteryPercentage: Int = 82,
-    connectionStatus: String = "Strong Connection",
+    onWristbandClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val paired by com.faster.festival.di.DatabaseModule.wristbandRepository
+        .activeWristband
+        .collectAsState(initial = null)
+
     com.faster.festival.ui.components.DeviceCard(
-        wristbandName = wristbandName,
-        batteryPercentage = batteryPercentage,
-        connectionStatus = connectionStatus,
+        wristbandName = paired?.deviceName ?: "FASTER Wristband",
+        batteryPercentage = paired?.batteryLevel ?: 0,
+        connectionStatus = paired?.connectionStatus ?: "Not paired",
+        isPaired = paired != null,
+        onClick = onWristbandClick,
         modifier = modifier.padding(horizontal = 16.dp)
     )
 }
@@ -714,15 +723,13 @@ fun ProfileScreenNew(
     username: String? = null,
     avatarUrl: String? = null,
     emergencyContacts: List<EmergencyContactInfo> = emptyList(),
-    wristbandName: String = "FASTER Wristband",
-    batteryPercentage: Int = 82,
-    connectionStatus: String = "Strong Connection",
     onPersonalInfoClick: () -> Unit = {},
     onEmergencyContactsClick: () -> Unit = {},
     onUploadAvatarClick: () -> Unit = {},
     onAddEmergencyContactClick: () -> Unit = {},
     onEditEmergencyContact: (EmergencyContactInfo) -> Unit = {},
     onDeleteEmergencyContact: (EmergencyContactInfo) -> Unit = {},
+    onWristbandClick: () -> Unit = {},
     onHealthClick: () -> Unit = {},
     onNotificationsClick: () -> Unit = {},
     onLocationClick: () -> Unit = {},
@@ -766,12 +773,10 @@ fun ProfileScreenNew(
         }
 
 
-        // Section 2: Device Card
+        // Section 2: Device Card — live-synced with local wristband DB
         item {
             DeviceCardSection(
-                wristbandName = wristbandName,
-                batteryPercentage = batteryPercentage,
-                connectionStatus = connectionStatus
+                onWristbandClick = onWristbandClick
             )
         }
 
@@ -833,6 +838,7 @@ fun EnhancedProfileScreenWithNavigation(
     onNavigateToLocation: () -> Unit,
     onNavigateToPayments: () -> Unit,
     onNavigateToFriends: () -> Unit = {},
+    onNavigateToFaster: () -> Unit = {},
     onNavigateToReportIssue: () -> Unit,
     onNavigateToTerms: () -> Unit,
     onNavigateToPrivacy: () -> Unit,
@@ -886,15 +892,13 @@ fun EnhancedProfileScreenWithNavigation(
         username = username,
         avatarUrl = avatarUrl,
         emergencyContacts = emergencyContacts,
-        wristbandName = "FASTER Wristband",
-        batteryPercentage = 82,
-        connectionStatus = "Strong Connection",
         onPersonalInfoClick = onNavigateToPersonalInfo,
         onEmergencyContactsClick = onNavigateToEmergencyContacts,
         onUploadAvatarClick = onNavigateToUploadAvatar,
         onAddEmergencyContactClick = onNavigateToAddContact,
         onEditEmergencyContact = onNavigateToEditContact,
         onDeleteEmergencyContact = onNavigateToDeleteContact,
+        onWristbandClick = onNavigateToFaster,
         onHealthClick = onNavigateToHealth,
         onNotificationsClick = onNavigateToNotifications,
         onLocationClick = onNavigateToLocation,
@@ -917,7 +921,7 @@ fun EnhancedProfileScreenWithNavigation(
 @Preview(showBackground = true, device = "spec:shape=Normal,width=412,height=915,unit=dp,dpi=420")
 @Composable
 fun PreviewProfileScreen() {
-    FastERTheme {
+    FASTERTheme {
         PreviewProfileScreen()
     }
 }

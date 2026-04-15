@@ -21,7 +21,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.faster.festival.R
 import com.faster.festival.data.models.Poi
-import com.faster.festival.ui.theme.FastERTheme
+import com.faster.festival.ui.theme.FASTERTheme
 import com.faster.festival.ui.theme.FasterRed
 import com.faster.festival.ui.theme.FasterRedDark
 
@@ -365,7 +365,7 @@ fun AuthButtons(
 @Preview
 @Composable
 fun PreviewMapMarker() {
-    FastERTheme {
+    FASTERTheme {
         MapMarker(poi = Poi("1", "Main Stage", "stage"), isSelected = true, onClick = {})
     }
 }
@@ -373,7 +373,7 @@ fun PreviewMapMarker() {
 @Preview
 @Composable
 fun PreviewProfileCardSection() {
-    FastERTheme {
+    FASTERTheme {
         ProfileCardSection(
                 title = stringResource(id = R.string.profile_title),
                 items = listOf(stringResource(id = R.string.phone) to "+1 (555) 123-4567", stringResource(id = R.string.email) to "alex@example.com"),

@@ -39,6 +39,7 @@ import com.faster.festival.data.local.EncryptedSessionManager
 import com.faster.festival.data.repository.OnboardingRepository
 import com.faster.festival.di.NetworkModule
 import com.faster.festival.ui.components.StepIndicator
+import com.faster.festival.ui.screens.PairWristbandMode
 import com.faster.festival.ui.screens.ProvisionFlowScreen
 import com.faster.festival.ui.viewmodel.ProvisionViewModel
 import com.faster.festival.utils.PermissionUtils
@@ -97,41 +98,48 @@ fun OnboardingScreen(
         }
     }
 
+    // WRISTBAND step is hosted in full-bleed mode: the onboarding app bar +
+    // step indicator are suppressed so the ProvisionFlowScreen renders chromeless
+    // and doesn't stack a second bar on top of the parent Scaffold.
+    val isWristbandStep = uiState.currentStep == OnboardingStep.WRISTBAND
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            Column {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = "Step ${viewModel.currentStepIndex + 1} of ${viewModel.totalSteps}",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    },
-                    navigationIcon = {
-                        if (!viewModel.isFirstStep) {
-                            IconButton(onClick = { viewModel.previousStep() }) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Back",
-                                    tint = MaterialTheme.colorScheme.onSurface
-                                )
+            if (!isWristbandStep) {
+                Column {
+                    TopAppBar(
+                        title = {
+                            Text(
+                                text = "Step ${viewModel.currentStepIndex + 1} of ${viewModel.totalSteps}",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        },
+                        navigationIcon = {
+                            if (!viewModel.isFirstStep) {
+                                IconButton(onClick = { viewModel.previousStep() }) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Back",
+                                        tint = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
                             }
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        )
                     )
-                )
-                StepIndicator(
-                    currentStep = viewModel.currentStepIndex,
-                    totalSteps = viewModel.totalSteps,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surface)
-                )
+                    StepIndicator(
+                        currentStep = viewModel.currentStepIndex,
+                        totalSteps = viewModel.totalSteps,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface)
+                    )
+                }
             }
         }
     ) { innerPadding ->
@@ -150,9 +158,17 @@ fun OnboardingScreen(
                     OnboardingStep.PROFILE_DETAILS -> ProfileDetailsScreen(
                         dateOfBirth = uiState.dateOfBirth,
                         genderIdentity = uiState.genderIdentity,
+                        genderIdentityText = uiState.genderIdentityText,
+                        raceEthnicity = uiState.raceEthnicity,
+                        raceEthnicityText = uiState.raceEthnicityText,
                         dateOfBirthError = uiState.dateOfBirthError,
+                        genderIdentityTextError = uiState.genderIdentityTextError,
+                        raceEthnicityTextError = uiState.raceEthnicityTextError,
                         onDateOfBirthChange = viewModel::updateDateOfBirth,
                         onGenderIdentityChange = viewModel::updateGenderIdentity,
+                        onGenderIdentityTextChange = viewModel::updateGenderIdentityText,
+                        onRaceEthnicityToggle = viewModel::toggleRaceEthnicity,
+                        onRaceEthnicityTextChange = viewModel::updateRaceEthnicityText,
                         onContinue = viewModel::saveProfileDetails
                     )
 
@@ -212,12 +228,17 @@ fun OnboardingScreen(
                     )
 
                     OnboardingStep.WRISTBAND -> {
-                        val provisionViewModel: ProvisionViewModel = viewModel()
+                        val provisionViewModel: ProvisionViewModel = viewModel(
+                            factory = ProvisionViewModel.Factory(
+                                wristbandRepository = com.faster.festival.di.DatabaseModule.wristbandRepository
+                            )
+                        )
                         ProvisionFlowScreen(
                             viewModel = provisionViewModel,
                             onBackClick = { viewModel.previousStep() },
                             onComplete = { viewModel.skipWristband() },
-                            showBackOnSplash = false,
+                            onSkip = { viewModel.skipWristband() },
+                            mode = PairWristbandMode.Onboarding,
                             completeButtonText = "Continue"
                         )
                     }

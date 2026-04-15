@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     id("com.google.gms.google-services")
+    id("com.google.devtools.ksp") version "2.0.21-1.0.27"
 }
 
 // Load .env file
@@ -150,6 +151,11 @@ dependencies {
 
     // DataStore
     implementation("androidx.datastore:datastore-preferences:1.1.1")
+
+    // Room (SQLite) for wristband + SOS history persistence
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    ksp("androidx.room:room-compiler:2.6.1")
 
     // Google Maps for Compose
     implementation("com.google.maps.android:maps-compose:4.3.3")

@@ -14,7 +14,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.faster.festival.ui.components.AuthButtons
-import com.faster.festival.ui.theme.FastERTheme
+import com.faster.festival.ui.theme.FASTERTheme
 import androidx.compose.ui.tooling.preview.Preview
 import com.faster.festival.R
 import androidx.compose.ui.draw.clip
@@ -91,7 +91,7 @@ fun LoginScreen(
 @Preview
 @Composable
 fun PreviewLoginScreen() {
-    FastERTheme {
+    FASTERTheme {
         LoginScreen(
             onPhoneClick = {},
             onEmailClick = {},

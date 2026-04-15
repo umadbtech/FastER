@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "FastER"
+rootProject.name = "FASTER"
 include(":app")

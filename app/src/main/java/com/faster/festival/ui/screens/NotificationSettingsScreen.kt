@@ -21,11 +21,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -35,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -59,7 +64,9 @@ fun NotificationSettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val prefs by viewModel.preferences.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
 
     // Android 13+ notification permission launcher
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -77,8 +84,18 @@ fun NotificationSettingsScreen(
         }
     }
 
+    // Surface errors via snackbar
+    LaunchedEffect(uiState.error) {
+        val msg = uiState.error
+        if (msg != null) {
+            snackbarHostState.showSnackbar(msg)
+            viewModel.clearError()
+        }
+    }
+
+    Box(modifier = modifier.fillMaxSize().background(NotifBg)) {
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .background(NotifBg)
     ) {
@@ -103,6 +120,14 @@ fun NotificationSettingsScreen(
                 containerColor = NotifWhite
             )
         )
+
+        // Loading bar shown during initial fetch or while saving
+        if (uiState.isLoading || uiState.isSaving) {
+            LinearProgressIndicator(
+                modifier = Modifier.fillMaxWidth(),
+                color = NotifGreen
+            )
+        }
 
         Column(
             modifier = Modifier
@@ -197,6 +222,12 @@ fun NotificationSettingsScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
         }
+    }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 }
 

@@ -46,7 +46,8 @@ fun PaymentSettingsScreen(
                 }
             },
             actions = {
-                IconButton(onClick = { /* Add new payment method */ }) {
+                val showComingSoon = com.faster.festival.utils.rememberComingSoonToast()
+                IconButton(onClick = { showComingSoon() }) {
                     Icon(Icons.Default.Add, contentDescription = "Add Payment Method")
                 }
             }

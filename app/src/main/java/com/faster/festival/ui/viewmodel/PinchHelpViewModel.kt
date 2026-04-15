@@ -13,6 +13,7 @@ import com.faster.festival.data.pinch.model.TimelineConfig
 import com.faster.festival.data.pinch.model.UserContext
 import com.faster.festival.data.pinch.repository.PinchEmergencyRepository
 import com.faster.festival.data.pinch.repository.PinchFeedbackRepository
+import com.faster.festival.data.repository.local.SosHistoryRepository
 import com.faster.festival.ui.pinch.map.getCurrentLocation
 import com.faster.festival.ui.pinch.map.medicalStationPositions
 import com.faster.festival.ui.pinch.map.responderPosition
@@ -107,7 +108,8 @@ data class PinchHelpUiState(
 
 class PinchHelpViewModel(
     private val emergencyRepository: PinchEmergencyRepository,
-    private val feedbackRepository: PinchFeedbackRepository
+    private val feedbackRepository: PinchFeedbackRepository,
+    private val sosHistoryRepository: SosHistoryRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PinchHelpUiState())
@@ -231,6 +233,19 @@ class PinchHelpViewModel(
             )
 
             emergencyRepository.submitEmergencyRequest(request).onSuccess { requestId ->
+                // Persist the SOS record locally so it appears on SOS History
+                // even if the user closes the app before the flow finishes.
+                sosHistoryRepository?.recordSos(
+                    requestId = requestId,
+                    emergencyTypes = state.selectedCategoryIds.toList(),
+                    status = "submitted",
+                    locationText = location,
+                    coordinates = coords,
+                    contactPhone = phone,
+                    additionalInfo = if (state.wantsToProvideInfo == true) state.additionalInfo else null,
+                    triggerType = "pinch_flow"
+                )
+
                 _uiState.value = _uiState.value.copy(
                     currentState = PinchHelpState.FormSubmitted,
                     requestId = requestId,
@@ -467,11 +482,16 @@ class PinchHelpViewModel(
 
     class Factory(
         private val emergencyRepository: PinchEmergencyRepository,
-        private val feedbackRepository: PinchFeedbackRepository
+        private val feedbackRepository: PinchFeedbackRepository,
+        private val sosHistoryRepository: SosHistoryRepository? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return PinchHelpViewModel(emergencyRepository, feedbackRepository) as T
+            return PinchHelpViewModel(
+                emergencyRepository,
+                feedbackRepository,
+                sosHistoryRepository
+            ) as T
         }
     }
 }

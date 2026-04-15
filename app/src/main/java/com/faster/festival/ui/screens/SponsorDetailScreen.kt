@@ -28,7 +28,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
@@ -70,7 +69,8 @@ private val SponsorBorderLight = Color(0xFFE0E0E0)
 @Composable
 fun SponsorDetailScreen(
     sponsor: SponsorOffer,
-    onBackClick: () -> Unit = {}
+    onBackClick: () -> Unit = {},
+    onCtaClick: (url: String, title: String) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
 
@@ -234,27 +234,23 @@ fun SponsorDetailScreen(
                 }
             }
 
-            // Directions button (full width)
-            item {
-                Button(
-                    onClick = {
-                        val address = sponsor.address ?: sponsor.locationText ?: ""
-                        if (address.isNotBlank()) {
-                            try {
-                                val uri = Uri.parse("geo:0,0?q=${Uri.encode(address)}")
-                                context.startActivity(Intent(Intent.ACTION_VIEW, uri))
-                            } catch (_: Exception) { }
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = SponsorCoralRed),
-                    shape = RoundedCornerShape(24.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Icon(Icons.Default.Directions, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Directions", fontWeight = FontWeight.SemiBold)
+            // Supabase-driven CTA: text from `cta_label`, click opens
+            // InAppWebViewScreen with `cta_url`. Hidden when no URL is provided.
+            val ctaUrl = sponsor.ctaUrl?.takeIf { it.isNotBlank() }
+            if (ctaUrl != null) {
+                val ctaLabel = sponsor.ctaLabel?.takeIf { it.isNotBlank() } ?: "Open"
+                val ctaTitle = sponsor.title ?: sponsor.sponsorName
+                item {
+                    Button(
+                        onClick = { onCtaClick(ctaUrl, ctaTitle) },
+                        colors = ButtonDefaults.buttonColors(containerColor = SponsorCoralRed),
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text(ctaLabel, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
 

@@ -14,7 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.faster.festival.ui.theme.FastERTheme
+import com.faster.festival.ui.theme.FASTERTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -286,7 +286,7 @@ fun WebPlaceholderScreen(
 @Preview
 @Composable
 fun PreviewTicketsScreen() {
-    FastERTheme {
+    FASTERTheme {
         TicketsScreen(onBackClick = {})
     }
 }
@@ -294,7 +294,7 @@ fun PreviewTicketsScreen() {
 @Preview
 @Composable
 fun PreviewWebPlaceholderScreen() {
-    FastERTheme {
+    FASTERTheme {
         WebPlaceholderScreen(
             title = "Festival Home",
             onBackClick = {}
