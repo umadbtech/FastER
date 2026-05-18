@@ -133,6 +133,12 @@ object Routes {
     const val PROVISION_FLOW = "provision_flow"
     const val SOS_HISTORY = "sos_history"
     const val SOS_HISTORY_DETAIL = "sos_history_detail/{recordId}"
+
+    // Real BLE Mesh wristband flow — sibling routes to the marketing walkthrough.
+    const val WRISTBAND_PERMISSIONS = "wristband/permissions"
+    const val WRISTBAND_PROVISIONING_PROGRESS = "wristband/provisioning_progress"
+    const val WRISTBAND_DASHBOARD = "wristband/dashboard"
+    const val WRISTBAND_RECONNECT = "wristband/reconnect"
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -335,9 +341,24 @@ fun NavGraph(
         // =====================================================================
 
         composable(Routes.ONBOARDING) {
+            // Best-effort early start in case the user already has an active
+            // membership (returning user reopening onboarding for some reason).
+            // For brand-new signups this exits early with OnboardingRequired
+            // because membership.status is still `pending` mid-onboarding —
+            // the real device-setup pass happens at `onOnboardingComplete`.
+            LaunchedEffect(Unit) {
+                com.faster.festival.di.SosModule.setupManager.ensureSetup()
+            }
             OnboardingScreen(
                 sessionManager = sessionManager,
                 onOnboardingComplete = {
+                    // Explicit post-onboarding trigger — uses the variant that
+                    // retries `account-profile` for up to ~6s while waiting
+                    // for the membership-activation row to propagate from
+                    // the saveWristband response. By the time the user lands
+                    // on HOME, sos-register-device + sos-verify-attestation
+                    // have either completed or are mid-flight.
+                    com.faster.festival.di.SosModule.setupManager.ensureSetupAfterOnboarding()
                     navController.navigate(Routes.HOME) {
                         popUpTo(0) { inclusive = true }
                     }
@@ -350,6 +371,12 @@ fun NavGraph(
         // =====================================================================
 
         composable(Routes.HOME) {
+            // Catch-all defensive trigger for paths that bypass onboarding —
+            // skip-onboarding, returning users, phone-OTP-direct-to-HOME, etc.
+            // Idempotent — coalesces with the ONBOARDING-side trigger.
+            LaunchedEffect(Unit) {
+                com.faster.festival.di.SosModule.setupManager.ensureSetup()
+            }
             HomeScreen(
                 onArtistClick = { artistId ->
                     navController.navigate("artist/$artistId")
@@ -428,6 +455,8 @@ fun NavGraph(
             FasterScreen(
                 onPinchHelp = { navController.navigate(Routes.PINCH_HELP) },
                 onPairWristband = { navController.navigate(Routes.PROVISION_FLOW) },
+                onOpenDashboard = { navController.navigate(Routes.WRISTBAND_DASHBOARD) },
+                onReconnect = { navController.navigate(Routes.WRISTBAND_RECONNECT) },
                 onSosHistory = { navController.navigate(Routes.SOS_HISTORY) }
             )
         }
@@ -437,7 +466,12 @@ fun NavGraph(
                 factory = PinchHelpViewModel.Factory(
                     emergencyRepository = PinchModule.emergencyRepository,
                     feedbackRepository = PinchModule.feedbackRepository,
-                    sosHistoryRepository = com.faster.festival.di.DatabaseModule.sosHistoryRepository
+                    sosHistoryRepository = com.faster.festival.di.DatabaseModule.sosHistoryRepository,
+                    // Wire the existing "Get Help Now" button into the unified
+                    // signed Pinch SOS pipeline. Swipe-to-confirm now fires a
+                    // real `pinch-ingest` while the legacy form-flow keeps
+                    // running on top for dispatch enrichment.
+                    emergencyManager = com.faster.festival.di.SosModule.emergencyManager
                 )
             )
             PinchHelpScreen(
@@ -456,11 +490,88 @@ fun NavGraph(
                 viewModel = provisionViewModel,
                 onBackClick = { navController.popBackStack() },
                 onComplete = {
-                    navController.popBackStack()
+                    // Hand off from the marketing walkthrough to the real
+                    // BLE Mesh provisioning flow.
+                    navController.navigate(Routes.WRISTBAND_PERMISSIONS)
                 },
                 mode = com.faster.festival.ui.screens.PairWristbandMode.Manage,
-                completeButtonText = "Go Home"
+                completeButtonText = "Continue"
             )
+        }
+
+        // ─── Real BLE Mesh wristband flow ──────────────────────────────────
+        composable(Routes.WRISTBAND_PERMISSIONS) {
+            com.faster.festival.wristband.ui.permissions.WristbandPermissionsScreen(
+                onAllGranted = {
+                    navController.navigate(Routes.WRISTBAND_PROVISIONING_PROGRESS) {
+                        popUpTo(Routes.WRISTBAND_PERMISSIONS) { inclusive = true }
+                    }
+                },
+                onCancel = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.WRISTBAND_PROVISIONING_PROGRESS) {
+            val module = com.faster.festival.wristband.di.WristbandModule
+            val vm: com.faster.festival.wristband.ui.progress.ProvisioningProgressViewModel =
+                viewModel(
+                    factory = com.faster.festival.wristband.ui.progress
+                        .ProvisioningProgressViewModel.Factory(module.provision)
+                )
+            com.faster.festival.wristband.ui.progress.ProvisioningProgressScreen(
+                viewModel = vm,
+                onSuccess = {
+                    navController.navigate(Routes.WRISTBAND_DASHBOARD) {
+                        popUpTo(Routes.PROVISION_FLOW) { inclusive = true }
+                    }
+                },
+                onCancel = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.WRISTBAND_DASHBOARD) {
+            val module = com.faster.festival.wristband.di.WristbandModule
+            val vm: com.faster.festival.wristband.ui.dashboard.WristbandDashboardViewModel =
+                viewModel(
+                    factory = com.faster.festival.wristband.ui.dashboard
+                        .WristbandDashboardViewModel.Factory(
+                            pairedRepo = com.faster.festival.di.DatabaseModule.wristbandRepository,
+                            observeConnection = module.observeConnection,
+                            observeTelemetry = module.observeTelemetry,
+                            observeDeviceEvents = module.observeDeviceEvents,
+                            reconnect = module.reconnect,
+                            unpair = module.unpair
+                        )
+                )
+            com.faster.festival.wristband.ui.dashboard.WristbandDashboardScreen(
+                viewModel = vm,
+                onUnpaired = {
+                    navController.navigate(Routes.FASTER_SCREEN) {
+                        popUpTo(Routes.WRISTBAND_DASHBOARD) { inclusive = true }
+                    }
+                },
+                onTroubleshoot = { navController.navigate(Routes.FAQ) },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.WRISTBAND_RECONNECT) {
+            com.faster.festival.wristband.ui.reconnect.ReconnectingScreen(
+                deviceName = "FASTER Wristband"
+            )
+            LaunchedEffect(Unit) {
+                com.faster.festival.wristband.di.WristbandModule.reconnect()
+                    .onSuccess { ok ->
+                        navController.navigate(
+                            if (ok) Routes.WRISTBAND_DASHBOARD else Routes.FASTER_SCREEN
+                        ) { popUpTo(Routes.WRISTBAND_RECONNECT) { inclusive = true } }
+                    }
+                    .onFailure {
+                        navController.navigate(Routes.FASTER_SCREEN) {
+                            popUpTo(Routes.WRISTBAND_RECONNECT) { inclusive = true }
+                        }
+                    }
+            }
         }
 
         composable(Routes.SOS_HISTORY) {
@@ -684,7 +795,8 @@ fun NavGraph(
                 factory = com.faster.festival.ui.viewmodel.AnnouncementDetailViewModel.Factory(
                     appHomeApi = NetworkModule.appHomeApi,
                     festivalSlug = AppConfig.DEFAULT_FESTIVAL_SLUG,
-                    announcementId = decodedId
+                    announcementId = decodedId,
+                    networkMonitor = com.faster.festival.di.ConnectivityModule.networkMonitor
                 )
             )
             val announcementState = announcementViewModel.state.collectAsState()
@@ -704,13 +816,16 @@ fun NavGraph(
                         onBackClick = { navController.popBackStack() }
                     )
                 }
+                is com.faster.festival.ui.viewmodel.AnnouncementDetailState.Offline -> {
+                    com.faster.festival.ui.components.network.NoInternetScreen(
+                        onRetry = { announcementViewModel.retry() }
+                    )
+                }
                 is com.faster.festival.ui.viewmodel.AnnouncementDetailState.Error -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(s.message)
-                    }
+                    com.faster.festival.ui.components.network.ErrorRetryScreen(
+                        message = s.message,
+                        onRetry = { announcementViewModel.retry() }
+                    )
                 }
             }
         }
@@ -728,7 +843,8 @@ fun NavGraph(
                 factory = com.faster.festival.ui.viewmodel.PromotionDetailViewModel.Factory(
                     appHomeApi = NetworkModule.appHomeApi,
                     festivalSlug = AppConfig.DEFAULT_FESTIVAL_SLUG,
-                    promotionId = decodedId
+                    promotionId = decodedId,
+                    networkMonitor = com.faster.festival.di.ConnectivityModule.networkMonitor
                 )
             )
             val state = promoViewModel.promotionState.collectAsState()
@@ -753,13 +869,16 @@ fun NavGraph(
                         }
                     )
                 }
+                is com.faster.festival.ui.viewmodel.PromotionDetailState.Offline -> {
+                    com.faster.festival.ui.components.network.NoInternetScreen(
+                        onRetry = { promoViewModel.retry() }
+                    )
+                }
                 is com.faster.festival.ui.viewmodel.PromotionDetailState.Error -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(s.message)
-                    }
+                    com.faster.festival.ui.components.network.ErrorRetryScreen(
+                        message = s.message,
+                        onRetry = { promoViewModel.retry() }
+                    )
                 }
             }
         }
@@ -777,7 +896,8 @@ fun NavGraph(
                 factory = com.faster.festival.ui.viewmodel.SponsorDetailViewModel.Factory(
                     appHomeApi = NetworkModule.appHomeApi,
                     festivalSlug = AppConfig.DEFAULT_FESTIVAL_SLUG,
-                    sponsorId = decodedId
+                    sponsorId = decodedId,
+                    networkMonitor = com.faster.festival.di.ConnectivityModule.networkMonitor
                 )
             )
             val state = sponsorViewModel.sponsorState.collectAsState()
@@ -802,13 +922,16 @@ fun NavGraph(
                         }
                     )
                 }
+                is com.faster.festival.ui.viewmodel.SponsorDetailState.Offline -> {
+                    com.faster.festival.ui.components.network.NoInternetScreen(
+                        onRetry = { sponsorViewModel.retry() }
+                    )
+                }
                 is com.faster.festival.ui.viewmodel.SponsorDetailState.Error -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(s.message)
-                    }
+                    com.faster.festival.ui.components.network.ErrorRetryScreen(
+                        message = s.message,
+                        onRetry = { sponsorViewModel.retry() }
+                    )
                 }
             }
         }
@@ -826,7 +949,8 @@ fun NavGraph(
                 factory = com.faster.festival.ui.viewmodel.HeroDetailViewModel.Factory(
                     appHomeApi = NetworkModule.appHomeApi,
                     festivalSlug = AppConfig.DEFAULT_FESTIVAL_SLUG,
-                    heroItemId = decodedId
+                    heroItemId = decodedId,
+                    networkMonitor = com.faster.festival.di.ConnectivityModule.networkMonitor
                 )
             )
             val state = heroViewModel.heroState.collectAsState()
@@ -850,13 +974,16 @@ fun NavGraph(
                         }
                     )
                 }
+                is com.faster.festival.ui.viewmodel.HeroDetailState.Offline -> {
+                    com.faster.festival.ui.components.network.NoInternetScreen(
+                        onRetry = { heroViewModel.retry() }
+                    )
+                }
                 is com.faster.festival.ui.viewmodel.HeroDetailState.Error -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(s.message)
-                    }
+                    com.faster.festival.ui.components.network.ErrorRetryScreen(
+                        message = s.message,
+                        onRetry = { heroViewModel.retry() }
+                    )
                 }
             }
         }
@@ -873,7 +1000,8 @@ fun NavGraph(
             val festivalViewModel: com.faster.festival.ui.viewmodel.FestivalDetailsViewModel = viewModel(
                 factory = com.faster.festival.ui.viewmodel.FestivalDetailsViewModel.Factory(
                     appHomeApi = NetworkModule.appHomeApi,
-                    festivalSlug = decodedSlug
+                    festivalSlug = decodedSlug,
+                    networkMonitor = com.faster.festival.di.ConnectivityModule.networkMonitor
                 )
             )
             val state = festivalViewModel.state.collectAsState()
@@ -888,6 +1016,11 @@ fun NavGraph(
                         bannerUrls = s.bannerUrls,
                         location = s.location,
                         onBackClick = { navController.popBackStack() }
+                    )
+                }
+                is com.faster.festival.ui.viewmodel.FestivalDetailsState.Offline -> {
+                    com.faster.festival.ui.components.network.NoInternetScreen(
+                        onRetry = { festivalViewModel.retry() }
                     )
                 }
                 is com.faster.festival.ui.viewmodel.FestivalDetailsState.Error -> {
@@ -912,7 +1045,8 @@ fun NavGraph(
                 factory = com.faster.festival.ui.viewmodel.UpcomingEventDetailViewModel.Factory(
                     appHomeApi = NetworkModule.appHomeApi,
                     festivalSlug = AppConfig.DEFAULT_FESTIVAL_SLUG,
-                    eventId = decodedId
+                    eventId = decodedId,
+                    networkMonitor = com.faster.festival.di.ConnectivityModule.networkMonitor
                 )
             )
             val state = eventViewModel.state.collectAsState()
@@ -925,6 +1059,11 @@ fun NavGraph(
                     UpcomingEventDetailScreen(
                         event = s.event,
                         onBackClick = { navController.popBackStack() }
+                    )
+                }
+                is com.faster.festival.ui.viewmodel.UpcomingEventDetailState.Offline -> {
+                    com.faster.festival.ui.components.network.NoInternetScreen(
+                        onRetry = { eventViewModel.retry() }
                     )
                 }
                 is com.faster.festival.ui.viewmodel.UpcomingEventDetailState.Error -> {

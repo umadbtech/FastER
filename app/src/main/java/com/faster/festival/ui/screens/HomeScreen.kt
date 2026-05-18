@@ -215,7 +215,8 @@ fun HomeScreen(
     val viewModel: HomeViewModel = viewModel(
         factory = HomeViewModel.Factory(
             appHomeApi = NetworkModule.appHomeApi,
-            festivalSlug = festivalSlug
+            festivalSlug = festivalSlug,
+            networkMonitor = com.faster.festival.di.ConnectivityModule.networkMonitor
         )
     )
 
@@ -242,6 +243,14 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(topBarHeight))
                         HomeErrorState(
                             message = state.message,
+                            onRetry = { viewModel.refresh() }
+                        )
+                    }
+                }
+                is HomeUiState.Offline -> {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Spacer(modifier = Modifier.height(topBarHeight))
+                        com.faster.festival.ui.components.network.NoInternetScreen(
                             onRetry = { viewModel.refresh() }
                         )
                     }

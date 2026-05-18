@@ -52,6 +52,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -70,19 +74,53 @@ import com.faster.festival.R
 fun FasterScreen(
     onPinchHelp: () -> Unit = {},
     onPairWristband: () -> Unit = {},
+    onOpenDashboard: () -> Unit = {},
+    onReconnect: () -> Unit = {},
     onSosHistory: () -> Unit = {}
 ) {
-    // Load paired wristband from the Room database — null means not paired
-    val paired by com.faster.festival.di.DatabaseModule.wristbandRepository
-        .activeWristband
-        .collectAsState(initial = null)
+    // First time the user lands on the FASTER tab on Android 13+, request
+    // POST_NOTIFICATIONS so the SOS foreground alert can actually appear.
+    // Idempotent + silent — denial doesn't block the rest of the screen.
+    com.faster.festival.presentation.sos.EnsureNotificationPermission()
+    // Combines persisted Room row with live BLE Mesh ConnectionStatus.
+    val viewModel: com.faster.festival.wristband.ui.faster.FasterWristbandViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+        factory = com.faster.festival.wristband.ui.faster.FasterWristbandViewModel.Factory(
+            pairedRepo = com.faster.festival.di.DatabaseModule.wristbandRepository,
+            observeConnection = com.faster.festival.wristband.di.WristbandModule.observeConnection,
+            reconnect = com.faster.festival.wristband.di.WristbandModule.reconnect,
+            unpair = com.faster.festival.wristband.di.WristbandModule.unpair
+        )
+    )
+    val uiState by viewModel.state.collectAsState()
+    val paired = uiState.paired
+    val mode = uiState.mode
+    val connection = uiState.connection
+
+    var showUnpairDialog by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
+
+    if (showUnpairDialog && paired != null) {
+        UnpairConfirmDialog(
+            wristbandId = paired.wristbandId,
+            confirming = uiState.unpairing,
+            onConfirm = {
+                viewModel.unpair { showUnpairDialog = false }
+            },
+            onDismiss = { showUnpairDialog = false }
+        )
+    }
 
     val isPaired = paired != null
-    val isConnected = paired?.connectionStatus?.isNotEmpty() == true
+    val isConnected = connection is com.faster.festival.wristband.domain.model.ConnectionStatus.Connected
     val batteryLevel = paired?.batteryLevel ?: 0
     val firmwareVersion = paired?.firmwareVersion ?: "—"
     val wristbandId = paired?.wristbandId ?: "—"
-    val lastSynced = paired?.let { formatPairedAt(it.pairedAt) } ?: "Not paired"
+    val lastSynced = when {
+        !isPaired -> "Not paired"
+        paired.lastSeenAt != null -> formatPairedAt(paired.lastSeenAt)
+        else -> formatPairedAt(paired.pairedAt)
+    }
     val pairedDate = paired?.let { formatPairedDate(it.pairedAt) } ?: "—"
 
     androidx.compose.material3.Scaffold(
@@ -292,10 +330,15 @@ fun FasterScreen(
        
 
             item {
-                PairWristbandButton(
-                    label = if (isPaired) "Re-pair your FASTER Wristband"
-                            else "Connect your FASTER Wristband",
-                    onClick = onPairWristband
+                WristbandActionBlock(
+                    mode = mode,
+                    onPair = onPairWristband,
+                    onOpenDashboard = onOpenDashboard,
+                    onReconnect = {
+                        viewModel.reconnect()
+                        onReconnect()
+                    },
+                    onUnpair = { showUnpairDialog = true }
                 )
             }
 
@@ -568,107 +611,172 @@ private fun formatPairedDate(millis: Long): String {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Pinch Help Emergency FAB — extended FAB with pulsing ring
+// Wristband action block — branches on FasterWristbandUiState.Mode
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun WristbandActionBlock(
+    mode: com.faster.festival.wristband.ui.faster.FasterWristbandUiState.Mode,
+    onPair: () -> Unit,
+    onOpenDashboard: () -> Unit,
+    onReconnect: () -> Unit,
+    onUnpair: () -> Unit
+) {
+    when (mode) {
+        com.faster.festival.wristband.ui.faster.FasterWristbandUiState.Mode.NotPaired -> {
+            PairWristbandButton(
+                label = "Pair Your Wristband",
+                onClick = onPair
+            )
+        }
+        com.faster.festival.wristband.ui.faster.FasterWristbandUiState.Mode.Connected -> {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                PairWristbandButton(
+                    label = "Open Wristband Dashboard",
+                    onClick = onOpenDashboard
+                )
+                DangerOutlinedButton(label = "Unpair Wristband", onClick = onUnpair)
+            }
+        }
+        com.faster.festival.wristband.ui.faster.FasterWristbandUiState.Mode.Disconnected -> {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                PairWristbandButton(
+                    label = "Reconnect",
+                    onClick = onReconnect
+                )
+                OutlinedButton(
+                    onClick = onOpenDashboard,
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(14.dp)
+                ) { Text("Open Wristband Dashboard") }
+                DangerOutlinedButton(label = "Unpair Wristband", onClick = onUnpair)
+            }
+        }
+        com.faster.festival.wristband.ui.faster.FasterWristbandUiState.Mode.Reconnecting,
+        com.faster.festival.wristband.ui.faster.FasterWristbandUiState.Mode.Connecting -> {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth().height(52.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFFB68E1A).copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(18.dp),
+                            color = Color(0xFFB68E1A),
+                            strokeCap = StrokeCap.Round
+                        )
+                        Text(
+                            "Reconnecting to your wristband…",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFFB68E1A)
+                        )
+                    }
+                }
+                DangerOutlinedButton(label = "Unpair Wristband", onClick = onUnpair)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DangerOutlinedButton(label: String, onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().height(48.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = ButtonDefaults.outlinedButtonColors(
+            contentColor = Color(0xFFB3261E)
+        )
+    ) {
+        Icon(Icons.Default.LinkOff, null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(label, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun UnpairConfirmDialog(
+    wristbandId: String,
+    confirming: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Unpair $wristbandId?", fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                Text("This will:")
+                Spacer(Modifier.height(8.dp))
+                Text("• Disconnect your wristband")
+                Text("• Remove its security keys from this phone")
+                Text("• Stop SOS, telemetry, and reconnect")
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "You'll need to pair it again to use FastER features.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(
+                onClick = onConfirm,
+                enabled = !confirming
+            ) {
+                Text(
+                    if (confirming) "Unpairing…" else "Unpair Wristband",
+                    color = Color(0xFFB3261E),
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss, enabled = !confirming) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Pinch Help Emergency CTA — simple solid red button, icon + label
 // ═══════════════════════════════════════════════════════════════════════════════
 
 @Composable
 private fun PinchHelpFab(onClick: () -> Unit) {
-    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "pinch_fab_pulse")
-
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.18f,
-        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-            animation = androidx.compose.animation.core.tween(1400, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
-        ),
-        label = "pinch_fab_scale"
-    )
-
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.55f,
-        targetValue = 0.0f,
-        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-            animation = androidx.compose.animation.core.tween(1400, easing = androidx.compose.animation.core.LinearEasing),
-            repeatMode = androidx.compose.animation.core.RepeatMode.Restart
-        ),
-        label = "pinch_fab_alpha"
-    )
-
-    val red = Color(0xFFD32F2F)
-    val redDark = Color(0xFFB71C1C)
-
-    Box(
+    Button(
+        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        // Pulsing outer ring
-        Box(
-            modifier = Modifier
-                .size(76.dp)
-                .graphicsLayer {
-                    scaleX = pulseScale
-                    scaleY = pulseScale
-                    alpha = pulseAlpha
-                }
-                .clip(CircleShape)
-                .background(red)
-                .align(Alignment.CenterStart)
-                .offset(x = 4.dp)
-        )
-
-        // Extended FAB
-        androidx.compose.material3.ExtendedFloatingActionButton(
-            onClick = onClick,
-            shape = CircleShape,
-            containerColor = Color.Transparent,
-            contentColor = Color.White,
-            elevation = androidx.compose.material3.FloatingActionButtonDefaults.elevation(
-                defaultElevation = 8.dp,
-                pressedElevation = 12.dp
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(72.dp)
-                .clip(CircleShape)
-                .background(
-                    brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                        colors = listOf(red, redDark)
-                    )
-                ),
-            icon = {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.18f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Sos,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(26.dp)
-                    )
-                }
+            .height(56.dp)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "Get medical help"
             },
-            text = {
-                Column {
-                    Text(
-                        text = "Get Medical Help",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Text(
-                        text = "Tap for emergency assistance",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.85f)
-                    )
-                }
-            }
+        shape = RoundedCornerShape(14.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color(0xFFD32F2F),
+            contentColor = Color.White
+        )
+    ) {
+        Icon(
+            imageVector = Icons.Default.Sos,
+            contentDescription = null,
+            modifier = Modifier.size(22.dp)
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = "Get Medical Help",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
         )
     }
 }

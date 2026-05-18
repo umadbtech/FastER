@@ -7,6 +7,8 @@ import com.faster.festival.di.DatabaseModule
 import com.faster.festival.di.NetworkModule
 import com.faster.festival.di.NotificationModule
 import com.faster.festival.di.PinchModule
+import com.faster.festival.di.SosModule
+import com.faster.festival.di.TelemetryModule
 import com.faster.festival.notifications.NotificationChannelHelper
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.CoroutineScope
@@ -51,6 +53,52 @@ class FASTERApplication : Application() {
             .onFailure { Log.e(TAG, "NotificationModule init failed", it) }
         runCatching { DatabaseModule.initialize(applicationContext) }
             .onFailure { Log.e(TAG, "DatabaseModule init failed", it) }
+        runCatching {
+            com.faster.festival.di.ConnectivityModule.initialize(applicationContext)
+            // Touch the lazy property so the NetworkCallback registers eagerly,
+            // before the first screen paints.
+            com.faster.festival.di.ConnectivityModule.networkMonitor.current
+        }.onFailure { Log.e(TAG, "ConnectivityModule init failed", it) }
+
+        // Wristband / BLE Mesh module.
+        // • Debug builds default to FakeMeshManager so previews / instrumented
+        //   tests work without the wristband.
+        // • Release builds use the real Nordic-backed NordicMeshManager.
+        // Override at runtime if you need to force real BLE in debug — call
+        //   WristbandModule.useFakeMesh = false BEFORE the first access.
+        runCatching {
+            com.faster.festival.wristband.di.WristbandModule.initialize(applicationContext)
+            com.faster.festival.wristband.di.WristbandModule.useFakeMesh =
+                com.faster.festival.BuildConfig.DEBUG
+        }.onFailure { Log.e(TAG, "WristbandModule init failed", it) }
+
+        // Telemetry pipeline — BLE 0x10 → Room queue → WorkManager → Project 1.
+        // MUST be initialized AFTER WristbandModule (BLE source) and
+        // DatabaseModule (queue store) but is independent of SOS. Safe to
+        // start unconditionally; the collector no-ops until a wristband
+        // becomes active.
+        runCatching {
+            TelemetryModule.initialize(applicationContext)
+            TelemetryModule.telemetryCollector.start()
+        }.onFailure { Log.e(TAG, "TelemetryModule init failed", it) }
+
+        // SOS trusted-device flow — silent bootstrap. Setup runs only when
+        // the user is logged in AND has an active attendee membership; safe
+        // to call here unconditionally because SOSSetupManager guards both.
+        runCatching {
+            sessionManager?.let {
+                SosModule.initialize(applicationContext, it)
+                // Plant a Timber tree so the security/canonical/polling logs
+                // surface in logcat without piping through Log.* call sites.
+                if (BuildConfig.DEBUG && timber.log.Timber.treeCount == 0) {
+                    timber.log.Timber.plant(timber.log.Timber.DebugTree())
+                }
+                SosModule.setupManager.ensureSetup()
+                // Wire wristband 0x11/0x12 → EmergencySOSManager, and resume
+                // any in-flight SOS that was active when the process died.
+                SosModule.startEmergencyOrchestration()
+            }
+        }.onFailure { Log.e(TAG, "SosModule init failed", it) }
 
         // Create notification channels (safe no-op on < Android 8)
         runCatching { NotificationChannelHelper.createAllChannels(this) }

@@ -71,16 +71,13 @@ class ProvisionViewModel(
             _uiState.value = _uiState.value.copy(isLoading = true)
             delay(1200)
 
-            // Persist the paired wristband to SQLite so the Faster/Home/Profile
-            // screens can reflect it and it survives app restarts.
-            val id = _uiState.value.wristbandId.ifBlank { "FSTR-2026-A7B3" }
-            wristbandRepository?.savePairedWristband(
-                wristbandId = id,
-                deviceName = "FASTER Wristband",
-                firmwareVersion = "2.1.4",
-                batteryLevel = 82,
-                connectionStatus = "Strong Connection"
-            )
+            // The walkthrough no longer writes a fake paired-wristband row to
+            // Room. The real row is created exclusively by the BLE Mesh
+            // repository on a genuine provisioning success.
+            //
+            // The walkthrough's onComplete callback hands off to
+            // Routes.WRISTBAND_PERMISSIONS in NavGraph, which begins the real
+            // provisioning flow.
 
             _uiState.value = _uiState.value.copy(
                 currentStep = ProvisionStep.Complete,

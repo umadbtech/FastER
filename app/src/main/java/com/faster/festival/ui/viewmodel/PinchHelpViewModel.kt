@@ -11,9 +11,15 @@ import com.faster.festival.data.pinch.model.FeedbackQuestion
 import com.faster.festival.data.pinch.model.FeedbackSubmission
 import com.faster.festival.data.pinch.model.TimelineConfig
 import com.faster.festival.data.pinch.model.UserContext
+import com.faster.festival.AppConfig
+import com.faster.festival.core.sos.EmergencySOSManager
+import com.faster.festival.core.sos.EmergencySOSState
 import com.faster.festival.data.pinch.repository.PinchEmergencyRepository
 import com.faster.festival.data.pinch.repository.PinchFeedbackRepository
 import com.faster.festival.data.repository.local.SosHistoryRepository
+import com.faster.festival.domain.sos.SosUserStatus
+import kotlinx.coroutines.flow.collectLatest
+import timber.log.Timber
 import com.faster.festival.ui.pinch.map.getCurrentLocation
 import com.faster.festival.ui.pinch.map.medicalStationPositions
 import com.faster.festival.ui.pinch.map.responderPosition
@@ -109,7 +115,18 @@ data class PinchHelpUiState(
 class PinchHelpViewModel(
     private val emergencyRepository: PinchEmergencyRepository,
     private val feedbackRepository: PinchFeedbackRepository,
-    private val sosHistoryRepository: SosHistoryRepository? = null
+    private val sosHistoryRepository: SosHistoryRepository? = null,
+    /**
+     * Optional — when present, the swipe-to-confirm step ALSO fires a real
+     * signed `pinch-ingest` via the unified [EmergencySOSManager] (Project 2
+     * SOS). The legacy asset/Supabase form-flow keeps running on top for
+     * dispatch enrichment + sos-history persistence.
+     *
+     * Passed-in nullable so existing tests / Compose previews that build the
+     * VM directly don't need to change.
+     */
+    private val emergencyManager: EmergencySOSManager? = null,
+    private val festivalId: String = AppConfig.DEFAULT_FESTIVAL_ID
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PinchHelpUiState())
@@ -117,6 +134,7 @@ class PinchHelpViewModel(
 
     init {
         loadInitialData()
+        observeEmergencyManager()
     }
 
     private fun loadInitialData() {
@@ -171,6 +189,16 @@ class PinchHelpViewModel(
             currentState = PinchHelpState.AlertSent,
             activeTimelineStep = 0
         )
+        // Fire the REAL signed `pinch-ingest` the moment the user confirms.
+        // EmergencySOSManager dedups internally — second tap or wristband
+        // 0x11 collision is a no-op. The 21-state form flow that follows is
+        // dispatch enrichment, not the trigger.
+        viewModelScope.launch {
+            emergencyManager?.let { mgr ->
+                Timber.tag(TAG).i("Swipe-to-alert → EmergencySOSManager.startManualSOS")
+                mgr.startManualSOS(festivalId = festivalId)
+            }
+        }
     }
 
     fun proceedToAnswerCall() {
@@ -480,17 +508,101 @@ class PinchHelpViewModel(
         return _uiState.value.currentQuestionIndex >= config.questions.size - 1
     }
 
+    /**
+     * Bridges [EmergencySOSManager.state] into the existing 21-state in-app
+     * journey. Maps the backend `user_status` enum onto the legacy
+     * `helpOnTheWay` / `helpArrived` / `emergencyResolved` transitions so
+     * the live dispatch updates flow into the screen without the user
+     * tapping the now-mock "Next" buttons.
+     *
+     * Idempotent — safe to drive a transition more than once because the
+     * existing setters just set `currentState`.
+     */
+    private fun observeEmergencyManager() {
+        val manager = emergencyManager ?: return
+        viewModelScope.launch {
+            manager.state.collectLatest { es ->
+                when (es) {
+                    is EmergencySOSState.Active -> reflectActive(es)
+                    is EmergencySOSState.Resolved -> {
+                        if (_uiState.value.currentState != PinchHelpState.Resolved) {
+                            emergencyResolved()
+                        }
+                    }
+                    is EmergencySOSState.Cancelled -> {
+                        if (_uiState.value.currentState != PinchHelpState.Cancelled) {
+                            _uiState.value = _uiState.value.copy(
+                                currentState = PinchHelpState.Cancelled
+                            )
+                        }
+                    }
+                    is EmergencySOSState.Failed -> {
+                        _uiState.value = _uiState.value.copy(
+                            error = es.message,
+                            isLoading = false
+                        )
+                    }
+                    EmergencySOSState.Idle,
+                    EmergencySOSState.Preparing,
+                    is EmergencySOSState.Sending -> {
+                        // No-op — the UI is already showing AlertSent /
+                        // AnswerCall / form steps. Sending is the in-flight
+                        // window before the first poll.
+                    }
+                }
+            }
+        }
+    }
+
+    private fun reflectActive(state: EmergencySOSState.Active) {
+        when (state.userStatus) {
+            SosUserStatus.ResponderEnRoute -> {
+                if (_uiState.value.currentState != PinchHelpState.OnTheWay) {
+                    helpOnTheWay()
+                }
+            }
+            SosUserStatus.ResponderOnScene -> {
+                if (_uiState.value.currentState != PinchHelpState.HelpArrived &&
+                    _uiState.value.currentState != PinchHelpState.InProgress
+                ) {
+                    helpArrived()
+                }
+            }
+            else -> {
+                // SOS_RECEIVED / DISPATCH_RECEIVED / DISPATCH_CONFIRMED /
+                // RESPONDER_ASSIGNED / RESPONDER_ACCEPTED — the existing
+                // timeline step indicator (alertSent → answerCall → form)
+                // already covers these. Nothing UI-side to do.
+            }
+        }
+        // Surface ETA / responder name into the existing UI fields.
+        state.etaMinutes?.let { eta ->
+            _uiState.value = _uiState.value.copy(etaMinutes = eta)
+        }
+        state.responderName?.let { name ->
+            _uiState.value = _uiState.value.copy(responderName = name)
+        }
+    }
+
+    private companion object {
+        const val TAG = "PinchHelpViewModel"
+    }
+
     class Factory(
         private val emergencyRepository: PinchEmergencyRepository,
         private val feedbackRepository: PinchFeedbackRepository,
-        private val sosHistoryRepository: SosHistoryRepository? = null
+        private val sosHistoryRepository: SosHistoryRepository? = null,
+        private val emergencyManager: EmergencySOSManager? = null,
+        private val festivalId: String = AppConfig.DEFAULT_FESTIVAL_ID
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             return PinchHelpViewModel(
-                emergencyRepository,
-                feedbackRepository,
-                sosHistoryRepository
+                emergencyRepository = emergencyRepository,
+                feedbackRepository = feedbackRepository,
+                sosHistoryRepository = sosHistoryRepository,
+                emergencyManager = emergencyManager,
+                festivalId = festivalId
             ) as T
         }
     }

@@ -87,7 +87,8 @@ fun MapScreen(
     val viewModel: NewMapViewModel = viewModel(
         factory = NewMapViewModel.Factory(
             contentMapApi = NetworkModule.contentMapApi,
-            festivalSlug = festivalSlug
+            festivalSlug = festivalSlug,
+            networkMonitor = com.faster.festival.di.ConnectivityModule.networkMonitor
         )
     )
 
@@ -96,7 +97,8 @@ fun MapScreen(
         key = "MapScreenHomeBundle",
         factory = HomeViewModel.Factory(
             appHomeApi = NetworkModule.appHomeApi,
-            festivalSlug = festivalSlug
+            festivalSlug = festivalSlug,
+            networkMonitor = com.faster.festival.di.ConnectivityModule.networkMonitor
         )
     )
 
@@ -124,6 +126,11 @@ fun MapScreen(
             when (val state = uiState) {
                 is MapUiState.Loading -> {
                     MapShimmerLoading()
+                }
+                is MapUiState.Offline -> {
+                    com.faster.festival.ui.components.network.NoInternetScreen(
+                        onRetry = { viewModel.refresh() }
+                    )
                 }
                 is MapUiState.Error -> {
                     MapErrorState(

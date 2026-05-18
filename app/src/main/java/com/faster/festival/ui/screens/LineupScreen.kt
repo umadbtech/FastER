@@ -94,7 +94,8 @@ fun LineupScreen(
         factory = LineupViewModel.Factory(
             contentLineupApi = NetworkModule.contentLineupApi,
             contentStageScheduleApi = NetworkModule.contentStageScheduleApi,
-            festivalSlug = festivalSlug
+            festivalSlug = festivalSlug,
+            networkMonitor = com.faster.festival.di.ConnectivityModule.networkMonitor
         )
     )
 
@@ -109,6 +110,11 @@ fun LineupScreen(
             when (val state = uiState) {
                 is LineupUiState.Loading -> {
                     LineupShimmerLoading()
+                }
+                is LineupUiState.Offline -> {
+                    com.faster.festival.ui.components.network.NoInternetScreen(
+                        onRetry = { viewModel.refresh() }
+                    )
                 }
                 is LineupUiState.Error -> {
                     LineupErrorState(

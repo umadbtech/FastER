@@ -183,6 +183,19 @@ fun FASTERApp(
     val startDestination by mainViewModel.startDestination.collectAsState()
     val landingDismissed by mainViewModel.landingDismissed.collectAsState()
 
+    // Process-death recovery: if EmergencySOSManager.resumeIfPersisted lands an
+    // active session on cold start, jump the user straight to the pinch-help
+    // overlay so they don't lose visibility on a live emergency.
+    LaunchedEffect(Unit) {
+        com.faster.festival.di.SosModule.emergencyManager.recoveredOnLaunch.collect {
+            // Wait until the nav graph is ready (post-splash) before navigating.
+            navController.navigate(Routes.PINCH_HELP) {
+                launchSingleTop = true
+            }
+            com.faster.festival.di.SosModule.emergencyManager.consumeRecoveryEvent()
+        }
+    }
+
     // 3-phase splash: 0 = logo, 1 = tagline, 2 = done (show app or events landing)
     var splashPhase by remember { mutableIntStateOf(0) }
 
@@ -220,8 +233,46 @@ fun FASTERApp(
             }
         }
 
+        // ───── Global connectivity UX ───────────────────────────────────────
+        // OfflinePill (red) + ReconnectingBanner (amber) sit above the NavHost
+        // so every screen acknowledges connectivity. The "back online"
+        // snackbar is hosted by the same Scaffold.
+        val networkMonitor = remember {
+            com.faster.festival.di.ConnectivityModule.networkMonitor
+        }
+        val connectivity by networkMonitor.state.collectAsState()
+        val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
+        com.faster.festival.ui.components.network.ConnectionRestoredSnackbarEffect(
+            monitor = networkMonitor,
+            snackbarHostState = snackbarHostState
+        )
+
+        // ───── SOS overlay (above everything) ───────────────────────────────
+        // The wristband BLE Mesh stack publishes 0x11 SOS events into this VM.
+        // The overlay renders full-screen on top of the Scaffold + bottom nav
+        // for emergency UX.
+        val sosVm: com.faster.festival.wristband.ui.sos.SosAlertViewModel = viewModel(
+            factory = com.faster.festival.wristband.ui.sos.SosAlertViewModel.Factory(
+                emergency = com.faster.festival.di.SosModule.emergencyManager
+            )
+        )
+
+        Box(modifier = Modifier.fillMaxSize()) {
+
         Scaffold(
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarHostState) },
+            topBar = {
+                Column {
+                    com.faster.festival.ui.components.network.ReconnectingBanner(
+                        visible = connectivity is com.faster.festival.data.network.ConnectivityState.Losing
+                    )
+                    com.faster.festival.ui.components.network.OfflinePill(
+                        visible = connectivity is com.faster.festival.data.network.ConnectivityState.Lost ||
+                                connectivity is com.faster.festival.data.network.ConnectivityState.Unavailable
+                    )
+                }
+            },
             bottomBar = {
                 if (showBottomNav) {
                     FASTERBottomNavBar(
@@ -241,6 +292,10 @@ fun FASTERApp(
                 )
             }
         }
+
+        com.faster.festival.wristband.ui.sos.SosOverlayHost(viewModel = sosVm)
+
+        }  // end outer Box
     }
 }
 

@@ -36,6 +36,13 @@ val viteSupabaseUrl: String = envConfig["VITE_SUPABASE_URL"] ?: ""
 val viteSupabaseAnonKey: String = envConfig["VITE_SUPABASE_ANON_KEY"] ?: ""
 val googleMapsApiKey: String = envConfig["GOOGLE_MAPS_API_KEY"] ?: ""
 
+// Project 2 — SOS trusted-device signing endpoints (pinch-ingest, pinch-alert-status,
+// sos-register-device, sos-verify-attestation). See Pinch_SOS_Frontend_Implementation_Guide.md.
+val project2SosUrl: String = envConfig["PROJECT2_SOS_URL"] ?: ""
+val project2SosAnonKey: String = envConfig["PROJECT2_SOS_ANON_KEY"] ?: ""
+val sosAllowTestAttestation: String = envConfig["SOS_ALLOW_TEST_ATTESTATION"] ?: "false"
+val useTestLocation: String = envConfig["USE_TEST_LOCATION"] ?: "false"
+
 // Detect whether the build should use the real Supabase client libraries
 val useRealSupabase: Boolean = project.hasProperty("useRealSupabase") && project.property("useRealSupabase") == "true"
 
@@ -54,6 +61,18 @@ android {
         // Expose credentials provided in .env file
         buildConfigField("String", "VITE_SUPABASE_URL", "\"$viteSupabaseUrl\"")
         buildConfigField("String", "VITE_SUPABASE_ANON_KEY", "\"$viteSupabaseAnonKey\"")
+        buildConfigField("String", "PROJECT2_SOS_URL", "\"$project2SosUrl\"")
+        buildConfigField("String", "PROJECT2_SOS_ANON_KEY", "\"$project2SosAnonKey\"")
+        buildConfigField(
+            "boolean",
+            "SOS_ALLOW_TEST_ATTESTATION",
+            sosAllowTestAttestation.equals("true", ignoreCase = true).toString()
+        )
+        buildConfigField(
+            "boolean",
+            "USE_TEST_LOCATION",
+            useTestLocation.equals("true", ignoreCase = true).toString()
+        )
 
         // Google Maps API key for map rendering
         manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = googleMapsApiKey
@@ -89,6 +108,10 @@ android {
 
     packaging {
         resources.excludes.add("META-INF/proguard/androidx-*.pro")
+        // Bouncy Castle (bcprov-jdk18on) and jspecify both ship an
+        // OSGI manifest at the same MR-JAR path; AGP refuses to merge.
+        resources.excludes.add("META-INF/versions/9/OSGI-INF/MANIFEST.MF")
+        resources.excludes.add("META-INF/versions/*/OSGI-INF/MANIFEST.MF")
     }
 
     // If using the real Supabase client, exclude the local stub sources which would otherwise cause duplicate symbols.
@@ -140,6 +163,13 @@ dependencies {
     // Phone number parsing/validation
     implementation("com.googlecode.libphonenumber:libphonenumber:8.13.28")
 
+    // ─── SOS trusted-device signing ─────────────────────────────────────────
+    // Bouncy Castle for Ed25519 (Android Keystore added Ed25519 only on API 33+;
+    // minSdk = 24). bcprov-jdk18on provides Ed25519PrivateKeyParameters / Ed25519Signer.
+    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
+    // Timber for the SOS setup / canonical / polling flow logs.
+    implementation("com.jakewharton.timber:timber:5.0.1")
+
     // Image Loading
     implementation(libs.coil)
     implementation(libs.coil.gif)
@@ -157,10 +187,30 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
 
+    // WorkManager — telemetry batch upload (TelemetryUploadWorker). Coroutine
+    // worker variant keeps the worker body suspending so the HTTP / Room
+    // calls don't tie up a thread while waiting on network.
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+
     // Google Maps for Compose
     implementation("com.google.maps.android:maps-compose:4.3.3")
     implementation("com.google.android.gms:play-services-maps:19.0.0")
     implementation("com.google.android.gms:play-services-location:21.3.0")
+
+    // ─── Nordic nRF Mesh — FastER wristband BLE Mesh node ────────────────
+    // See Mobile-Vendor-Model-Dev.md §9 + wristband/data/ble/*.kt for the
+    // wrapper layer. Phase A defaults to FakeMeshManager; flip
+    // WristbandModule.useFakeMesh = false to use the Nordic-backed impl
+    // (requires NordicMeshManager.kt + BleMeshGatt.kt to be added).
+    // Nordic Mesh < 3.4.0 was published as .jar which the Android Gradle
+    // plugin can't accept directly; 3.4.0+ ships as proper .aar.
+    implementation("no.nordicsemi.android:mesh:3.4.0")
+    // ble:2.11+ was compiled with Kotlin 2.2 metadata which conflicts with the
+    // project's Kotlin 2.0.21. 2.7.5 is the last release with Kotlin-2.0-
+    // compatible metadata. We deliberately skip `ble-ktx` — BleMeshGatt uses
+    // the Java-style BleManager API directly, no coroutine extensions needed.
+    implementation("no.nordicsemi.android:ble:2.7.5")
+    implementation("no.nordicsemi.android.support.v18:scanner:1.6.0")
 
     // Add the real Supabase client artifacts only when requested.
     if (useRealSupabase) {

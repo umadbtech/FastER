@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
@@ -21,6 +23,45 @@
 
     <!-- Push Notifications - Android 13+ -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Emergency SOS notification full-screen intent (Android 14+) -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- Required to keep the SOS overlay vibration going on Android 7+ -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!--
+        Foreground service — ActiveSosForegroundService keeps the polling loop
+        and pinch-update-location emitter alive while an SOS is in flight.
+        FOREGROUND_SERVICE is API 28+; the type-scoped permissions are API 34+
+        but harmless to declare on older OSes.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+
+    <!--
+        Bluetooth — required for the FastER wristband BLE Mesh node.
+        See Mobile-Vendor-Model-Dev.md §9.
+        • Pre-Android 12: legacy BLUETOOTH / BLUETOOTH_ADMIN.
+        • Android 12+: runtime BLUETOOTH_SCAN / _CONNECT / _ADVERTISE.
+        `neverForLocation` declares we don't derive location from BLE scans —
+        keeps us off the Play Store location-data disclosure surface.
+    -->
+    <uses-permission android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="31" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+
+    <!-- BLE is mandatory for the wristband. Devices without it will not see
+         the app on the Play Store. -->
+    <uses-feature
+        android:name="android.hardware.bluetooth_le"
+        android:required="true" />
 
     <application
         android:name=".FASTERApplication"
@@ -63,6 +104,28 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/emergency_red" />
+
+        <!-- SOS notification action buttons (Cancel / Mark Resolved) -->
+        <receiver
+            android:name="com.faster.festival.core.sos.SosActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.faster.festival.sos.ACTION_CANCEL" />
+                <action android:name="com.faster.festival.sos.ACTION_RESOLVE" />
+            </intent-filter>
+        </receiver>
+
+        <!--
+            Active SOS foreground service — keeps the polling loop + periodic
+            pinch-update-location emitter alive while an SOS is in flight.
+            Type "location|connectedDevice" because we (a) ship periodic GPS
+            fixes to dispatch and (b) maintain the BLE Mesh link to the
+            paired wristband for ACK / cancel / resolved packets.
+        -->
+        <service
+            android:name="com.faster.festival.core.sos.ActiveSosForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="location|connectedDevice" />
 
         <!-- ✅ FileProvider for sharing files with camera intent -->
         <provider
