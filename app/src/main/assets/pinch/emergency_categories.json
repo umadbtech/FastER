@@ -1,0 +1,45 @@
+{
+  "categories": [
+    {
+      "id": "critical",
+      "title": "Critical Emergencies",
+      "priority": 1,
+      "color": "#D32F2F",
+      "items": [
+        { "id": "unconscious", "label": "UNCONSCIOUS PERSON", "icon": "warning" },
+        { "id": "crowd_crush", "label": "EXPERIENCING A CROWD CRUSH", "icon": "group" },
+        { "id": "unsafe", "label": "FEELING UNSAFE / HARASSED", "icon": "shield" },
+        { "id": "breathing", "label": "TROUBLE BREATHING", "icon": "air" },
+        { "id": "panic", "label": "PANIC ATTACK / BAD TRIP", "icon": "psychology" },
+        { "id": "seizure", "label": "WITNESSING A SEIZURE", "icon": "emergency" },
+        { "id": "hazard", "label": "REPORTING A SAFETY HAZARD", "icon": "report" }
+      ]
+    },
+    {
+      "id": "high",
+      "title": "High-Priority Emergencies",
+      "priority": 2,
+      "color": "#E65100",
+      "items": [
+        { "id": "allergy", "label": "EXPERIENCING AN ALLERGY", "icon": "healing" },
+        { "id": "vomiting", "label": "VOMITING / VERY DRUNK", "icon": "sick" },
+        { "id": "unable_walk", "label": "UNABLE TO WALK", "icon": "accessible" },
+        { "id": "overheating", "label": "OVERHEATING", "icon": "thermostat" }
+      ]
+    },
+    {
+      "id": "medium",
+      "title": "Medium-Priority Emergencies",
+      "priority": 3,
+      "color": "#F9A825",
+      "items": [
+        { "id": "dehydrated", "label": "FEELING DEHYDRATED", "icon": "water_drop" },
+        { "id": "headache", "label": "HEADACHE", "icon": "face" },
+        { "id": "bleeding", "label": "BLEEDING / CUT", "icon": "bloodtype" },
+        { "id": "foot_pain", "label": "HAVING FOOT PAIN", "icon": "footprint" },
+        { "id": "dizzy", "label": "FEELING DIZZY", "icon": "rotate_right" },
+        { "id": "missing", "label": "MISSING PERSON / ITEM", "icon": "search" }
+      ]
+    }
+  ]
+}

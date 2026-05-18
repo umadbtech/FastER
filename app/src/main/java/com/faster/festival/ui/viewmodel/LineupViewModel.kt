@@ -3,8 +3,12 @@ package com.faster.festival.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.faster.festival.data.network.NetworkMonitor
 import com.faster.festival.data.remote.ContentLineupApi
 import com.faster.festival.data.remote.ContentStageScheduleApi
+import com.faster.festival.ui.util.armAutoRetry
+import com.faster.festival.ui.util.isOfflineNow
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,13 +36,15 @@ sealed class LineupUiState {
         val selectedDay: Int?,
         val searchQuery: String
     ) : LineupUiState()
+    object Offline : LineupUiState()
     data class Error(val message: String) : LineupUiState()
 }
 
 class LineupViewModel(
     private val contentLineupApi: ContentLineupApi,
     private val contentStageScheduleApi: ContentStageScheduleApi,
-    private val festivalSlug: String
+    private val festivalSlug: String,
+    private val networkMonitor: NetworkMonitor? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<LineupUiState>(LineupUiState.Loading)
@@ -47,13 +53,19 @@ class LineupViewModel(
     private var allArtists: List<LineupArtist> = emptyList()
     private var currentSearchQuery: String = ""
     private var currentDayFilter: Int? = null
+    private var autoRetryJob: Job? = null
 
     init {
         loadLineup()
     }
 
-    private fun loadLineup() {
+    fun loadLineup() {
         viewModelScope.launch {
+            if (networkMonitor.isOfflineNow()) {
+                _uiState.value = LineupUiState.Offline
+                autoRetryJob = networkMonitor?.armAutoRetry(viewModelScope, autoRetryJob) { loadLineup() }
+                return@launch
+            }
             _uiState.value = LineupUiState.Loading
             try {
                 val lineupResponse = contentLineupApi.getContentLineup(festivalSlug)
@@ -109,12 +121,19 @@ class LineupViewModel(
                     )
                 }
             } catch (e: Exception) {
-                _uiState.value = LineupUiState.Error(
-                    e.localizedMessage ?: "Network error occurred"
-                )
+                if (networkMonitor.isOfflineNow(e)) {
+                    _uiState.value = LineupUiState.Offline
+                    autoRetryJob = networkMonitor?.armAutoRetry(viewModelScope, autoRetryJob) { loadLineup() }
+                } else {
+                    _uiState.value = LineupUiState.Error(
+                        e.localizedMessage ?: "Network error occurred"
+                    )
+                }
             }
         }
     }
+
+    fun retry() = loadLineup()
 
     fun onSearchQueryChanged(query: String) {
         currentSearchQuery = query
@@ -161,11 +180,14 @@ class LineupViewModel(
     class Factory(
         private val contentLineupApi: ContentLineupApi,
         private val contentStageScheduleApi: ContentStageScheduleApi,
-        private val festivalSlug: String
+        private val festivalSlug: String,
+        private val networkMonitor: NetworkMonitor? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return LineupViewModel(contentLineupApi, contentStageScheduleApi, festivalSlug) as T
+            return LineupViewModel(
+                contentLineupApi, contentStageScheduleApi, festivalSlug, networkMonitor
+            ) as T
         }
     }
 }

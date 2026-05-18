@@ -205,15 +205,18 @@ fun HomeScreen(
     onNavigateToSchedule: () -> Unit = {},
     onNavigateToMap: () -> Unit = {},
     onNavigateToFAQ: () -> Unit = {},
+    onNavigateToFaster: () -> Unit = {},
     onFestivalBannerClick: (String) -> Unit = {},
     onUpcomingEventClick: (String) -> Unit = {},
+    onCtaClick: (url: String, title: String) -> Unit = { _, _ -> },
     festivalSlug: String = AppConfig.DEFAULT_FESTIVAL_SLUG,
     sessionManager: EncryptedSessionManager? = null
 ) {
     val viewModel: HomeViewModel = viewModel(
         factory = HomeViewModel.Factory(
             appHomeApi = NetworkModule.appHomeApi,
-            festivalSlug = festivalSlug
+            festivalSlug = festivalSlug,
+            networkMonitor = com.faster.festival.di.ConnectivityModule.networkMonitor
         )
     )
 
@@ -244,6 +247,14 @@ fun HomeScreen(
                         )
                     }
                 }
+                is HomeUiState.Offline -> {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Spacer(modifier = Modifier.height(topBarHeight))
+                        com.faster.festival.ui.components.network.NoInternetScreen(
+                            onRetry = { viewModel.refresh() }
+                        )
+                    }
+                }
                 is HomeUiState.Success -> {
                     HomeSuccessContent(
                         bundle = state.data,
@@ -255,17 +266,26 @@ fun HomeScreen(
                         onNavigateToSchedule = onNavigateToSchedule,
                         onNavigateToMap = onNavigateToMap,
                         onNavigateToFAQ = onNavigateToFAQ,
+                        onNavigateToFaster = onNavigateToFaster,
                         onFestivalBannerClick = onFestivalBannerClick,
-                        onUpcomingEventClick = onUpcomingEventClick
+                        onUpcomingEventClick = onUpcomingEventClick,
+                        onCtaClick = onCtaClick
                     )
                 }
             }
 
-            // Floating top bar — preserved exactly
+            // Floating top bar — live wristband status from SQLite
+            val showComingSoonTopBar = com.faster.festival.utils.rememberComingSoonToast(
+                "This Feature is coming soon"
+            )
+            val pairedForTopBar by com.faster.festival.di.DatabaseModule.wristbandRepository
+                .activeWristband
+                .collectAsState(initial = null)
             FasterTopAppBar(
                 logoUrl = (uiState as? HomeUiState.Success)?.data?.festival?.logoUrl,
-                onSearchClick = {},
-                onWristbandClick = {},
+                isConnected = pairedForTopBar != null,
+                onSearchClick = { showComingSoonTopBar() },
+                onWristbandClick = onNavigateToFaster,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .zIndex(1f)
@@ -388,9 +408,15 @@ private fun HomeSuccessContent(
     onNavigateToSchedule: () -> Unit,
     onNavigateToMap: () -> Unit,
     onNavigateToFAQ: () -> Unit,
+    onNavigateToFaster: () -> Unit,
     onFestivalBannerClick: (String) -> Unit,
-    onUpcomingEventClick: (String) -> Unit
+    onUpcomingEventClick: (String) -> Unit,
+    onCtaClick: (url: String, title: String) -> Unit
 ) {
+    // Paired wristband from SQLite — live-updates across app
+    val pairedWristband by com.faster.festival.di.DatabaseModule.wristbandRepository
+        .activeWristband
+        .collectAsState(initial = null)
     val festival = bundle.festival
     val tiles = bundle.uiConfig.tiles.filter { it.enabled }.sortedBy { it.order }
 
@@ -411,13 +437,16 @@ private fun HomeSuccessContent(
         item { Spacer(modifier = Modifier.height(12.dp)) }
 
         // ══════════════════════════════════════════════════════════════════
-        // PRIORITY 2: Wristband Status
+        // PRIORITY 2: Wristband Status (from SQLite, live-updating)
         // ══════════════════════════════════════════════════════════════════
         item {
+            val paired = pairedWristband
             com.faster.festival.ui.components.DeviceCard(
-                wristbandName = "FASTER Wristband",
-                batteryPercentage = 82,
-                connectionStatus = "Strong Connection",
+                wristbandName = paired?.deviceName ?: "FASTER Wristband",
+                batteryPercentage = paired?.batteryLevel ?: 0,
+                connectionStatus = paired?.connectionStatus ?: "Not paired",
+                isPaired = paired != null,
+                onClick = onNavigateToFaster,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -541,17 +570,27 @@ private fun HomeSuccessContent(
         // ══════════════════════════════════════════════════════════════════
         // PRIORITY 6: Sponsors, Promotions, Last set FAQ
         // ══════════════════════════════════════════════════════════════════
-        if (bundle.isModuleEnabled("sponsors")) {
-            val sponsors = bundle.sponsorOffers
-            if (sponsors.isNotEmpty()) {
-                item {
-                    SponsorOfferSection(
-                        title = resolveSectionTitle(bundle, "sponsors"),
-                        sponsors = sponsors,
-                        onSponsorClick = onSponsorClick
-                    )
-                }
-            } else {
+        val showSponsorsSection = bundle.isModuleEnabled("sponsors") &&
+            bundle.sponsorOffers.isNotEmpty()
+        val showPromotionsSection = bundle.isModuleEnabled("promotions") &&
+            bundle.promotions.isNotEmpty()
+
+        if (showSponsorsSection || showPromotionsSection) {
+            item {
+                com.faster.festival.ui.components.SponsorsPromotionsSection(
+                    bundle = bundle,
+                    sponsorsTitle = resolveSectionTitle(bundle, "sponsors"),
+                    promotionsTitle = resolveSectionTitle(bundle, "promotions"),
+                    onSponsorClick = onSponsorClick,
+                    onPromotionClick = onPromotionClick,
+                    onCtaClick = onCtaClick
+                )
+            }
+            item { Spacer(modifier = Modifier.height(24.dp)) }
+        } else {
+            // Preserve the pre-existing "module enabled but empty" placeholder
+            // behavior for each individual module.
+            if (bundle.isModuleEnabled("sponsors")) {
                 item {
                     SectionTitle(
                         title = resolveSectionTitle(bundle, "sponsors"),
@@ -559,21 +598,9 @@ private fun HomeSuccessContent(
                     )
                 }
                 item { ModuleEmptyState(label = "sponsors") }
+                item { Spacer(modifier = Modifier.height(24.dp)) }
             }
-            item { Spacer(modifier = Modifier.height(24.dp)) }
-        }
-
-        if (bundle.isModuleEnabled("promotions")) {
-            val promotions = bundle.promotions
-            if (promotions.isNotEmpty()) {
-                item {
-                    PromotionSection(
-                        title = resolveSectionTitle(bundle, "promotions"),
-                        promotions = promotions,
-                        onPromotionClick = onPromotionClick
-                    )
-                }
-            } else {
+            if (bundle.isModuleEnabled("promotions")) {
                 item {
                     SectionTitle(
                         title = resolveSectionTitle(bundle, "promotions"),
@@ -581,8 +608,8 @@ private fun HomeSuccessContent(
                     )
                 }
                 item { ModuleEmptyState(label = "promotions") }
+                item { Spacer(modifier = Modifier.height(24.dp)) }
             }
-            item { Spacer(modifier = Modifier.height(24.dp)) }
         }
 
         if (bundle.isModuleEnabled("faq")) {
@@ -665,7 +692,11 @@ private fun HomeSuccessContent(
 
 @Composable
 private fun EmergencyAccessPlaceholder() {
+    val showComingSoon = com.faster.festival.utils.rememberComingSoonToast(
+        "This Feature is coming soon"
+    )
     Card(
+        onClick = { showComingSoon() },
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
@@ -762,8 +793,9 @@ private fun AnnouncementsSection(
 
             Spacer(modifier = Modifier.height(4.dp))
 
+            val showComingSoonAllAnnouncements = com.faster.festival.utils.rememberComingSoonToast()
             Button(
-                onClick = { /* navigate to all announcements */ },
+                onClick = { showComingSoonAllAnnouncements() },
                 modifier = Modifier.fillMaxWidth().height(44.dp),
                 shape = RoundedCornerShape(22.dp),
                 colors = ButtonDefaults.buttonColors(
@@ -1011,6 +1043,9 @@ private fun ExploreCategoryGrid(
     onNavigateToMap: () -> Unit,
     onNavigateToFAQ: () -> Unit
 ) {
+    val showComingSoon = com.faster.festival.utils.rememberComingSoonToast(
+        "This feature is coming soon"
+    )
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1023,14 +1058,20 @@ private fun ExploreCategoryGrid(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 rowTiles.forEach { tile ->
-                    val onClick = when (tile.key) {
-                        "festival_experience" -> onNavigateToMap
-                        "lineup_schedule" -> onNavigateToSchedule
-                        "faq" -> onNavigateToFAQ
+                    val label = resolveTileLabel(tile)
+                    val isLineupSchedule = tile.key == "lineup_schedule" ||
+                        label.equals("Lineup Schedule", ignoreCase = true)
+                    val isEventSafety = tile.key == "event_safety" ||
+                        tile.key == "festival_experience" ||
+                        label.equals("Event Safety", ignoreCase = true)
+                    val onClick: () -> Unit = when {
+                        isLineupSchedule -> showComingSoon
+                        isEventSafety -> showComingSoon
+                        tile.key == "faq" -> onNavigateToFAQ
                         else -> { {} }
                     }
                     ExploreTileCard(
-                        label = resolveTileLabel(tile),
+                        label = label,
                         description = resolveTileDescription(tile),
                         onClick = onClick,
                         modifier = Modifier.weight(1f)
@@ -1110,229 +1151,9 @@ private fun ExploreTileCard(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// 4. PROMOTIONS — premium horizontal carousel with blue gradient cards
-// ═══════════════════════════════════════════════════════════════════════════════
-
-@Composable
-private fun PromotionSection(
-    title: String,
-    promotions: List<PromotionItem>,
-    onPromotionClick: (String) -> Unit = {},
-    modifier: Modifier = Modifier
-) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        SectionTitle(
-            title = title,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
-
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            items(promotions, key = { it.id }) { promo ->
-                PromotionCard(
-                    promotion = promo,
-                    onClick = { onPromotionClick(promo.id) },
-                    modifier = Modifier.width(300.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun PromotionCard(
-    promotion: PromotionItem,
-    onClick: () -> Unit = {},
-    modifier: Modifier = Modifier
-) {
-    Card(
-        onClick = onClick,
-        modifier = modifier,
-        shape = RoundedCornerShape(20.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(Color(0xFF0088FF), Color(0xFF0055CC))
-                    )
-                )
-        ) {
-            Column(modifier = Modifier.padding(22.dp)) {
-                // Thumbnail image if available
-                promotion.thumbnailUrl?.let { url ->
-                    AsyncImage(
-                        model = url,
-                        contentDescription = promotion.title,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(100.dp)
-                            .clip(RoundedCornerShape(12.dp)),
-                        contentScale = ContentScale.Crop
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-                }
-
-                Text(
-                    text = promotion.offerText ?: promotion.title,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color.White,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                val desc = promotion.description ?: promotion.subtitle
-                if (!desc.isNullOrBlank()) {
-                    Text(
-                        text = desc,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.78f),
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
-                        lineHeight = 20.sp
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-
-                val vendor = promotion.vendorName
-                val location = promotion.locationText
-                val locationLine = listOfNotNull(vendor, location).joinToString(", ")
-                if (locationLine.isNotBlank()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.LocationOn,
-                            contentDescription = null,
-                            tint = LightBlue,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = locationLine,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.White.copy(alpha = 0.7f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// 5. SPONSORS — horizontal scroll of sponsor offer cards
-// ═══════════════════════════════════════════════════════════════════════════════
-
-@Composable
-private fun SponsorOfferSection(
-    title: String,
-    sponsors: List<SponsorOffer>,
-    onSponsorClick: (String) -> Unit = {},
-    modifier: Modifier = Modifier
-) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        SectionTitle(
-            title = title,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
-
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            items(sponsors, key = { it.id }) { sponsor ->
-                SponsorOfferCard(
-                    sponsor = sponsor,
-                    onClick = { onSponsorClick(sponsor.id) },
-                    modifier = Modifier.width(280.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SponsorOfferCard(
-    sponsor: SponsorOffer,
-    onClick: () -> Unit = {},
-    modifier: Modifier = Modifier
-) {
-    Card(
-        onClick = onClick,
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            if (sponsor.primaryMediaUrl != null || sponsor.sponsorLogoUrl != null) {
-                AsyncImage(
-                    model = sponsor.primaryMediaUrl ?: sponsor.sponsorLogoUrl,
-                    contentDescription = sponsor.sponsorName,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp),
-                    contentScale = ContentScale.Crop
-                )
-            }
-
-            Column(modifier = Modifier.padding(14.dp)) {
-                Text(
-                    text = sponsor.sponsorName,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                val offerLine = sponsor.offerText ?: sponsor.title
-                if (!offerLine.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = offerLine,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = CoralRed,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                sponsor.subtitle?.let { sub ->
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = sub,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                sponsor.ctaLabel?.let { cta ->
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = cta,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = CoralRed,
-                        modifier = Modifier.clickable { /* navigate to sponsor.ctaUrl */ }
-                    )
-                }
-            }
-        }
-    }
-}
+// Sponsors & Promotions sections are rendered via the reusable
+// com.faster.festival.ui.components.SponsorsPromotionsSection widget,
+// which is shared with MapScreen.
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 6. FAQ — expandable accordion items
@@ -1703,6 +1524,7 @@ private fun FooterSection() {
 @Composable
 fun FasterTopAppBar(
     logoUrl: String? = null,
+    isConnected: Boolean = false,
     onSearchClick: () -> Unit = {},
     onWristbandClick: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -1761,13 +1583,13 @@ fun FasterTopAppBar(
                 imageVector = Icons.Default.SignalCellularAlt,
                 contentDescription = "Connection status",
                 modifier = Modifier.size(12.dp),
-                tint = Color(0xFF4CAF50)
+                tint = if (isConnected) Color(0xFF4CAF50) else Color(0xFFBDBDBD)
             )
             Text(
-                text = "Connected",
+                text = if (isConnected) "Connected" else "Not Connected",
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 12.sp,
-                color = Color(0xFF222222)
+                color = if (isConnected) Color(0xFF222222) else Color(0xFF888888)
             )
         }
 
@@ -2261,7 +2083,7 @@ private fun HeroGridCardPreview() {
 @Composable
 private fun PromotionCardPreview() {
     MaterialTheme {
-        PromotionCard(
+        com.faster.festival.ui.components.PromotionCard(
             promotion = PromotionItem(
                 id = "1",
                 title = "Exclusive Promotion",
@@ -2278,7 +2100,7 @@ private fun PromotionCardPreview() {
 @Composable
 private fun SponsorOfferCardPreview() {
     MaterialTheme {
-        SponsorOfferCard(
+        com.faster.festival.ui.components.SponsorCard(
             sponsor = SponsorOffer(
                 id = "1",
                 sponsorName = "Culinary Commons",

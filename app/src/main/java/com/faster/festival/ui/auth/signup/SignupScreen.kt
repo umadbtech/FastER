@@ -169,6 +169,11 @@ fun SignupScreen(
                         )
                 )
 
+                // Live password requirements checklist
+                com.faster.festival.ui.components.PasswordRequirementsList(
+                    password = formState.password
+                )
+
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Confirm Password

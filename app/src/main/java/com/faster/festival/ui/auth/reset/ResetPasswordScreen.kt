@@ -94,6 +94,12 @@ fun ResetPasswordScreen(
                 )
                 form.passwordError?.let { Text(text = it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.align(Alignment.Start).padding(top = 4.dp)) }
 
+                // Live password requirements checklist
+                com.faster.festival.ui.components.PasswordRequirementsList(
+                    password = form.password,
+                    modifier = Modifier.align(Alignment.Start)
+                )
+
                 Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedTextField(

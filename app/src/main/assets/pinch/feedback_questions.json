@@ -1,0 +1,36 @@
+{
+  "questions": [
+    {
+      "id": "q1",
+      "text": "I feel that help arrived quickly.",
+      "order": 1,
+      "scale_min": 1,
+      "scale_max": 5,
+      "scale_min_label": "Strongly Disagree",
+      "scale_max_label": "Agree"
+    },
+    {
+      "id": "q2",
+      "text": "The responders easily found my location.",
+      "order": 2,
+      "scale_min": 1,
+      "scale_max": 5,
+      "scale_min_label": "Strongly Disagree",
+      "scale_max_label": "Agree"
+    },
+    {
+      "id": "q3",
+      "text": "Using FASTER made me feel secure.",
+      "order": 3,
+      "scale_min": 1,
+      "scale_max": 5,
+      "scale_min_label": "Strongly Disagree",
+      "scale_max_label": "Agree"
+    }
+  ],
+  "intro_title": "Thank You for Your Feedback",
+  "intro_message": "Your response will help us improve our emergency response technology.",
+  "intro_cta": "If you have a few more minutes, complete our quick 3 question survey.",
+  "completion_title": "Thank You for Completing Our Feedback Survey",
+  "completion_message": "Your responses will help us improve our emergency response technology."
+}

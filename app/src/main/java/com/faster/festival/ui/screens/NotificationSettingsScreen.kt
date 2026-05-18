@@ -1,5 +1,10 @@
 package com.faster.festival.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -16,55 +21,84 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import com.faster.festival.ui.viewmodel.NotificationSettingsViewModel
 
-// Light theme palette (consistent with other screens)
 private val NotifBg = Color(0xFFF7F7F7)
 private val NotifWhite = Color.White
 private val NotifTextDark = Color(0xFF222222)
 private val NotifTextMedium = Color(0xFF333333)
-private val NotifTextLight = Color(0xFF666666)
 private val NotifDivider = Color(0xFFE0E0E0)
 private val NotifGreen = Color(0xFF4CAF50)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationSettingsScreen(
+    viewModel: NotificationSettingsViewModel,
     onBackClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var pushNotifications by remember { mutableStateOf(false) }
-    var emergencyAlerts by remember { mutableStateOf(true) }
-    var festivalUpdates by remember { mutableStateOf(true) }
-    var exclusivePromotions by remember { mutableStateOf(true) }
-    var smsNotifications by remember { mutableStateOf(false) }
-    var emailNotifications by remember { mutableStateOf(false) }
+    val prefs by viewModel.preferences.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
 
+    // Android 13+ notification permission launcher
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            viewModel.setPushEnabled(true)
+        }
+    }
+
+    // Register FCM token with backend when push is enabled
+    LaunchedEffect(prefs.pushEnabled) {
+        if (prefs.pushEnabled) {
+            viewModel.registerDeviceToken()
+        }
+    }
+
+    // Surface errors via snackbar
+    LaunchedEffect(uiState.error) {
+        val msg = uiState.error
+        if (msg != null) {
+            snackbarHostState.showSnackbar(msg)
+            viewModel.clearError()
+        }
+    }
+
+    Box(modifier = modifier.fillMaxSize().background(NotifBg)) {
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .background(NotifBg)
     ) {
-        // Top App Bar
         TopAppBar(
             title = {
                 Text(
@@ -87,6 +121,14 @@ fun NotificationSettingsScreen(
             )
         )
 
+        // Loading bar shown during initial fetch or while saving
+        if (uiState.isLoading || uiState.isSaving) {
+            LinearProgressIndicator(
+                modifier = Modifier.fillMaxWidth(),
+                color = NotifGreen
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -95,42 +137,55 @@ fun NotificationSettingsScreen(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Push Notifications toggle
+            // Master push toggle
             NotificationToggleRow(
                 label = "Allow Push Notifications",
-                checked = pushNotifications,
-                onCheckedChange = { pushNotifications = it }
+                checked = prefs.pushEnabled,
+                onCheckedChange = { enabled ->
+                    if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        val hasPermission = ContextCompat.checkSelfPermission(
+                            context, Manifest.permission.POST_NOTIFICATIONS
+                        ) == PackageManager.PERMISSION_GRANTED
+                        if (hasPermission) {
+                            viewModel.setPushEnabled(true)
+                        } else {
+                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    } else {
+                        viewModel.setPushEnabled(enabled)
+                    }
+                }
             )
 
             HorizontalDivider(color = NotifDivider)
 
-            // Sub-options: visible only when push is enabled
+            // Sub-options visible when push is enabled
             AnimatedVisibility(
-                visible = pushNotifications,
+                visible = prefs.pushEnabled,
                 enter = expandVertically(),
                 exit = shrinkVertically()
             ) {
                 Column {
                     NotificationToggleRow(
                         label = "Emergency Alerts",
-                        checked = emergencyAlerts,
-                        onCheckedChange = { emergencyAlerts = it },
+                        checked = prefs.emergencyAlerts,
+                        onCheckedChange = { viewModel.setEmergencyAlerts(it) },
                         indent = true
                     )
                     HorizontalDivider(color = NotifDivider, modifier = Modifier.padding(start = 16.dp))
 
                     NotificationToggleRow(
                         label = "Festival Updates",
-                        checked = festivalUpdates,
-                        onCheckedChange = { festivalUpdates = it },
+                        checked = prefs.festivalUpdates,
+                        onCheckedChange = { viewModel.setFestivalUpdates(it) },
                         indent = true
                     )
                     HorizontalDivider(color = NotifDivider, modifier = Modifier.padding(start = 16.dp))
 
                     NotificationToggleRow(
                         label = "Exclusive Promotions",
-                        checked = exclusivePromotions,
-                        onCheckedChange = { exclusivePromotions = it },
+                        checked = prefs.exclusivePromotions,
+                        onCheckedChange = { viewModel.setExclusivePromotions(it) },
                         indent = true
                     )
                     HorizontalDivider(color = NotifDivider)
@@ -139,7 +194,6 @@ fun NotificationSettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Section header
             Text(
                 text = "Text & Email Notifications",
                 style = MaterialTheme.typography.titleSmall,
@@ -152,22 +206,28 @@ fun NotificationSettingsScreen(
 
             NotificationToggleRow(
                 label = "Allow SMS Notifications",
-                checked = smsNotifications,
-                onCheckedChange = { smsNotifications = it }
+                checked = prefs.smsNotifications,
+                onCheckedChange = { viewModel.setSmsNotifications(it) }
             )
 
             HorizontalDivider(color = NotifDivider)
 
             NotificationToggleRow(
                 label = "Allow Email Notifications",
-                checked = emailNotifications,
-                onCheckedChange = { emailNotifications = it }
+                checked = prefs.emailNotifications,
+                onCheckedChange = { viewModel.setEmailNotifications(it) }
             )
 
             HorizontalDivider(color = NotifDivider)
 
             Spacer(modifier = Modifier.height(32.dp))
         }
+    }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 }
 

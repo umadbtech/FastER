@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -93,13 +94,15 @@ fun LineupScreen(
         factory = LineupViewModel.Factory(
             contentLineupApi = NetworkModule.contentLineupApi,
             contentStageScheduleApi = NetworkModule.contentStageScheduleApi,
-            festivalSlug = festivalSlug
+            festivalSlug = festivalSlug,
+            networkMonitor = com.faster.festival.di.ConnectivityModule.networkMonitor
         )
     )
 
     val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
+        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
         topBar = { LineupTopBar() },
         containerColor = LineupBg
     ) { innerPadding ->
@@ -107,6 +110,11 @@ fun LineupScreen(
             when (val state = uiState) {
                 is LineupUiState.Loading -> {
                     LineupShimmerLoading()
+                }
+                is LineupUiState.Offline -> {
+                    com.faster.festival.ui.components.network.NoInternetScreen(
+                        onRetry = { viewModel.refresh() }
+                    )
                 }
                 is LineupUiState.Error -> {
                     LineupErrorState(
@@ -178,7 +186,7 @@ private fun LineupShimmerLoading() {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp)
+                    .fillMaxHeight()
                     .clip(RoundedCornerShape(16.dp))
                     .background(shimmerColor)
             )
@@ -326,7 +334,7 @@ private fun LineupSuccessContent(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 140.dp)
+        contentPadding = PaddingValues(bottom = 24.dp)
     ) {
         // Search bar
         item {

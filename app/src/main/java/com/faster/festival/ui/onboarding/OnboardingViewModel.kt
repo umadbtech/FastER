@@ -7,6 +7,7 @@ import android.content.Context
 import android.util.Log
 import com.faster.festival.data.local.EncryptedSessionManager
 import com.faster.festival.data.model.GenderIdentity
+import com.faster.festival.data.model.RaceEthnicity
 import com.faster.festival.data.model.SaveDemographicsRequest
 import com.faster.festival.data.model.SaveEmergencyContactRequest
 import com.faster.festival.data.model.SaveProfileNameRequest
@@ -35,6 +36,9 @@ data class OnboardingUiState(
     // Step 1: Profile Details
     val dateOfBirth: String = "",
     val genderIdentity: String = "",
+    val genderIdentityText: String = "",
+    val raceEthnicity: Set<String> = emptySet(),
+    val raceEthnicityText: String = "",
 
     // Step 2: Emergency Contact
     val emergencyName: String = "",
@@ -59,6 +63,8 @@ data class OnboardingUiState(
 
     // Validation errors
     val dateOfBirthError: String? = null,
+    val genderIdentityTextError: String? = null,
+    val raceEthnicityTextError: String? = null,
     val emergencyNameError: String? = null,
     val emergencyPhoneError: String? = null,
     val legalNameError: String? = null,
@@ -119,7 +125,43 @@ class OnboardingViewModel(
     }
 
     fun updateGenderIdentity(value: String) {
-        _uiState.update { it.copy(genderIdentity = value) }
+        // Clear self-describe text if user moves away from self_describe
+        val isSelfDescribe = GenderIdentity.toApiValue(value) == "self_describe"
+        _uiState.update {
+            it.copy(
+                genderIdentity = value,
+                genderIdentityText = if (isSelfDescribe) it.genderIdentityText else "",
+                genderIdentityTextError = null
+            )
+        }
+    }
+
+    fun updateGenderIdentityText(value: String) {
+        _uiState.update { it.copy(genderIdentityText = value, genderIdentityTextError = null) }
+    }
+
+    fun toggleRaceEthnicity(displayLabel: String) {
+        val current = _uiState.value.raceEthnicity.toMutableSet()
+        if (current.contains(displayLabel)) {
+            current.remove(displayLabel)
+        } else {
+            current.add(displayLabel)
+        }
+        // Clear self-describe text if it's no longer selected
+        val stillContainsSelf = current.any {
+            RaceEthnicity.toApiValue(it) == "self_describe"
+        }
+        _uiState.update {
+            it.copy(
+                raceEthnicity = current,
+                raceEthnicityText = if (stillContainsSelf) it.raceEthnicityText else "",
+                raceEthnicityTextError = null
+            )
+        }
+    }
+
+    fun updateRaceEthnicityText(value: String) {
+        _uiState.update { it.copy(raceEthnicityText = value, raceEthnicityTextError = null) }
     }
 
     fun updateEmergencyName(value: String) {
@@ -225,11 +267,26 @@ class OnboardingViewModel(
         }
     }
 
+    /**
+     * Steps shown in the progress indicator (5 steps).
+     * WRISTBAND is excluded because the wristband flow uses ProvisionFlowScreen
+     * which has its own internal multi-step indicator.
+     */
+    private val indicatorSteps: List<OnboardingStep> = steps.filter { it != OnboardingStep.WRISTBAND }
+
     val currentStepIndex: Int
-        get() = steps.indexOf(_uiState.value.currentStep)
+        get() {
+            val current = _uiState.value.currentStep
+            return if (current == OnboardingStep.WRISTBAND) {
+                // While in the wristband flow, keep the indicator at the last visible step
+                indicatorSteps.lastIndex
+            } else {
+                indicatorSteps.indexOf(current)
+            }
+        }
 
     val totalSteps: Int
-        get() = steps.size
+        get() = indicatorSteps.size
 
     val isFirstStep: Boolean
         get() = currentStepIndex == 0
@@ -251,14 +308,40 @@ class OnboardingViewModel(
             return
         }
 
+        // Map gender display label → API value
+        val genderApiValue = state.genderIdentity.ifBlank { null }
+            ?.let { GenderIdentity.toApiValue(it) }
+
+        // If self_describe selected, the text field is required
+        val isGenderSelfDescribe = genderApiValue == "self_describe"
+        if (isGenderSelfDescribe && state.genderIdentityText.isBlank()) {
+            _uiState.update {
+                it.copy(genderIdentityTextError = "Please describe your gender identity")
+            }
+            return
+        }
+
+        // Map race/ethnicity display labels → API values
+        val raceApiValues = state.raceEthnicity.mapNotNull {
+            RaceEthnicity.toApiValue(it)
+        }
+        val containsSelfDescribeRace = raceApiValues.contains("self_describe")
+        if (containsSelfDescribeRace && state.raceEthnicityText.isBlank()) {
+            _uiState.update {
+                it.copy(raceEthnicityTextError = "Please describe your race / ethnicity")
+            }
+            return
+        }
+
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
 
-            val genderApiValue = state.genderIdentity.ifBlank { null }
-                ?.let { GenderIdentity.toApiValue(it) ?: it.lowercase().replace(" ", "_") }
             val request = SaveDemographicsRequest(
                 dob = state.dateOfBirth,
-                gender_identity = genderApiValue
+                gender_identity = genderApiValue,
+                gender_identity_text = if (isGenderSelfDescribe) state.genderIdentityText.trim() else null,
+                race_ethnicity = raceApiValues.ifEmpty { null },
+                race_ethnicity_text = if (containsSelfDescribeRace) state.raceEthnicityText.trim() else null
             )
             val result = onboardingRepository.saveDemographics(request)
 

@@ -3,7 +3,11 @@ package com.faster.festival.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.faster.festival.data.network.NetworkMonitor
 import com.faster.festival.data.remote.ContentMapApi
+import com.faster.festival.ui.util.armAutoRetry
+import com.faster.festival.ui.util.isOfflineNow
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,12 +36,14 @@ sealed class MapUiState {
         val filteredVenues: List<MapVenue>,
         val selectedFilter: String
     ) : MapUiState()
+    object Offline : MapUiState()
     data class Error(val message: String) : MapUiState()
 }
 
 class NewMapViewModel(
     private val contentMapApi: ContentMapApi,
-    private val festivalSlug: String
+    private val festivalSlug: String,
+    private val networkMonitor: NetworkMonitor? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<MapUiState>(MapUiState.Loading)
@@ -45,13 +51,19 @@ class NewMapViewModel(
 
     private var mapInfo: MapInfo? = null
     private var currentFilter: String = "All"
+    private var autoRetryJob: Job? = null
 
     init {
         loadMap()
     }
 
-    private fun loadMap() {
+    fun loadMap() {
         viewModelScope.launch {
+            if (networkMonitor.isOfflineNow()) {
+                _uiState.value = MapUiState.Offline
+                autoRetryJob = networkMonitor?.armAutoRetry(viewModelScope, autoRetryJob) { loadMap() }
+                return@launch
+            }
             _uiState.value = MapUiState.Loading
             try {
                 val response = contentMapApi.getContentMap(festivalSlug)
@@ -84,12 +96,19 @@ class NewMapViewModel(
                     )
                 }
             } catch (e: Exception) {
-                _uiState.value = MapUiState.Error(
-                    e.localizedMessage ?: "Network error occurred"
-                )
+                if (networkMonitor.isOfflineNow(e)) {
+                    _uiState.value = MapUiState.Offline
+                    autoRetryJob = networkMonitor?.armAutoRetry(viewModelScope, autoRetryJob) { loadMap() }
+                } else {
+                    _uiState.value = MapUiState.Error(
+                        e.localizedMessage ?: "Network error occurred"
+                    )
+                }
             }
         }
     }
+
+    fun retry() = loadMap()
 
     fun onFilterChanged(filter: String) {
         currentFilter = filter
@@ -119,11 +138,12 @@ class NewMapViewModel(
 
     class Factory(
         private val contentMapApi: ContentMapApi,
-        private val festivalSlug: String
+        private val festivalSlug: String,
+        private val networkMonitor: NetworkMonitor? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return NewMapViewModel(contentMapApi, festivalSlug) as T
+            return NewMapViewModel(contentMapApi, festivalSlug, networkMonitor) as T
         }
     }
 }

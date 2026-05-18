@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1023478518776",
+    "project_id": "fast-er-b8bd8",
+    "storage_bucket": "fast-er-b8bd8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1023478518776:android:9491714342607279067c0d",
+        "android_client_info": {
+          "package_name": "com.faster.festival"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAtgDIr9hSoWwoRRpEn5-u2OxmKvKili78"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

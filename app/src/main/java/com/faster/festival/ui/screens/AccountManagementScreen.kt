@@ -118,7 +118,11 @@ fun AccountManagementScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Switch(checked = false, onCheckedChange = {})
+                        val showComingSoon = com.faster.festival.utils.rememberComingSoonToast()
+                        Switch(
+                            checked = false,
+                            onCheckedChange = { showComingSoon() }
+                        )
                     }
                 }
             }

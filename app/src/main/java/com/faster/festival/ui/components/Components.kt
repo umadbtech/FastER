@@ -451,7 +451,7 @@ fun TicketsFabPill(onClick: () -> Unit, modifier: Modifier = Modifier, isVisible
 @Preview
 @Composable
 fun PreviewFestivalHeroHeader() {
-        FastERTheme {
+        FASTERTheme {
                 FestivalHeroHeader(
                         festivalName = "FloydFest 26",
                         bannerUrl = null,
@@ -465,7 +465,7 @@ fun PreviewFestivalHeroHeader() {
 @Preview
 @Composable
 fun PreviewQuickActionCircle() {
-        FastERTheme {
+        FASTERTheme {
                 QuickActionCircle(label = "Schedule", icon = Icons.Default.DateRange, onClick = {})
         }
 }

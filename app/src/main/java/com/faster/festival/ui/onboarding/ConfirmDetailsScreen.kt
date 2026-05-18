@@ -117,25 +117,11 @@ fun ConfirmDetailsScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // ---- Phone Number (editable) ----
-        OutlinedTextField(
+        com.faster.festival.ui.components.PhoneNumberField(
             value = phoneNumber,
             onValueChange = onPhoneNumberChange,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Phone Number") },
-            placeholder = { Text("111-111-1111") },
-            singleLine = true,
-            isError = phoneNumberError != null,
-            supportingText = if (phoneNumberError != null) {
-                { Text(text = phoneNumberError, color = MaterialTheme.colorScheme.error) }
-            } else null,
-            shape = RoundedCornerShape(12.dp),
-            keyboardOptions = KeyboardOptions(
-                imeAction = ImeAction.Done,
-                keyboardType = KeyboardType.Phone
-            ),
-            keyboardActions = KeyboardActions(
-                onDone = { focusManager.clearFocus() }
-            )
+            errorMessage = phoneNumberError,
+            showLeadingIcon = false
         )
 
         Spacer(modifier = Modifier.height(16.dp))

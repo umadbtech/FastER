@@ -41,7 +41,7 @@ private val LightColors = lightColorScheme(
 )
 
 @Composable
-fun FastERTheme(
+fun FASTERTheme(
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {

@@ -18,8 +18,10 @@ import com.faster.festival.data.remote.FestivalExperienceApi
 import com.faster.festival.data.remote.FestivalHeaderApi
 import com.faster.festival.data.remote.OfflineBundleApi
 import com.faster.festival.data.remote.FriendshipApiService
+import com.faster.festival.data.remote.NotificationApi
 import com.faster.festival.data.remote.OnboardingApiService
 import com.faster.festival.data.remote.ProfileApiService
+import com.faster.festival.data.remote.Project1ApiService
 import com.faster.festival.data.repository.FriendshipRepository
 import com.faster.festival.data.repository.ProfileRepository
 import com.faster.festival.data.local.EncryptedSessionManager
@@ -160,6 +162,19 @@ object NetworkModule {
     val profileApiService: ProfileApiService by lazy { retrofit.create(ProfileApiService::class.java) }
 
     val profileRepository: ProfileRepository by lazy { ProfileRepository(profileApiService) }
+
+    // ========== Notification Device API ==========
+
+    val notificationApi: NotificationApi by lazy { retrofit.create(NotificationApi::class.java) }
+
+    /**
+     * Project 1 backend surface for wristband CRUD + telemetry batch + SOS
+     * history (`Wristband-Backend-API.md` §5). Reuses the existing Project 1
+     * Retrofit instance — no new OkHttp client, no new interceptor chain.
+     */
+    val project1ApiService: Project1ApiService by lazy {
+        retrofit.create(Project1ApiService::class.java)
+    }
 
     // ========== Content API Services ==========
 

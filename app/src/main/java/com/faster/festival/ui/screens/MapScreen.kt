@@ -1,11 +1,16 @@
 package com.faster.festival.ui.screens
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +27,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Fastfood
@@ -53,13 +59,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.faster.festival.AppConfig
+import com.faster.festival.R
 import com.faster.festival.di.NetworkModule
+import com.faster.festival.ui.components.SponsorsPromotionsSection
+import com.faster.festival.ui.viewmodel.HomeUiState
+import com.faster.festival.ui.viewmodel.HomeViewModel
 import com.faster.festival.ui.viewmodel.MapUiState
 import com.faster.festival.ui.viewmodel.MapVenue
 import com.faster.festival.ui.viewmodel.NewMapViewModel
@@ -67,18 +79,34 @@ import com.faster.festival.ui.viewmodel.NewMapViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen(
-    festivalSlug: String = AppConfig.DEFAULT_FESTIVAL_SLUG
+    festivalSlug: String = AppConfig.DEFAULT_FESTIVAL_SLUG,
+    onSponsorClick: (String) -> Unit = {},
+    onPromotionClick: (String) -> Unit = {},
+    onCtaClick: (url: String, title: String) -> Unit = { _, _ -> }
 ) {
     val viewModel: NewMapViewModel = viewModel(
         factory = NewMapViewModel.Factory(
             contentMapApi = NetworkModule.contentMapApi,
-            festivalSlug = festivalSlug
+            festivalSlug = festivalSlug,
+            networkMonitor = com.faster.festival.di.ConnectivityModule.networkMonitor
+        )
+    )
+
+    // Shares the Home bundle API so sponsors/promotions stay in sync with HomeScreen.
+    val homeViewModel: HomeViewModel = viewModel(
+        key = "MapScreenHomeBundle",
+        factory = HomeViewModel.Factory(
+            appHomeApi = NetworkModule.appHomeApi,
+            festivalSlug = festivalSlug,
+            networkMonitor = com.faster.festival.di.ConnectivityModule.networkMonitor
         )
     )
 
     val uiState by viewModel.uiState.collectAsState()
+    val homeUiState by homeViewModel.uiState.collectAsState()
 
     Scaffold(
+        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = {
@@ -99,6 +127,11 @@ fun MapScreen(
                 is MapUiState.Loading -> {
                     MapShimmerLoading()
                 }
+                is MapUiState.Offline -> {
+                    com.faster.festival.ui.components.network.NoInternetScreen(
+                        onRetry = { viewModel.refresh() }
+                    )
+                }
                 is MapUiState.Error -> {
                     MapErrorState(
                         message = state.message,
@@ -108,7 +141,11 @@ fun MapScreen(
                 is MapUiState.Success -> {
                     MapSuccessContent(
                         state = state,
-                        onFilterChanged = { viewModel.onFilterChanged(it) }
+                        homeBundleState = homeUiState,
+                        onFilterChanged = { viewModel.onFilterChanged(it) },
+                        onSponsorClick = onSponsorClick,
+                        onPromotionClick = onPromotionClick,
+                        onCtaClick = onCtaClick
                     )
                 }
             }
@@ -210,13 +247,23 @@ private fun MapErrorState(message: String, onRetry: () -> Unit) {
 @Composable
 private fun MapSuccessContent(
     state: MapUiState.Success,
-    onFilterChanged: (String) -> Unit
+    homeBundleState: HomeUiState,
+    onFilterChanged: (String) -> Unit,
+    onSponsorClick: (String) -> Unit,
+    onPromotionClick: (String) -> Unit,
+    onCtaClick: (url: String, title: String) -> Unit
 ) {
     val filters = listOf("All", "Stage", "Area", "Service")
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)
     ) {
+        // Top map header — switches drawable based on selected filter
+        item {
+            MapHeaderImage(selectedFilter = state.selectedFilter)
+        }
+
         // Filter chips
         item {
             Row(
@@ -296,7 +343,19 @@ private fun MapSuccessContent(
             }
         }
 
-        item { Spacer(modifier = Modifier.height(100.dp)) }
+        // Bottom section: reusable Sponsors & Promotions carousels shared with Home.
+        if (homeBundleState is HomeUiState.Success) {
+            item { Spacer(modifier = Modifier.height(24.dp)) }
+            item {
+                SponsorsPromotionsSection(
+                    bundle = homeBundleState.data,
+                    onSponsorClick = onSponsorClick,
+                    onPromotionClick = onPromotionClick,
+                    onCtaClick = onCtaClick
+                )
+            }
+            item { Spacer(modifier = Modifier.height(16.dp)) }
+        }
     }
 }
 
@@ -323,13 +382,17 @@ private fun VenueCard(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                    .background(
+                        androidx.compose.ui.graphics.Brush.linearGradient(
+                            colors = listOf(Color(0xFFE53935), Color(0xFFB71C1C))
+                        )
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = getFilterIcon(venue.type),
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = Color.White,
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -381,5 +444,44 @@ private fun getFilterIcon(type: String): ImageVector {
         "service" -> Icons.Default.Info
         "area" -> Icons.Default.Store
         else -> Icons.Default.LocationOn
+    }
+}
+
+/**
+ * Maps the selected filter chip to its corresponding map drawable.
+ */
+private fun mapDrawableForFilter(filter: String): Int {
+    return when (filter.lowercase()) {
+        "stage" -> R.drawable.main_stage_map
+        "area" -> R.drawable.service_area_map
+        "service" -> R.drawable.box_office_map
+        else -> R.drawable.all_map
+    }
+}
+
+/**
+ * Top header image that animates between map drawables when the filter changes.
+ */
+@Composable
+private fun MapHeaderImage(selectedFilter: String) {
+    val drawableRes = mapDrawableForFilter(selectedFilter)
+
+    AnimatedContent(
+        targetState = drawableRes,
+        transitionSpec = {
+            fadeIn(animationSpec = tween(300)) togetherWith
+                    fadeOut(animationSpec = tween(300))
+        },
+        label = "map_header_swap"
+    ) { resId ->
+        Image(
+            painter = painterResource(id = resId),
+            contentDescription = "Festival map for $selectedFilter",
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 10f)
+                .clip(RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp)),
+            contentScale = ContentScale.Crop
+        )
     }
 }

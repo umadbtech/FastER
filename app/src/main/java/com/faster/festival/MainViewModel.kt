@@ -41,6 +41,13 @@ class MainViewModel(
     private val _startDestination = MutableStateFlow<String?>(null)
     val startDestination: StateFlow<String?> = _startDestination.asStateFlow()
 
+    private val _landingDismissed = MutableStateFlow(false)
+    val landingDismissed: StateFlow<Boolean> = _landingDismissed.asStateFlow()
+
+    fun dismissLanding() {
+        _landingDismissed.value = true
+    }
+
     init {
         checkSessionAndRefreshIfNeeded()
     }
