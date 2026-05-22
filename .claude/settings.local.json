@@ -22,7 +22,8 @@
       "Bash(grep -rn \"onClick.*{\\\\s*}\" /Users/umasenthil/FastER/app/src/main/java/com/faster/festival/ui/screens/*.kt)",
       "Bash(grep -rn \"\\\\.clickable.*{.*}\" /Users/umasenthil/FastER/app/src/main/java/com/faster/festival/ui/screens/*.kt)",
       "Bash(grep -rn \"Button.*onClick = {}\" /Users/umasenthil/FastER/app/src/main/java/com/faster/festival/ui/screens/*.kt)",
-      "Bash(grep -rn \"Card.*clickable\\\\|Row.*clickable\" /Users/umasenthil/FastER/app/src/main/java/com/faster/festival/ui/screens/*.kt)"
+      "Bash(grep -rn \"Card.*clickable\\\\|Row.*clickable\" /Users/umasenthil/FastER/app/src/main/java/com/faster/festival/ui/screens/*.kt)",
+      "Bash(./gradlew :app:compileDebugKotlin :app:processDebugManifest)"
     ]
   }
 }

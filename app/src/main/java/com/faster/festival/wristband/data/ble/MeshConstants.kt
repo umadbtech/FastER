@@ -49,4 +49,15 @@ object MeshConstants {
     // BT SIG Mesh GATT service UUIDs (used by the proxy/provisioning adapter).
     const val MESH_PROVISIONING_SERVICE = "00001827-0000-1000-8000-00805F9B34FB"
     const val MESH_PROXY_SERVICE = "00001828-0000-1000-8000-00805F9B34FB"
+
+    /**
+     * Canonical wristband id derived from the BLE Mesh unicast address assigned
+     * during real provisioning. Single source of truth — every paired-wristband
+     * row and every backend `wristband_id` must come from here, never a
+     * hardcoded or random value.
+     *
+     * Example: unicast `3` → `"FSTR-0003"`.
+     */
+    fun generateWristbandId(unicastAddress: Int): String =
+        "FSTR-%04X".format(unicastAddress)
 }

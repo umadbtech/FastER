@@ -1,6 +1,7 @@
 package com.faster.festival.wristband.di
 
 import android.content.Context
+import com.faster.festival.BuildConfig
 import com.faster.festival.di.DatabaseModule
 import com.faster.festival.wristband.data.ble.BleMeshGatt
 import com.faster.festival.wristband.data.ble.FakeMeshManager
@@ -26,18 +27,28 @@ import com.faster.festival.wristband.domain.usecase.UnpairWristbandUseCase
  * Manual-DI module for the wristband stack. Mirrors the existing
  * [DatabaseModule] / `NetworkModule` / `PinchModule` pattern.
  *
- * Phase A defaults to [FakeMeshManager] so the app is fully demoable
- * without the Nordic dependency. To enable real BLE Mesh later:
- *  1. Add `no.nordicsemi.android:mesh` + `:ble` to `build.gradle.kts`.
- *  2. Drop in `NordicMeshManager` + `BleMeshGatt` (per the spec doc).
- *  3. Set `useFakeMesh = false` and the lazy [meshManager] picks the real impl.
+ * Production operates on REAL BLE Mesh only ([NordicMeshManager]).
+ * [FakeMeshManager] is retained strictly as engineering / preview tooling and
+ * can ONLY be selected in a debug build (see [meshManager] guard) — release
+ * builds are hard-wired to the real implementation regardless of any flag.
  */
 object WristbandModule {
 
     private var appContext: Context? = null
 
-    /** Single mock toggle. Default `true` so debug builds work out of the box. */
-    @Volatile var useFakeMesh: Boolean = true
+    /**
+     * Engineering-only override to run the simulated mesh stack
+     * ([FakeMeshManager]) for previews / instrumented tests.
+     *
+     * Default `false` — the app pairs against real hardware out of the box.
+     * Setting this `true` has NO effect in a release build: the [meshManager]
+     * getter ignores it unless [BuildConfig.DEBUG] is set, so production users
+     * can never reach the fake pairing flow.
+     *
+     * To use in a debug build, set this BEFORE the first [meshManager] access
+     * (the value is read once, lazily).
+     */
+    @Volatile var useFakeMesh: Boolean = false
 
     fun initialize(context: Context) {
         appContext = context.applicationContext
@@ -52,7 +63,11 @@ object WristbandModule {
     private val store: MeshNetworkStore by lazy { MeshNetworkStore(ctx) }
 
     val meshManager: WristbandMeshManager by lazy {
-        if (useFakeMesh) {
+        // Hard guard: the fake manager is reachable ONLY in a debug build AND
+        // only when an engineer explicitly opted in. Release builds always get
+        // the real Nordic-backed implementation, no matter what useFakeMesh is.
+        if (BuildConfig.DEBUG && useFakeMesh) {
+            logger.info("WristbandModule: DEBUG fake mesh enabled (engineering override)")
             FakeMeshManager()
         } else {
             // Real Nordic nRF Mesh-backed implementation. Requires Bluetooth
