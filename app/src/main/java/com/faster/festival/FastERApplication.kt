@@ -61,15 +61,14 @@ class FASTERApplication : Application() {
         }.onFailure { Log.e(TAG, "ConnectivityModule init failed", it) }
 
         // Wristband / BLE Mesh module.
-        // • Debug builds default to FakeMeshManager so previews / instrumented
-        //   tests work without the wristband.
-        // • Release builds use the real Nordic-backed NordicMeshManager.
-        // Override at runtime if you need to force real BLE in debug — call
-        //   WristbandModule.useFakeMesh = false BEFORE the first access.
+        // REAL BLE Mesh in every build (debug AND release). The simulated
+        // FakeMeshManager is engineering-only: an engineer must set
+        // WristbandModule.useFakeMesh = true in a DEBUG build BEFORE first
+        // access, and even then the release guard in WristbandModule.meshManager
+        // makes it unreachable in production. We deliberately do NOT auto-enable
+        // fake pairing here so debug builds exercise the real provisioning path.
         runCatching {
             com.faster.festival.wristband.di.WristbandModule.initialize(applicationContext)
-            com.faster.festival.wristband.di.WristbandModule.useFakeMesh =
-                com.faster.festival.BuildConfig.DEBUG
         }.onFailure { Log.e(TAG, "WristbandModule init failed", it) }
 
         // Telemetry pipeline — BLE 0x10 → Room queue → WorkManager → Project 1.
