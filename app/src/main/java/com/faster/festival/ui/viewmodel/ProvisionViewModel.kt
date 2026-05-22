@@ -25,7 +25,6 @@ data class ProvisionUiState(
     val currentStep: ProvisionStep = ProvisionStep.Splash,
     val isLoading: Boolean = false,
     val locationPermissionGranted: Boolean = false,
-    val wristbandId: String = "",
     val error: String? = null
 )
 
@@ -49,16 +48,21 @@ class ProvisionViewModel(
 
     fun activatePairingMode() {
         _uiState.value = _uiState.value.copy(currentStep = ProvisionStep.Connecting)
-        simulateWristbandScan()
+        advanceWalkthroughToDetected()
     }
 
-    private fun simulateWristbandScan() {
+    /**
+     * Marketing-walkthrough pacing only — NOT a BLE scan. This screen is the
+     * educational intro that hands off to the REAL provisioning flow
+     * (Routes.WRISTBAND_PERMISSIONS) on completion. No wristband id is
+     * assigned here; the genuine FSTR id is derived from the assigned mesh
+     * unicast address by [com.faster.festival.wristband.data.ble.MeshConstants.generateWristbandId]
+     * only after real provisioning succeeds.
+     */
+    private fun advanceWalkthroughToDetected() {
         viewModelScope.launch {
             delay(2500)
-            _uiState.value = _uiState.value.copy(
-                currentStep = ProvisionStep.Detected,
-                wristbandId = "FSTR-2026-A7B3"
-            )
+            _uiState.value = _uiState.value.copy(currentStep = ProvisionStep.Detected)
         }
     }
 

@@ -57,7 +57,8 @@ class WristbandMeshRepositoryImpl(
                 store.saveUnicast(unicast)
                 store.touchLastSeen()
                 pairedRepo.savePairedWristband(
-                    wristbandId = "FSTR-%04X".format(unicast),
+                    wristbandId = com.faster.festival.wristband.data.ble.MeshConstants
+                        .generateWristbandId(unicast),
                     deviceName = "FASTER Wristband",
                     firmwareVersion = "—",
                     batteryLevel = 0,

@@ -129,9 +129,10 @@ class SosDispatchRetryWorker(
         val paired = pairedRepo.getActiveOnce()
         return when (session.source) {
             SosSource.Wristband -> com.faster.festival.data.sos.remote.WristbandInfo(
-                wristbandId = paired?.wristbandId ?: session.wristbandEvent?.let { wb ->
-                    "FSTR-%04X".format(0) // placeholder; we never expect paired to be null mid-emergency
-                },
+                // Use the real paired wristband id; if the row is somehow gone
+                // mid-emergency, send null rather than a fabricated FSTR id —
+                // dispatch can detect "unknown" but must never see a fake id.
+                wristbandId = paired?.wristbandId,
                 connectionState = if (paired != null) "connected" else "unknown",
                 batteryPercent = session.wristbandEvent?.batteryPct ?: paired?.batteryLevel
             )
