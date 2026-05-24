@@ -5,8 +5,10 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
+import android.location.LocationManager
 import androidx.core.content.ContextCompat
-import com.faster.festival.BuildConfig
+import androidx.core.location.LocationManagerCompat
+import com.faster.festival.core.location.LocationValidation
 import com.google.android.gms.location.CurrentLocationRequest
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
@@ -19,43 +21,38 @@ import kotlin.coroutines.resume
 /**
  * Sole owner of "what coordinate goes into the SOS payload."
  *
- * Two modes, picked at build time via `BuildConfig`:
+ * **Real GPS only.** There is no mock / test / hardcoded coordinate path — in
+ * any build, debug or release. The fix comes from Google Play Services
+ * `FusedLocationProviderClient` and is run through [LocationValidation] before
+ * it is trusted, so a fake, zero, NaN, out-of-range or stale reading can never
+ * reach the SOS pipeline.
  *
- *  • **Mock** — `BuildConfig.DEBUG || BuildConfig.USE_TEST_LOCATION`. Returns
- *    the fixed staging Medical Point coordinate from
- *    `Pinch_SOS_Frontend_Implementation_Guide.md` §"Test Locations". Used by
- *    QA / emulator / demo APKs where the device has no usable GPS.
+ * Flow:
+ *  1. Bail if location permission is missing or location services are off.
+ *  2. Request a high-accuracy current fix (bounded by `timeoutMs`).
+ *  3. If that fix is valid, use it.
+ *  4. Otherwise fall back to last-known — but only if it is *recent and valid*
+ *     (see [LocationValidation.MAX_LAST_KNOWN_AGE_MS]).
+ *  5. If nothing valid is available, return `null`. The caller decides what to
+ *     do — the SOS pipeline sends an explicit (0,0) "GPS unavailable" sentinel
+ *     so an emergency still dispatches, never a fabricated coordinate.
  *
- *  • **Real GPS** — production. Uses Google Play Services
- *    `FusedLocationProviderClient` to get a high-accuracy fix, falls back to
- *    last-known if the current-location request times out. Returns `null`
- *    when there's no fix at all — the caller decides what to do
- *    (the SOS pipeline currently sends `0.0, 0.0` as a "GPS unavailable"
- *    sentinel that dispatch can detect).
- *
- * Test coordinates are intentionally NOT visible to `SosRepositoryImpl` or
- * any other production request builder — keeping the mock isolated behind a
- * single build-config gate satisfies the spec's "Never hardcode test
- * coordinates directly inside production SOS request builders" rule.
+ * To exercise this on an emulator, set the device's emulated GPS via the
+ * extended controls — that produces a *real* OS fix through FLP, which is the
+ * correct way to test rather than injecting coordinates inside the app.
  */
 class SosLocationProvider(
-    private val context: Context,
-    /**
-     * Override seam for tests. Production code uses the build-config-driven
-     * default which is `true` only when explicitly enabled via `.env`.
-     */
-    private val useMockLocation: Boolean = BuildConfig.DEBUG || BuildConfig.USE_TEST_LOCATION
+    private val context: Context
 ) {
 
     @SuppressLint("MissingPermission")
     suspend fun currentFix(timeoutMs: Long = 5_000L): Location? {
-        if (useMockLocation) {
-            Timber.tag(TAG).d("USE_TEST_LOCATION on — returning staging Medical Point fix")
-            return STAGING_LOCATION
-        }
-
         if (!hasLocationPermission()) {
             Timber.tag(TAG).w("Location permission not granted — no fix available")
+            return null
+        }
+        if (!isLocationEnabled()) {
+            Timber.tag(TAG).w("Location services disabled — no fix available")
             return null
         }
 
@@ -71,13 +68,28 @@ class SosLocationProvider(
                     .addOnFailureListener { cont.resume(null) }
             }
         }
-        if (current != null) return current
+        if (LocationValidation.isUsable(current)) {
+            Timber.tag(TAG).d(
+                "Real high-accuracy fix acquired (acc=%sm)",
+                current?.accuracy?.let { "%.0f".format(it) } ?: "?"
+            )
+            return current
+        }
+        Timber.tag(TAG).w("Current fix unusable (missing/invalid/stale) — trying recent last-known")
 
-        // Fallback — last known. Pre-existing fix is still better than nothing.
-        return suspendCancellableCoroutine { cont ->
+        // Fallback — last known, but only if recent and valid. A pre-existing
+        // real fix beats nothing; a stale or junk one does not.
+        val last: Location? = suspendCancellableCoroutine { cont ->
             client.lastLocation
                 .addOnSuccessListener { cont.resume(it) }
                 .addOnFailureListener { cont.resume(null) }
+        }
+        return if (LocationValidation.isUsable(last, LocationValidation.MAX_LAST_KNOWN_AGE_MS)) {
+            Timber.tag(TAG).i("Using recent validated last-known fix")
+            last
+        } else {
+            Timber.tag(TAG).w("No usable GPS fix — caller will signal GPS-unavailable")
+            null
         }
     }
 
@@ -91,17 +103,13 @@ class SosLocationProvider(
         return fine || coarse
     }
 
+    private fun isLocationEnabled(): Boolean {
+        val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+            ?: return false
+        return LocationManagerCompat.isLocationEnabled(lm)
+    }
+
     private companion object {
         const val TAG = "SosLocationProvider"
-
-        /**
-         * Staging Medical Point — `Pinch_SOS_Frontend_Implementation_Guide.md`
-         * §"Test Locations". Only returned when [useMockLocation] is on.
-         */
-        val STAGING_LOCATION: Location = Location("test_mock").apply {
-            latitude = 33.198741
-            longitude = -97.137414
-            accuracy = 8f
-        }
     }
 }

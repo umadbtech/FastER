@@ -10,7 +10,7 @@ import com.faster.festival.wristband.domain.model.Telemetry
  * Legacy adapter over the canonical [VendorMessageParser] / [VendorMessageEncoder].
  *
  * Pre-existing call sites (`NordicMeshManager.onMeshMessageReceived`,
- * `WristbandMeshRepositoryImpl`, `FakeMeshManager`) consume the
+ * `WristbandMeshRepositoryImpl`) consume the
  * [Inbound] hierarchy and the `encodeSosXxx` helpers exposed here.
  * Rather than rewrite every consumer, this object stays in place but
  * delegates every byte operation to the canonical parser/encoder so

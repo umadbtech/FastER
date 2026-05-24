@@ -73,8 +73,9 @@ fun MapBackground(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    com.faster.festival.ui.pinch.map.FakeEmergencyMapBackground(
-        mapState = com.faster.festival.ui.pinch.map.FakeMapState.DEFAULT,
+    // No location context on these screens, so [LiveMapBackground] renders its
+    // neutral surface (no GPS fix) rather than a simulated map.
+    com.faster.festival.ui.pinch.map.LiveMapBackground(
         modifier = modifier,
         content = content
     )

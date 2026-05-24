@@ -74,12 +74,11 @@ import com.faster.festival.ui.screens.SupportTicketScreen
 import com.faster.festival.ui.screens.TermsScreen
 import com.faster.festival.ui.screens.TicketsScreen
 import com.faster.festival.ui.screens.InAppWebViewScreen
-import com.faster.festival.ui.screens.PinchHelpScreen
+import com.faster.festival.ui.pinch.PinchSosFlowScreen
 import com.faster.festival.ui.screens.ProvisionFlowScreen
-import com.faster.festival.ui.viewmodel.PinchHelpViewModel
+import com.faster.festival.ui.pinch.PinchSosViewModel
 import com.faster.festival.ui.viewmodel.ProvisionViewModel
 import com.faster.festival.di.NotificationModule
-import com.faster.festival.di.PinchModule
 import com.faster.festival.ui.viewmodel.NotificationSettingsViewModel
 import com.faster.festival.ui.screens.WebPlaceholderScreen
 import com.faster.festival.ui.viewmodel.EnhancedProfileViewModel
@@ -462,19 +461,17 @@ fun NavGraph(
         }
 
         composable(Routes.PINCH_HELP) {
-            val pinchViewModel: PinchHelpViewModel = viewModel(
-                factory = PinchHelpViewModel.Factory(
-                    emergencyRepository = PinchModule.emergencyRepository,
-                    feedbackRepository = PinchModule.feedbackRepository,
-                    sosHistoryRepository = com.faster.festival.di.DatabaseModule.sosHistoryRepository,
-                    // Wire the existing "Get Help Now" button into the unified
-                    // signed Pinch SOS pipeline. Swipe-to-confirm now fires a
-                    // real `pinch-ingest` while the legacy form-flow keeps
-                    // running on top for dispatch enrichment.
-                    emergencyManager = com.faster.festival.di.SosModule.emergencyManager
+            // New Pinch SOS flow — Swipe for Help → live Help-Is-On-The-Way
+            // tracking, driven entirely off the signed Project-2 SOS pipeline
+            // ([SosModule.emergencyManager]) and rendered from `ui_status`.
+            val pinchViewModel: PinchSosViewModel = viewModel(
+                factory = PinchSosViewModel.Factory(
+                    manager = com.faster.festival.di.SosModule.emergencyManager,
+                    networkMonitor = com.faster.festival.di.ConnectivityModule.networkMonitor,
+                    sosHistoryRepository = com.faster.festival.di.DatabaseModule.sosHistoryRepository
                 )
             )
-            PinchHelpScreen(
+            PinchSosFlowScreen(
                 viewModel = pinchViewModel,
                 onBackClick = { navController.popBackStack() }
             )
@@ -577,7 +574,8 @@ fun NavGraph(
         composable(Routes.SOS_HISTORY) {
             val sosViewModel: com.faster.festival.ui.viewmodel.SosHistoryViewModel = viewModel(
                 factory = com.faster.festival.ui.viewmodel.SosHistoryViewModel.Factory(
-                    repository = com.faster.festival.di.DatabaseModule.sosHistoryRepository
+                    repository = com.faster.festival.di.DatabaseModule.sosHistoryRepository,
+                    fetchHistory = com.faster.festival.di.SosModule.fetchSosHistory
                 )
             )
             com.faster.festival.ui.screens.SosHistoryListScreen(

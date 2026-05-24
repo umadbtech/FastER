@@ -94,7 +94,12 @@ class TriggerSOSUseCase(private val repo: SosRepository) {
  */
 class PollSOSStatusUseCase(private val repo: SosRepository) {
 
-    operator fun invoke(clientTriggerId: String): Flow<SosAlert> = flow {
+    /**
+     * Polls by [alertId] when known (preferred — the new contract keys status
+     * on the alert id), falling back to [clientTriggerId] before the alert id
+     * is available (e.g. a re-dispatch still pending).
+     */
+    operator fun invoke(alertId: String?, clientTriggerId: String?): Flow<SosAlert> = flow {
         val started = System.currentTimeMillis()
         var dispatchReached = false
         var serverCadenceMs: Long? = null
@@ -103,17 +108,21 @@ class PollSOSStatusUseCase(private val repo: SosRepository) {
         var consecutiveTransientFailures = 0
 
         while (true) {
-            val res = repo.pollStatus(clientTriggerId)
+            val res = repo.pollStatus(alertId, clientTriggerId)
             res.onSuccess { alert ->
                 consecutiveAuthFailures = 0
                 consecutiveTransientFailures = 0
                 if (alert != null) {
                     emit(alert)
                     val status = SosUserStatus.fromRaw(alert.userStatus)
+                    val uiStatus = PinchUiStatus.fromRaw(alert.uiStatus)
 
-                    // Terminal status (client-side enum) — stop immediately.
-                    if (status.isTerminal) {
-                        Timber.tag(TAG).i("Polling terminal — %s", alert.userStatus)
+                    // Terminal — ui_status is authoritative (COMPLETED / CANCELLED
+                    // / REJECTED), with user_status as a back-compat fallback.
+                    if (uiStatus.isTerminal || status.isTerminal) {
+                        Timber.tag(TAG).i(
+                            "Polling terminal — ui=%s user=%s", alert.uiStatus, alert.userStatus
+                        )
                         return@flow
                     }
 
@@ -198,4 +207,57 @@ class PollSOSStatusUseCase(private val repo: SosRepository) {
         /** Consecutive transport / 5xx errors before we give up. */
         const val MAX_TRANSIENT_FAILURES = 6
     }
+}
+
+/**
+ * Submits one signed partial-details update (`pinch-alert-details`). The caller
+ * generates the [clientUpdateId] once per user action and reuses it on retry so
+ * the backend dedups.
+ */
+class SubmitPinchDetailsUseCase(private val repo: SosRepository) {
+    suspend operator fun invoke(
+        alertId: String,
+        detail: PinchAlertDetail,
+        clientUpdateId: String
+    ): Result<Unit> = repo.sendAlertDetails(alertId, detail, clientUpdateId)
+}
+
+/**
+ * Requests cancellation (`pinch-cancel`, unsigned). Returns the backend
+ * `ui_status` (typically CANCEL_REQUESTED). Cancel success is NOT assumed — the
+ * caller keeps polling and renders the authoritative ui_status.
+ */
+class CancelPinchSOSUseCase(private val repo: SosRepository) {
+    suspend operator fun invoke(
+        alertId: String,
+        clientRequestId: String,
+        reason: String
+    ): Result<PinchUiStatus> = repo.cancelSos(alertId, clientRequestId, reason)
+}
+
+/**
+ * One signed location push (`pinch-update-location`). Used for the on-demand
+ * "My current location" action; the periodic background cadence is driven by
+ * [com.faster.festival.core.sos.ActiveSosForegroundService].
+ */
+class SendLocationUpdateUseCase(private val repo: SosRepository) {
+    suspend operator fun invoke(
+        clientTriggerId: String,
+        trackingSessionId: String,
+        location: SosLocation
+    ): Result<Unit> = repo.sendLocationUpdate(clientTriggerId, trackingSessionId, location)
+}
+
+/**
+ * Fetches a page of the user's past SOS alerts (`pinch-alert-history`). Drives
+ * the SOS History screen; pass the prior response's `next_cursor` back as
+ * [cursor] to page.
+ */
+class FetchSosHistoryUseCase(private val repo: SosRepository) {
+    suspend operator fun invoke(
+        limit: Int = 20,
+        festivalId: String? = null,
+        cursor: String? = null
+    ): Result<com.faster.festival.data.sos.remote.PinchAlertHistoryResponse> =
+        repo.fetchAlertHistory(limit = limit, festivalId = festivalId, cursor = cursor)
 }

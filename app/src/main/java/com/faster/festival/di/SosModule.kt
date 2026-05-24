@@ -24,9 +24,13 @@ import com.faster.festival.data.sos.TestAttestationProvider
 import com.faster.festival.data.sos.local.DeviceIdentityStore
 import com.faster.festival.data.sos.remote.SosApiService
 import com.faster.festival.data.sos.remote.SosNetworkClient
+import com.faster.festival.domain.sos.CancelPinchSOSUseCase
+import com.faster.festival.domain.sos.FetchSosHistoryUseCase
 import com.faster.festival.domain.sos.PollSOSStatusUseCase
 import com.faster.festival.domain.sos.RegisterDeviceUseCase
+import com.faster.festival.domain.sos.SendLocationUpdateUseCase
 import com.faster.festival.domain.sos.SosRepository
+import com.faster.festival.domain.sos.SubmitPinchDetailsUseCase
 import com.faster.festival.domain.sos.TriggerSOSUseCase
 import com.faster.festival.domain.sos.VerifyAttestationUseCase
 import com.faster.festival.presentation.sos.SOSSetupManager
@@ -148,6 +152,10 @@ object SosModule {
     val verifyAttestation get() = VerifyAttestationUseCase(repository)
     val triggerSos get() = TriggerSOSUseCase(repository)
     val pollStatus get() = PollSOSStatusUseCase(repository)
+    val submitPinchDetails get() = SubmitPinchDetailsUseCase(repository)
+    val cancelPinchSos get() = CancelPinchSOSUseCase(repository)
+    val sendLocationUpdate get() = SendLocationUpdateUseCase(repository)
+    val fetchSosHistory get() = FetchSosHistoryUseCase(repository)
 
     // ─── presentation ──────────────────────────────────────────────────────
 
@@ -182,6 +190,9 @@ object SosModule {
             appContext = ctx,
             triggerSos = triggerSos,
             pollStatus = pollStatus,
+            submitDetailsUseCase = submitPinchDetails,
+            cancelPinch = cancelPinchSos,
+            sendLocation = sendLocationUpdate,
             locationProvider = locationProvider,
             pairedWristbandRepo = DatabaseModule.wristbandRepository,
             wristbandAck = wristbandAck,

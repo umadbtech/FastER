@@ -6,7 +6,6 @@ import com.faster.festival.data.local.EncryptedSessionManager
 import com.faster.festival.di.DatabaseModule
 import com.faster.festival.di.NetworkModule
 import com.faster.festival.di.NotificationModule
-import com.faster.festival.di.PinchModule
 import com.faster.festival.di.SosModule
 import com.faster.festival.di.TelemetryModule
 import com.faster.festival.notifications.NotificationChannelHelper
@@ -47,8 +46,6 @@ class FASTERApplication : Application() {
 
         runCatching { NetworkModule.initializeWithSessionManager(sessionManager ?: EncryptedSessionManager(applicationContext)) }
             .onFailure { Log.e(TAG, "NetworkModule init failed", it) }
-        runCatching { PinchModule.initialize(applicationContext) }
-            .onFailure { Log.e(TAG, "PinchModule init failed", it) }
         runCatching { NotificationModule.initialize(applicationContext) }
             .onFailure { Log.e(TAG, "NotificationModule init failed", it) }
         runCatching { DatabaseModule.initialize(applicationContext) }
@@ -61,12 +58,8 @@ class FASTERApplication : Application() {
         }.onFailure { Log.e(TAG, "ConnectivityModule init failed", it) }
 
         // Wristband / BLE Mesh module.
-        // REAL BLE Mesh in every build (debug AND release). The simulated
-        // FakeMeshManager is engineering-only: an engineer must set
-        // WristbandModule.useFakeMesh = true in a DEBUG build BEFORE first
-        // access, and even then the release guard in WristbandModule.meshManager
-        // makes it unreachable in production. We deliberately do NOT auto-enable
-        // fake pairing here so debug builds exercise the real provisioning path.
+        // REAL Nordic-backed BLE Mesh in every build (debug AND release). There
+        // is no simulated mesh path — provisioning always exercises real hardware.
         runCatching {
             com.faster.festival.wristband.di.WristbandModule.initialize(applicationContext)
         }.onFailure { Log.e(TAG, "WristbandModule init failed", it) }

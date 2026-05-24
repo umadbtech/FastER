@@ -41,13 +41,13 @@ class WristbandMeshRepositoryImpl(
         .map { it.event }
 
     /**
-     * The Room row is the user-facing mirror — written ONLY when provisioning
-     * actually finishes successfully. The walkthrough's simulated success no
-     * longer touches Room (see ProvisionViewModel).
+     * The Room row is the user-facing mirror — written ONLY when real
+     * provisioning finishes successfully. The walkthrough UI never touches Room
+     * (see ProvisionViewModel).
      *
-     * For [FakeMeshManager], the unicast lookup falls back to the default
-     * starting address so the row still gets written and the FASTER screen
-     * flips into "paired" mode.
+     * The unicast is whatever the Nordic mesh assigned during provisioning; if
+     * the store has not captured it yet we fall back to the default starting
+     * address so the FASTER screen still flips into "paired" mode.
      */
     override fun pairNewWristband(): Flow<ProvisioningProgress> =
         mesh.provision().onEach { p ->

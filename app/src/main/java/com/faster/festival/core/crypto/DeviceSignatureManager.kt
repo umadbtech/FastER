@@ -76,6 +76,26 @@ class DeviceSignatureManager(
         payload = payload
     )
 
+    /**
+     * Sibling for `POST /pinch-alert-details`. The body shape varies per detail
+     * kind (phone / medical / incident / location), so callers typically pass a
+     * `kotlinx.serialization.json.JsonObject` built with only the present keys —
+     * [CanonicalJson] serializes it to the EXACT byte string that is hashed and
+     * signed.
+     */
+    inline fun <reified T> signPinchAlertDetails(
+        deviceId: String,
+        nonce: String,
+        timestamp: String,
+        payload: T
+    ): SignedRequest = signFor(
+        path = "/pinch-alert-details",
+        deviceId = deviceId,
+        nonce = nonce,
+        timestamp = timestamp,
+        payload = payload
+    )
+
     @PublishedApi
     internal inline fun <reified T> signFor(
         path: String,
@@ -110,6 +130,9 @@ class DeviceSignatureManager(
             deviceId, nonce, timestamp, bodySha256Hex
         )
         "/pinch-update-location" -> canonicalSigner.signPinchUpdateLocation(
+            deviceId, nonce, timestamp, bodySha256Hex
+        )
+        "/pinch-alert-details" -> canonicalSigner.signPinchAlertDetails(
             deviceId, nonce, timestamp, bodySha256Hex
         )
         else -> error("Unsupported path for DeviceSignatureManager: $path")

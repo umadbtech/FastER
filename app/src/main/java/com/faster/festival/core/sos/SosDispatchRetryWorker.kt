@@ -98,7 +98,9 @@ class SosDispatchRetryWorker(
                 manager.onDispatchAcknowledged(
                     clientTriggerId = handle.clientTriggerId,
                     alertId = handle.alertId,
-                    initialStatus = handle.initialStatus
+                    initialStatus = handle.initialStatus,
+                    trackingSessionId = handle.trackingSessionId,
+                    initialUiStatus = handle.initialUiStatus
                 )
                 Result.success()
             },

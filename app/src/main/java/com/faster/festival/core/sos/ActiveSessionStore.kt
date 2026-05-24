@@ -70,21 +70,28 @@ class ActiveSessionStore(private val context: Context) {
             p[Keys.SOURCE] = session.sourceTag
             p[Keys.FESTIVAL_ID] = session.festivalId
             p[Keys.STARTED_AT] = session.startedAtEpochMs
-            session.wristbandEvent?.let { wb ->
+            // NB: use plain if/else, not `?.let{} ?: p.remove()`. `remove()`
+            // returns the removed value, and on an absent Long key that's null —
+            // putting it in elvis position made Kotlin unbox it (longValue() on
+            // null), which crashed every first save before any ids existed.
+            val wb = session.wristbandEvent
+            if (wb != null) {
                 p[Keys.WRISTBAND_EVENT_ID] = wb.eventId
                 p[Keys.WRISTBAND_RETRY_COUNT] = wb.retryCount.toLong()
                 p[Keys.WRISTBAND_BATTERY] = wb.batteryPct.toLong()
                 p[Keys.WRISTBAND_UPTIME_MS] = wb.deviceUptimeMs
-            } ?: run {
+            } else {
                 p.remove(Keys.WRISTBAND_EVENT_ID)
                 p.remove(Keys.WRISTBAND_RETRY_COUNT)
                 p.remove(Keys.WRISTBAND_BATTERY)
                 p.remove(Keys.WRISTBAND_UPTIME_MS)
             }
-            session.trackingSessionId?.let { p[Keys.TRACKING_SESSION_ID] = it }
-                ?: p.remove(Keys.TRACKING_SESSION_ID)
-            session.alertId?.let { p[Keys.ALERT_ID] = it }
-                ?: p.remove(Keys.ALERT_ID)
+            val tsid = session.trackingSessionId
+            if (tsid != null) p[Keys.TRACKING_SESSION_ID] = tsid
+            else p.remove(Keys.TRACKING_SESSION_ID)
+            val aid = session.alertId
+            if (aid != null) p[Keys.ALERT_ID] = aid
+            else p.remove(Keys.ALERT_ID)
         }
     }
 

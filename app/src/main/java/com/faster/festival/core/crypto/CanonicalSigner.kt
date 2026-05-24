@@ -62,6 +62,23 @@ class CanonicalSigner(private val keyManager: Ed25519KeyManager) {
         bodySha256Hex = bodySha256Hex
     )
 
+    /**
+     * Sibling for `POST /pinch-alert-details` — the signed partial-details
+     * submit (phone / medical info / what-happened / manual location).
+     */
+    fun signPinchAlertDetails(
+        deviceId: String,
+        nonce: String,
+        timestamp: String,
+        bodySha256Hex: String
+    ): Canonical = signForPath(
+        path = "/pinch-alert-details",
+        deviceId = deviceId,
+        nonce = nonce,
+        timestamp = timestamp,
+        bodySha256Hex = bodySha256Hex
+    )
+
     private fun signForPath(
         path: String,
         deviceId: String,

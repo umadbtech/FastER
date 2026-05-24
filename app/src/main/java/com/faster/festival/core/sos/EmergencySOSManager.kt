@@ -8,8 +8,13 @@ import com.faster.festival.data.repository.local.WristbandRepository
 import com.faster.festival.data.sos.SosLocationProvider
 import com.faster.festival.data.sos.remote.SosLocation
 import com.faster.festival.data.sos.remote.WristbandInfo
+import com.faster.festival.domain.sos.CancelPinchSOSUseCase
+import com.faster.festival.domain.sos.PinchAlertDetail
+import com.faster.festival.domain.sos.PinchUiStatus
 import com.faster.festival.domain.sos.PollSOSStatusUseCase
+import com.faster.festival.domain.sos.SendLocationUpdateUseCase
 import com.faster.festival.domain.sos.SosUserStatus
+import com.faster.festival.domain.sos.SubmitPinchDetailsUseCase
 import com.faster.festival.domain.sos.TriggerSOSUseCase
 import java.time.Instant
 import java.time.format.DateTimeFormatter
@@ -54,6 +59,9 @@ class EmergencySOSManager(
     private val appContext: Context,
     private val triggerSos: TriggerSOSUseCase,
     private val pollStatus: PollSOSStatusUseCase,
+    private val submitDetailsUseCase: SubmitPinchDetailsUseCase,
+    private val cancelPinch: CancelPinchSOSUseCase,
+    private val sendLocation: SendLocationUpdateUseCase,
     private val locationProvider: SosLocationProvider,
     private val pairedWristbandRepo: WristbandRepository,
     private val wristbandAck: WristbandAckManager,
@@ -111,7 +119,10 @@ class EmergencySOSManager(
                         session = saved,
                         userStatus = SosUserStatus.SosReceived,
                         responderName = null,
-                        etaMinutes = null
+                        etaMinutes = null,
+                        uiStatus = PinchUiStatus.fromRaw(saved.lastUiStatus)
+                            .takeIf { it != PinchUiStatus.Unknown }
+                            ?: PinchUiStatus.AlertReceived
                     )
                     startPolling(saved)
                 }
@@ -208,7 +219,7 @@ class EmergencySOSManager(
         deduplicator.forget(eventId)
     }
 
-    /** UI-driven cancel (user dismisses overlay etc.). */
+    /** UI-driven cancel (user dismisses overlay etc.) — immediate local close. */
     suspend fun cancelByUser() {
         mutex.withLock {
             val s = currentSession() ?: return
@@ -216,6 +227,76 @@ class EmergencySOSManager(
                 s.clientTriggerId.takeLast(8))
             endSession(EmergencySOSState.Cancelled(s))
         }
+    }
+
+    /**
+     * New Pinch-flow cancel: POST `pinch-cancel` then KEEP polling. The
+     * authoritative terminal (`ui_status=CANCELLED`) arrives via the poll loop —
+     * we never assume the cancel succeeded. Optimistically shows CANCEL_REQUESTED;
+     * reverts on failure and returns the [Result] so the UI can offer a retry.
+     * The `client_request_id` is generated once and reused on retry for dedup.
+     */
+    suspend fun requestUserCancel(reason: String = "User cancelled from mobile"): Result<Unit> {
+        val active = _state.value as? EmergencySOSState.Active
+            ?: return Result.failure(IllegalStateException("No active SOS to cancel"))
+        val alertId = active.session.alertId
+            ?: return Result.failure(IllegalStateException("Alert id not assigned yet — try again"))
+        val cancelId = active.session.cancelRequestId ?: NonceGenerator.newCancelRequestId()
+        val updatedSession = active.session.copy(cancelRequestId = cancelId)
+        persist(updatedSession)
+        // Optimistic — the poll loop confirms with the real ui_status.
+        _state.value = active.copy(
+            session = updatedSession,
+            uiStatus = PinchUiStatus.CancelRequested
+        )
+        Timber.tag(TAG).i("pinch-cancel request — alert=%s", alertId.takeLast(8))
+        return cancelPinch(alertId, cancelId, reason).map { ui ->
+            (_state.value as? EmergencySOSState.Active)?.let { cur ->
+                _state.value = cur.copy(
+                    uiStatus = ui.takeIf { it != PinchUiStatus.Unknown }
+                        ?: PinchUiStatus.CancelRequested
+                )
+            }
+            Unit
+        }.onFailure { e ->
+            Timber.tag(TAG).w(e, "pinch-cancel failed — reverting optimistic CANCEL_REQUESTED")
+            (_state.value as? EmergencySOSState.Active)?.let { cur ->
+                _state.value = cur.copy(uiStatus = active.uiStatus)
+            }
+        }
+    }
+
+    /**
+     * Submit one signed partial-details update (`pinch-alert-details`) for the
+     * active alert. [clientUpdateId] is generated once per user action by the
+     * caller and reused on retry for dedup. Returns the [Result] so the UI can
+     * show per-sheet success / failure.
+     */
+    suspend fun submitDetails(
+        detail: PinchAlertDetail,
+        clientUpdateId: String
+    ): Result<Unit> {
+        val alertId = (_state.value as? EmergencySOSState.Active)?.session?.alertId
+            ?: return Result.failure(IllegalStateException("No active alert for details submit"))
+        return submitDetailsUseCase(alertId, detail, clientUpdateId)
+    }
+
+    /**
+     * On-demand signed location push for the "My current location" action.
+     * Requires a `tracking_session_id` (assigned at ingest) and a real GPS fix.
+     */
+    suspend fun pushCurrentLocationNow(): Result<Unit> {
+        val active = _state.value as? EmergencySOSState.Active
+            ?: return Result.failure(IllegalStateException("No active SOS"))
+        val trackingId = active.session.trackingSessionId
+            ?: return Result.failure(IllegalStateException("Tracking session not assigned yet"))
+        val fix = locationProvider.currentFix()
+            ?: return Result.failure(IllegalStateException("No GPS fix available"))
+        return sendLocation(
+            clientTriggerId = active.session.clientTriggerId,
+            trackingSessionId = trackingId,
+            location = SosLocation(fix.latitude, fix.longitude, fix.accuracy.toInt())
+        )
     }
 
     /**
@@ -228,7 +309,8 @@ class EmergencySOSManager(
         if (wb != null) wristbandAck.responderDispatchedOnce(wb.eventId, etaMinutes)
         _state.value = current.copy(
             userStatus = SosUserStatus.ResponderEnRoute,
-            etaMinutes = etaMinutes
+            etaMinutes = etaMinutes,
+            uiStatus = PinchUiStatus.HelpOnTheWay
         )
     }
 
@@ -273,9 +355,15 @@ class EmergencySOSManager(
         )
         result.fold(
             onSuccess = { handle ->
-                // Persist the alert_id before transitioning so process death
-                // mid-handler doesn't undo the dispatch acknowledgement.
-                val ackedSession = session.copy(alertId = handle.alertId)
+                // Persist the alert_id + tracking_session_id + ui_status before
+                // transitioning so process death mid-handler doesn't undo the
+                // dispatch acknowledgement, and the FG location emitter can fire
+                // immediately (tracking id now arrives WITH the ingest response).
+                val ackedSession = session.copy(
+                    alertId = handle.alertId,
+                    trackingSessionId = handle.trackingSessionId ?: session.trackingSessionId,
+                    lastUiStatus = handle.initialUiStatus.raw
+                )
                 persist(ackedSession)
                 _state.value = EmergencySOSState.Active(
                     session = ackedSession,
@@ -283,7 +371,8 @@ class EmergencySOSManager(
                         .takeIf { it != SosUserStatus.Unknown }
                         ?: SosUserStatus.SosReceived,
                     responderName = null,
-                    etaMinutes = null
+                    etaMinutes = null,
+                    uiStatus = handle.initialUiStatus
                 )
                 startPolling(ackedSession)
                 // Fire-and-forget Project 1 audit POST — never blocks the SOS
@@ -312,7 +401,9 @@ class EmergencySOSManager(
     fun onDispatchAcknowledged(
         clientTriggerId: String,
         alertId: String?,
-        initialStatus: SosUserStatus
+        initialStatus: SosUserStatus,
+        trackingSessionId: String? = null,
+        initialUiStatus: PinchUiStatus = PinchUiStatus.AlertReceived
     ) {
         scope.launch {
             mutex.withLock {
@@ -325,7 +416,11 @@ class EmergencySOSManager(
                     )
                     return@withLock
                 }
-                val acked = cur.copy(alertId = alertId)
+                val acked = cur.copy(
+                    alertId = alertId,
+                    trackingSessionId = trackingSessionId ?: cur.trackingSessionId,
+                    lastUiStatus = initialUiStatus.raw
+                )
                 persist(acked)
                 _state.value = EmergencySOSState.Active(
                     session = acked,
@@ -333,7 +428,8 @@ class EmergencySOSManager(
                         .takeIf { it != SosUserStatus.Unknown }
                         ?: SosUserStatus.SosReceived,
                     responderName = null,
-                    etaMinutes = null
+                    etaMinutes = null,
+                    uiStatus = initialUiStatus
                 )
                 startPolling(acked)
                 Timber.tag(TAG).i(
@@ -419,12 +515,14 @@ class EmergencySOSManager(
         pollingJob?.cancel()
         var current = session
         pollingJob = scope.launch {
-            pollStatus(session.clientTriggerId).collectLatest { alert ->
+            // Poll by alert id when known (new contract keys status on the alert
+            // id), falling back to client_trigger_id pre-ack.
+            pollStatus(session.alertId, session.clientTriggerId).collectLatest { alert ->
                 val status = SosUserStatus.fromRaw(alert.userStatus)
+                val ui = PinchUiStatus.fromRaw(alert.uiStatus)
 
-                // Capture tracking_session_id the first time the backend
-                // hands it to us — the foreground-service location emitter
-                // gates on this value.
+                // Late tracking_session_id (older views may still send it) —
+                // the FG location emitter gates on this value.
                 val newTrackingId = alert.trackingSessionId
                 if (!newTrackingId.isNullOrBlank() &&
                     current.trackingSessionId != newTrackingId
@@ -434,13 +532,30 @@ class EmergencySOSManager(
                     Timber.tag(TAG).i("tracking_session_id received — %s", newTrackingId)
                 }
 
-                if (status.isTerminal) {
+                // Persist ui_status transitions so a relaunch restores the right
+                // stage (skip disk churn when unchanged).
+                if (ui != PinchUiStatus.Unknown && current.lastUiStatus != ui.raw) {
+                    current = current.copy(lastUiStatus = ui.raw)
+                    persist(current)
+                }
+
+                // ui_status is authoritative for terminal routing.
+                val terminalUi = ui.isTerminal
+                if (terminalUi || status.isTerminal) {
                     mutex.withLock {
                         endSession(
-                            if (status == SosUserStatus.CancelledByUser)
-                                EmergencySOSState.Cancelled(current)
-                            else
-                                EmergencySOSState.Resolved(current, status)
+                            when {
+                                ui == PinchUiStatus.Cancelled ||
+                                    status == SosUserStatus.CancelledByUser ->
+                                    EmergencySOSState.Cancelled(current)
+                                ui == PinchUiStatus.Rejected ->
+                                    EmergencySOSState.Resolved(current, SosUserStatus.Rejected)
+                                else ->
+                                    EmergencySOSState.Resolved(
+                                        current,
+                                        status.takeIf { it.isTerminal } ?: SosUserStatus.Resolved
+                                    )
+                            }
                         )
                     }
                 } else {
@@ -448,7 +563,11 @@ class EmergencySOSManager(
                         session = current,
                         userStatus = status,
                         responderName = alert.responderName,
-                        etaMinutes = alert.etaMinutes
+                        etaMinutes = alert.etaMinutes,
+                        uiStatus = ui.takeIf { it != PinchUiStatus.Unknown }
+                            ?: PinchUiStatus.AlertReceived,
+                        etaLabel = alert.etaLabel,
+                        responderMessage = alert.responderMessage
                     )
                 }
             }
