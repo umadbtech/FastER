@@ -1,5 +1,6 @@
 package com.faster.festival.core.sos
 
+import com.faster.festival.domain.sos.PinchUiStatus
 import com.faster.festival.domain.sos.SosUserStatus
 
 /** What started an active SOS — wristband button or in-app "Get Medical Help". */
@@ -38,7 +39,17 @@ data class ActiveSOSSession(
      *
      * Persisted so process-death-during-dispatch can be reconciled on launch.
      */
-    val alertId: String? = null
+    val alertId: String? = null,
+    /**
+     * Last backend `ui_status` (raw). Persisted so a relaunch restores the live
+     * screen at the right stage before the first poll lands.
+     */
+    val lastUiStatus: String? = null,
+    /**
+     * Idempotency key for `pinch-cancel`. Generated once when the user first
+     * taps Cancel and reused on retry so the backend dedups duplicate cancels.
+     */
+    val cancelRequestId: String? = null
 ) {
     val sourceTag: String
         get() = when (source) {
@@ -79,7 +90,13 @@ sealed class EmergencySOSState {
         val session: ActiveSOSSession,
         val userStatus: SosUserStatus,
         val responderName: String?,
-        val etaMinutes: Int?
+        val etaMinutes: Int?,
+        /** Backend-driven UI state — what the live Pinch screen renders from. */
+        val uiStatus: PinchUiStatus = PinchUiStatus.AlertReceived,
+        /** Human ETA banner from `eta.label` (e.g. "Arrives between 12:31-12:36"). */
+        val etaLabel: String? = null,
+        /** Responder status line from `responder.message`. */
+        val responderMessage: String? = null
     ) : EmergencySOSState()
 
     /** Server-side terminal state (RESOLVED / CLOSED / REJECTED). */

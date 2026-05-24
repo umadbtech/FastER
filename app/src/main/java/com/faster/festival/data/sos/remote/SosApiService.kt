@@ -52,16 +52,42 @@ interface SosApiService {
     /**
      * Polls the dispatch status for an in-flight SOS.
      *
-     * `view=answer_call` returns the dispatcher-call payload (responder name,
-     * ETA, status text) — the variant the in-app SOS overlay renders.
-     * Other views (e.g. `view=responder_track`) exist server-side but aren't
-     * consumed by the mobile client today.
+     * Preferred lookup is by `id` (the alert id). `client_trigger_id` is the
+     * fallback used before the alert id is known (e.g. a re-dispatch still
+     * pending). `view=help_on_the_way` returns the live-tracking payload the new
+     * Pinch SOS screen renders (`ui_status`, `responder`, `eta`, `cancellation`).
+     * Both query keys are nullable so callers pass exactly one.
      */
     @GET("functions/v1/pinch-alert-status")
     suspend fun pinchAlertStatus(
-        @Query("client_trigger_id") clientTriggerId: String,
-        @Query("view") view: String = "answer_call"
+        @Query("id") alertId: String? = null,
+        @Query("client_trigger_id") clientTriggerId: String? = null,
+        @Query("view") view: String = "help_on_the_way"
     ): SosStatusResponse
+
+    /**
+     * Signed partial-details submit (phone / medical info / what-happened /
+     * manual location). Same Ed25519 envelope as [pinchIngest]: [body] is the
+     * EXACT pre-serialized JSON byte string that was hashed and signed.
+     */
+    @POST("functions/v1/pinch-alert-details")
+    suspend fun pinchAlertDetails(
+        @Header("x-device-signature") signature: String,
+        @Header("x-device-signature-alg") signatureAlg: String,
+        @Header("x-device-body-sha256") bodySha256: String,
+        @Body body: RequestBody
+    ): AlertDetailsResponse
+
+    /**
+     * UNSIGNED cancel — `apikey` + Bearer only (no `x-device-signature*`).
+     * After this the client keeps polling [pinchAlertStatus] and renders the
+     * exact `ui_status` (CANCEL_REQUESTED → CANCELLED / CANCEL_DENIED).
+     */
+    @POST("functions/v1/pinch-cancel")
+    @Headers("Content-Type: application/json")
+    suspend fun pinchCancel(
+        @Body body: CancelRequest
+    ): CancelResponse
 
     /**
      * Periodic GPS push — same signing envelope as [pinchIngest]. Body is the
@@ -75,4 +101,17 @@ interface SosApiService {
         @Header("x-device-body-sha256") bodySha256: String,
         @Body body: RequestBody
     ): LocationUpdateResponse
+
+    /**
+     * UNSIGNED list of the user's past SOS alerts — `apikey` + Bearer only
+     * (auth scopes the rows to this user). Cursor-paginated: pass the prior
+     * response's `next_cursor` back as [cursor]. [festivalId] optionally
+     * filters to a single festival.
+     */
+    @GET("functions/v1/pinch-alert-history")
+    suspend fun pinchAlertHistory(
+        @Query("limit") limit: Int = 20,
+        @Query("festival_id") festivalId: String? = null,
+        @Query("cursor") cursor: String? = null
+    ): PinchAlertHistoryResponse
 }

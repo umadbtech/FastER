@@ -44,18 +44,17 @@ data class PairedWristband(
  * wristband is currently active. Backed by Room/SQLite so data survives
  * process death and app reinstalls.
  *
- * `activeWristband` filters out legacy v1 rows where unicastAddress is null
- * (i.e. rows written by the simulated walkthrough before the real BLE Mesh
- * stack landed). Those rows are intentionally invisible to the UI so users
- * are not auto-routed to the dashboard / reconnect for a fake pairing.
+ * `activeWristband` filters out legacy v1 rows where unicastAddress is null.
+ * Such rows could only have been written by a prior app version; they are
+ * intentionally invisible to the UI so users on upgraded installs are never
+ * auto-routed to the dashboard / reconnect for a row without a real unicast.
  */
 class WristbandRepository(
     private val dao: WristbandDao,
     /**
      * Project 1 backend surface for wristband CRUD / heartbeat / telemetry
-     * batch. Optional so unit tests and the existing simulated walkthrough
-     * keep working with local-only state; the orchestration layer (DI)
-     * injects the real service in production.
+     * batch. Optional so unit tests keep working with local-only state; the
+     * orchestration layer (DI) injects the real service in production.
      */
     private val remote: Project1ApiService? = null
 ) {

@@ -7,9 +7,14 @@ import com.faster.festival.data.sos.SosLocationProvider
 import com.faster.festival.data.sos.remote.SosAlert
 import com.faster.festival.data.sos.remote.SosLocation
 import com.faster.festival.data.sos.remote.WristbandInfo
+import com.faster.festival.domain.sos.CancelPinchSOSUseCase
+import com.faster.festival.domain.sos.PinchAlertDetail
+import com.faster.festival.domain.sos.PinchUiStatus
 import com.faster.festival.domain.sos.PollSOSStatusUseCase
+import com.faster.festival.domain.sos.SendLocationUpdateUseCase
 import com.faster.festival.domain.sos.SosRepository
 import com.faster.festival.domain.sos.SosUserStatus
+import com.faster.festival.domain.sos.SubmitPinchDetailsUseCase
 import com.faster.festival.domain.sos.TriggerHandle
 import com.faster.festival.domain.sos.TriggerSOSUseCase
 import com.faster.festival.wristband.domain.repository.WristbandMeshRepository
@@ -79,11 +84,41 @@ class EmergencySOSManagerTest {
             location: SosLocation
         ): Result<Unit> = Result.success(Unit)
 
-        override suspend fun pollStatus(clientTriggerId: String): Result<SosAlert?> {
+        override suspend fun pollStatus(
+            alertId: String?,
+            clientTriggerId: String?
+        ): Result<SosAlert?> {
             val alert = pollQueue.getOrNull(pollIndex) ?: pollQueue.lastOrNull()
             pollIndex++
             return Result.success(alert)
         }
+
+        var detailsCallCount = 0
+        override suspend fun sendAlertDetails(
+            alertId: String,
+            detail: PinchAlertDetail,
+            clientUpdateId: String
+        ): Result<Unit> {
+            detailsCallCount++
+            return Result.success(Unit)
+        }
+
+        var cancelCallCount = 0
+        override suspend fun cancelSos(
+            alertId: String,
+            clientRequestId: String,
+            reason: String
+        ): Result<PinchUiStatus> {
+            cancelCallCount++
+            return Result.success(PinchUiStatus.CancelRequested)
+        }
+
+        override suspend fun fetchAlertHistory(
+            limit: Int,
+            festivalId: String?,
+            cursor: String?
+        ): Result<com.faster.festival.data.sos.remote.PinchAlertHistoryResponse> =
+            Result.success(com.faster.festival.data.sos.remote.PinchAlertHistoryResponse())
     }
 
     private fun wristbandMeshRepo(): WristbandMeshRepository = mockk(relaxed = true)
@@ -109,6 +144,9 @@ class EmergencySOSManagerTest {
         appContext = io.mockk.mockk(relaxed = true),
         triggerSos = TriggerSOSUseCase(repo),
         pollStatus = PollSOSStatusUseCase(repo),
+        submitDetailsUseCase = SubmitPinchDetailsUseCase(repo),
+        cancelPinch = CancelPinchSOSUseCase(repo),
+        sendLocation = SendLocationUpdateUseCase(repo),
         locationProvider = locationProvider(),
         pairedWristbandRepo = pairedRepoNoPair(),
         wristbandAck = WristbandAckManager(wristbandRepo),

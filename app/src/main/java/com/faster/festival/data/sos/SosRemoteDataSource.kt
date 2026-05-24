@@ -1,6 +1,7 @@
 package com.faster.festival.data.sos
 
 import com.faster.festival.data.sos.remote.AttestationExpiredException
+import com.faster.festival.data.sos.remote.DeviceRegistrationRequiredException
 import com.faster.festival.data.sos.remote.LocationUpdateResponse
 import com.faster.festival.data.sos.remote.RegisterDeviceRequest
 import com.faster.festival.data.sos.remote.RegisterDeviceResponse
@@ -55,9 +56,41 @@ class SosRemoteDataSource(
         )
     }.recoverCatching { throw it.translateOrPassthrough("pinch-ingest") }
 
-    suspend fun pinchAlertStatus(clientTriggerId: String): Result<SosStatusResponse> =
-        runCatching { project2Api.pinchAlertStatus(clientTriggerId) }
-            .recoverCatching { throw it.translateOrPassthrough("pinch-alert-status") }
+    /**
+     * Polls by `id` (alert id) when available, else by `client_trigger_id`.
+     * Always uses `view=help_on_the_way` so the response carries the live
+     * `ui_status` / `responder` / `eta` block.
+     */
+    suspend fun pinchAlertStatus(
+        alertId: String?,
+        clientTriggerId: String?
+    ): Result<SosStatusResponse> =
+        runCatching {
+            project2Api.pinchAlertStatus(
+                alertId = alertId,
+                clientTriggerId = if (alertId.isNullOrBlank()) clientTriggerId else null
+            )
+        }.recoverCatching { throw it.translateOrPassthrough("pinch-alert-status") }
+
+    suspend fun pinchAlertDetails(
+        rawJson: String,
+        signatureB64: String,
+        bodySha256Hex: String
+    ): Result<com.faster.festival.data.sos.remote.AlertDetailsResponse> = runCatching {
+        val body = rawJson.toRequestBody(JSON_MEDIA)
+        project2Api.pinchAlertDetails(
+            signature = signatureB64,
+            signatureAlg = "ed25519",
+            bodySha256 = bodySha256Hex,
+            body = body
+        )
+    }.recoverCatching { throw it.translateOrPassthrough("pinch-alert-details") }
+
+    suspend fun pinchCancel(
+        req: com.faster.festival.data.sos.remote.CancelRequest
+    ): Result<com.faster.festival.data.sos.remote.CancelResponse> =
+        runCatching { project2Api.pinchCancel(req) }
+            .recoverCatching { throw it.translateOrPassthrough("pinch-cancel") }
 
     suspend fun pinchUpdateLocation(
         rawJson: String,
@@ -72,6 +105,16 @@ class SosRemoteDataSource(
             body = body
         )
     }.recoverCatching { throw it.translateOrPassthrough("pinch-update-location") }
+
+    /** Unsigned list of the user's past SOS alerts (`pinch-alert-history`). */
+    suspend fun pinchAlertHistory(
+        limit: Int,
+        festivalId: String?,
+        cursor: String?
+    ): Result<com.faster.festival.data.sos.remote.PinchAlertHistoryResponse> =
+        runCatching {
+            project2Api.pinchAlertHistory(limit = limit, festivalId = festivalId, cursor = cursor)
+        }.recoverCatching { throw it.translateOrPassthrough("pinch-alert-history") }
 
     /**
      * Translates a raw transport/HTTP failure into a richer typed exception
@@ -119,6 +162,17 @@ class SosRemoteDataSource(
             )
         }
 
+        if (http.code() == 403 && errorBody != null && isRegistrationRequired(errorBody)) {
+            Timber.tag(TAG).w(
+                "%s — device-registration-required marker detected; signaling auto re-register",
+                endpoint
+            )
+            return DeviceRegistrationRequiredException(
+                backendMessage = errorBody.take(200),
+                cause = http
+            )
+        }
+
         return this
     }
 
@@ -131,6 +185,19 @@ class SosRemoteDataSource(
         val lc = body.lowercase()
         if ("attestation" !in lc) return false
         return "expir" in lc
+    }
+
+    private fun isRegistrationRequired(body: String): Boolean {
+        // Project 2 emits this when our cached device_id is unknown / inactive:
+        //   {"error":"Active SOS device registration is required"}
+        // Keep tolerant ("device registration required", "register device",
+        // "registration is required") so a phrasing tweak doesn't break the
+        // auto re-register recovery. Excludes the attestation-expired case,
+        // which is handled separately above.
+        val lc = body.lowercase()
+        if ("attestation" in lc) return false
+        if ("registration" in lc) return true
+        return "register" in lc && "device" in lc
     }
 
     private companion object {

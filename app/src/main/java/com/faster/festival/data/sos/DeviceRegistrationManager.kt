@@ -148,6 +148,23 @@ class DeviceRegistrationManager(
     }
 
     /**
+     * Re-registration recovery — the backend no longer recognizes our cached
+     * `device_id` (Project 2 returned "Active SOS device registration is
+     * required"). Drops the stale device identity + attestation flag (keeping
+     * the Ed25519 signing key — its public key is re-sent at register) and runs
+     * a fresh [bootstrap] so `sos-register-device` + `sos-verify-attestation`
+     * execute again and the backend marks the device active.
+     *
+     * Distinct from [reattest] (which reuses the existing device_id for a TTL
+     * refresh) and [reset] (which also wipes the signing key).
+     */
+    suspend fun reregister(): BootstrapResult {
+        Timber.tag(TAG).i("reregister: dropping stale device identity and re-bootstrapping")
+        identityStore.clear()
+        return bootstrap()
+    }
+
+    /**
      * Hard reset — clears device id, attestation state, AND the Ed25519 key.
      * Forces full re-registration on next bootstrap.
      */

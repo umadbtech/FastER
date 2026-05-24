@@ -22,10 +22,12 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sos
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -33,6 +35,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -68,6 +71,7 @@ fun SosHistoryListScreen(
     onItemClick: (Long) -> Unit
 ) {
     val records by viewModel.history.collectAsState()
+    val state by viewModel.uiState.collectAsState()
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -87,27 +91,72 @@ fun SosHistoryListScreen(
                         )
                     }
                 },
+                actions = {
+                    IconButton(onClick = { viewModel.refresh() }, enabled = !state.isLoading) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             )
         }
     ) { innerPadding ->
-        if (records.isEmpty()) {
-            EmptySosHistory(modifier = Modifier.padding(innerPadding))
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(records, key = { it.id }) { record ->
-                    SosHistoryCard(
-                        record = record,
-                        onClick = { onItemClick(record.id) }
-                    )
+        when {
+            records.isEmpty() && state.isLoading -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+
+            records.isEmpty() -> {
+                EmptySosHistory(modifier = Modifier.padding(innerPadding))
+            }
+
+            else -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (state.error != null) {
+                        item(key = "error") {
+                            Text(
+                                text = "Couldn't refresh — showing saved history.",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                    items(records, key = { it.id }) { record ->
+                        SosHistoryCard(
+                            record = record,
+                            onClick = { onItemClick(record.id) }
+                        )
+                    }
+                    if (state.hasMore) {
+                        item(key = "load_more") {
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (state.isLoadingMore) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                } else {
+                                    TextButton(onClick = { viewModel.loadMore() }) {
+                                        Text("Load more")
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

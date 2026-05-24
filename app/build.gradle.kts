@@ -41,7 +41,6 @@ val googleMapsApiKey: String = envConfig["GOOGLE_MAPS_API_KEY"] ?: ""
 val project2SosUrl: String = envConfig["PROJECT2_SOS_URL"] ?: ""
 val project2SosAnonKey: String = envConfig["PROJECT2_SOS_ANON_KEY"] ?: ""
 val sosAllowTestAttestation: String = envConfig["SOS_ALLOW_TEST_ATTESTATION"] ?: "false"
-val useTestLocation: String = envConfig["USE_TEST_LOCATION"] ?: "false"
 
 // Detect whether the build should use the real Supabase client libraries
 val useRealSupabase: Boolean = project.hasProperty("useRealSupabase") && project.property("useRealSupabase") == "true"
@@ -68,11 +67,8 @@ android {
             "SOS_ALLOW_TEST_ATTESTATION",
             sosAllowTestAttestation.equals("true", ignoreCase = true).toString()
         )
-        buildConfigField(
-            "boolean",
-            "USE_TEST_LOCATION",
-            useTestLocation.equals("true", ignoreCase = true).toString()
-        )
+        // NOTE: there is intentionally no test/mock-location build flag. SOS
+        // location is real-GPS-only in every build (see SosLocationProvider).
 
         // Google Maps API key for map rendering
         manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = googleMapsApiKey

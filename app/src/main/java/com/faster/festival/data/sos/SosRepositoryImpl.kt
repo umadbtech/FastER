@@ -5,15 +5,24 @@ import com.faster.festival.core.crypto.DeviceSignatureManager
 import com.faster.festival.core.crypto.NonceGenerator
 import com.faster.festival.data.sos.local.DeviceIdentityStore
 import com.faster.festival.data.sos.remote.AttestationExpiredException
+import com.faster.festival.data.sos.remote.CancelRequest
+import com.faster.festival.data.sos.remote.DeviceRegistrationRequiredException
 import com.faster.festival.data.sos.remote.DeviceContext
 import com.faster.festival.data.sos.remote.LocationUpdateRequest
 import com.faster.festival.data.sos.remote.SosAlert
 import com.faster.festival.data.sos.remote.SosLocation
 import com.faster.festival.data.sos.remote.SosTriggerRequest
 import com.faster.festival.data.sos.remote.WristbandInfo
+import com.faster.festival.domain.sos.PinchAlertDetail
+import com.faster.festival.domain.sos.PinchUiStatus
 import com.faster.festival.domain.sos.SosRepository
 import com.faster.festival.domain.sos.SosUserStatus
 import com.faster.festival.domain.sos.TriggerHandle
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -66,12 +75,13 @@ class SosRepositoryImpl(
         val timestamp = Instant.now().let { DateTimeFormatter.ISO_INSTANT.format(it) }
 
         // Per spec the `location` block is always present in the payload.
-        // SosLocationProvider is the sole owner of "what coordinate to send"
-        // — it returns the staging mock when `USE_TEST_LOCATION` is enabled
-        // and a real FLP fix otherwise. If the caller still hands us `null`
-        // here (production GPS truly unavailable + last-known unavailable),
-        // we send a 0,0 sentinel that dispatch can detect as "fix missing"
-        // — never a hardcoded test coordinate.
+        // SosLocationProvider is the sole owner of "what coordinate to send" —
+        // it returns a real, validated FLP fix or nothing at all (there is no
+        // mock/test path in any build). If the caller hands us `null` here
+        // (GPS truly unavailable: no permission, services off, or only a
+        // stale/invalid fix), we send the 0,0 sentinel that dispatch can detect
+        // as "fix missing" so the emergency still goes through — never a
+        // fabricated or hardcoded coordinate.
         if (location == null) {
             Timber.tag(TAG).w(
                 "No location fix available — sending 0,0 sentinel for trigger=%s",
@@ -132,13 +142,36 @@ class SosRepositoryImpl(
                 return Result.failure(err)
             }
         }
+        if (err is DeviceRegistrationRequiredException && !recoveryAttempted) {
+            Timber.tag(TAG).w(
+                "pinch-ingest 403 device registration required — auto re-registering | trigger=%s",
+                clientTriggerId.takeLast(8)
+            )
+            val rereg = deviceRegistration.reregister()
+            if (rereg is DeviceRegistrationManager.BootstrapResult.Ready) {
+                Timber.tag(TAG).i("Re-registration succeeded — retrying pinch-ingest once")
+                return triggerSosInternal(
+                    clientTriggerId = clientTriggerId,
+                    festivalId = festivalId,
+                    location = location,
+                    wristband = wristband,
+                    recoveryAttempted = true
+                )
+            } else {
+                val cause = (rereg as? DeviceRegistrationManager.BootstrapResult.Failed)?.cause
+                Timber.tag(TAG).e(cause, "Re-registration FAILED — surfacing original 403")
+                return Result.failure(err)
+            }
+        }
         return result.fold(
             onSuccess = { resp ->
                 Result.success(
                     TriggerHandle(
                         clientTriggerId = clientTriggerId,
                         alertId = resp.alertId,
-                        initialStatus = SosUserStatus.fromRaw(resp.status)
+                        initialStatus = SosUserStatus.fromRaw(resp.status),
+                        trackingSessionId = resp.trackingSessionId,
+                        initialUiStatus = PinchUiStatus.fromRaw(resp.uiStatus)
                     )
                 )
             },
@@ -146,10 +179,11 @@ class SosRepositoryImpl(
         )
     }
 
-    override suspend fun pollStatus(clientTriggerId: String): Result<SosAlert?> =
-        // Backend response is FLAT — no `alert` wrapper. The full
-        // SosStatusResponse IS the alert (SosAlert is a typealias).
-        remote.pinchAlertStatus(clientTriggerId).map { it as SosAlert? }
+    override suspend fun pollStatus(
+        alertId: String?,
+        clientTriggerId: String?
+    ): Result<SosAlert?> =
+        remote.pinchAlertStatus(alertId, clientTriggerId).map { it as SosAlert? }
 
     override suspend fun sendLocationUpdate(
         clientTriggerId: String,
@@ -172,16 +206,11 @@ class SosRepositoryImpl(
         val timestamp = Instant.now().let { DateTimeFormatter.ISO_INSTANT.format(it) }
 
         val payload = LocationUpdateRequest(
-            clientTriggerId = clientTriggerId,
             trackingSessionId = trackingSessionId,
             deviceId = deviceId,
             nonce = nonce,
             timestamp = timestamp,
-            location = location,
-            deviceContext = DeviceContext(
-                appVersion = appVersion,
-                sentAt = timestamp
-            )
+            location = location
         )
 
         val signed = signatureManager.signPinchUpdateLocation(
@@ -219,8 +248,127 @@ class SosRepositoryImpl(
                 return Result.failure(err)
             }
         }
+        if (err is DeviceRegistrationRequiredException && !recoveryAttempted) {
+            Timber.tag(TAG).w(
+                "pinch-update-location 403 device registration required — auto re-registering | trigger=%s",
+                clientTriggerId.takeLast(8)
+            )
+            val rereg = deviceRegistration.reregister()
+            if (rereg is DeviceRegistrationManager.BootstrapResult.Ready) {
+                return sendLocationUpdateInternal(
+                    clientTriggerId, trackingSessionId, location, recoveryAttempted = true
+                )
+            }
+            return Result.failure(err)
+        }
         return result.map { Unit }
     }
+
+    // ─── pinch-alert-details (signed partial update) ────────────────────────
+
+    override suspend fun sendAlertDetails(
+        alertId: String,
+        detail: PinchAlertDetail,
+        clientUpdateId: String
+    ): Result<Unit> =
+        sendAlertDetailsInternal(alertId, detail, clientUpdateId, recoveryAttempted = false)
+
+    private suspend fun sendAlertDetailsInternal(
+        alertId: String,
+        detail: PinchAlertDetail,
+        clientUpdateId: String,
+        recoveryAttempted: Boolean
+    ): Result<Unit> {
+        val deviceId = identityStore.deviceId()
+            ?: return Result.failure(
+                IllegalStateException("SOS device not registered — call bootstrap() first")
+            )
+        val nonce = NonceGenerator.newNonce()
+        val timestamp = Instant.now().let { DateTimeFormatter.ISO_INSTANT.format(it) }
+
+        // Build ONLY the keys the contract specifies for this detail kind so the
+        // signed byte string matches exactly (no null padding).
+        val payload = buildJsonObject {
+            put("alert_id", alertId)
+            put("client_update_id", clientUpdateId)
+            put("device_id", deviceId)
+            put("nonce", nonce)
+            put("timestamp", timestamp)
+            when (detail) {
+                is PinchAlertDetail.Phone -> {
+                    put("contact_phone_e164", detail.phoneE164)
+                    put("contact_phone_source", detail.source)
+                }
+                is PinchAlertDetail.Medical -> putJsonObject("details") {
+                    putJsonArray("medical_info") { detail.medicalInfo.forEach { add(it) } }
+                }
+                is PinchAlertDetail.Incident -> {
+                    putJsonArray("emergency_categories") { detail.categories.forEach { add(it) } }
+                    detail.severityHint?.let { put("severity_hint", it) }
+                    detail.additionalNotes?.let { put("additional_notes", it) }
+                }
+                PinchAlertDetail.IncidentDeclined -> put("additional_notes_declined", true)
+                is PinchAlertDetail.LocationChoice -> {
+                    put("location_choice", detail.choice)
+                    put("location_description", detail.description)
+                }
+            }
+        }
+
+        val signed = signatureManager.signPinchAlertDetails(
+            deviceId = deviceId,
+            nonce = nonce,
+            timestamp = timestamp,
+            payload = payload
+        )
+
+        Timber.tag(TAG).d(
+            "pinch-alert-details send | kind=%s alert=%s update=%s",
+            detail.kind, alertId.takeLast(8), clientUpdateId.takeLast(8)
+        )
+
+        val result = remote.pinchAlertDetails(
+            rawJson = signed.rawJson,
+            signatureB64 = signed.signatureBase64,
+            bodySha256Hex = signed.bodySha256Hex
+        )
+        val err = result.exceptionOrNull()
+        if (err is AttestationExpiredException && !recoveryAttempted) {
+            val reattest = deviceRegistration.reattest()
+            if (reattest is DeviceRegistrationManager.BootstrapResult.Ready) {
+                return sendAlertDetailsInternal(alertId, detail, clientUpdateId, recoveryAttempted = true)
+            }
+            return Result.failure(err)
+        }
+        if (err is DeviceRegistrationRequiredException && !recoveryAttempted) {
+            val rereg = deviceRegistration.reregister()
+            if (rereg is DeviceRegistrationManager.BootstrapResult.Ready) {
+                return sendAlertDetailsInternal(alertId, detail, clientUpdateId, recoveryAttempted = true)
+            }
+            return Result.failure(err)
+        }
+        return result.map { Unit }
+    }
+
+    // ─── pinch-cancel (unsigned) ────────────────────────────────────────────
+
+    override suspend fun cancelSos(
+        alertId: String,
+        clientRequestId: String,
+        reason: String
+    ): Result<PinchUiStatus> =
+        remote.pinchCancel(
+            CancelRequest(alertId = alertId, clientRequestId = clientRequestId, reason = reason)
+        ).map { PinchUiStatus.fromRaw(it.uiStatus) }
+
+    // ─── pinch-alert-history (unsigned) ─────────────────────────────────────
+
+    override suspend fun fetchAlertHistory(
+        limit: Int,
+        festivalId: String?,
+        cursor: String?
+    ): Result<com.faster.festival.data.sos.remote.PinchAlertHistoryResponse> =
+        remote.pinchAlertHistory(limit = limit, festivalId = festivalId, cursor = cursor)
 
     override suspend fun resetTrustedDevice() = deviceRegistration.reset()
 
@@ -228,12 +376,13 @@ class SosRepositoryImpl(
         const val TAG = "SosRepository"
 
         /**
-         * "GPS unavailable" sentinel — production builds where the device
-         * genuinely couldn't get a fix (no permission, location services
-         * disabled, indoors with no last-known). Dispatch can detect 0,0
-         * and treat the case explicitly. Test coordinates are NOT used
-         * here — those live exclusively inside [SosLocationProvider] behind
-         * the `USE_TEST_LOCATION` build flag.
+         * "GPS unavailable" sentinel — used only when the device genuinely
+         * couldn't produce a valid fix (no permission, location services
+         * disabled, or indoors with no recent last-known). Dispatch detects 0,0
+         * and treats the case explicitly. This is an honest "unknown" marker,
+         * NOT a fake coordinate: there is no mock/test/hardcoded location path
+         * anywhere — [SosLocationProvider] only ever returns real, validated
+         * GPS or `null`.
          */
         val GPS_UNAVAILABLE_SENTINEL = SosLocation(
             latitude = 0.0,
